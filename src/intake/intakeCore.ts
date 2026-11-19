@@ -1,0 +1,68 @@
+import { extractPdfText, type PdfExtractionInput, type PdfReader } from './pdfExtractor';
+import { structureProfile, type StructurerModel } from './profileStructurer';
+import type { MasterProfileStore } from './masterProfileStore';
+import { compileMasterProfile, invalidateDerivedData } from './profileCompiler';
+import type { IntakeOutcome, ProfileConflict, ProfileImportMode, ProfileImportSource } from './types';
+
+export interface ImportResumeInput {
+  file: PdfExtractionInput;
+  mode: ProfileImportMode;
+  source: ProfileImportSource;
+}
+
+export interface ImportResumeDeps {
+  reader: PdfReader;
+  model: StructurerModel;
+  store: MasterProfileStore;
+}
+
+export interface ImportResumeResult {
+  outcome: IntakeOutcome;
+  draftPath?: string;
+  alert?: string;
+  conflicts?: ProfileConflict[];
+}
+
+export interface ApproveResult {
+  activated: true;
+  cacheInvalidated: boolean;
+  scoresToRecalculate: boolean;
+}
+
+/**
+ * Orquestrador da ingestão (doc 13 §13.2): PDF → extração → estruturação →
+ * rascunho pendente de revisão. Documento sem texto legível não gera rascunho
+ * e nunca chama o modelo.
+ */
+export async function importResume(
+  input: ImportResumeInput,
+  deps: ImportResumeDeps,
+): Promise<ImportResumeResult> {
+  const extraction = await extractPdfText(input.file, { reader: deps.reader });
+
+  if (!extraction.hasTextLayer) {
+    return {
+      outcome: 'UNREADABLE_DOCUMENT',
+      alert: 'Documento sem camada de texto legível (PDF digitalizado ou corrompido). Nenhum dado foi gerado — converta para um PDF com texto e tente novamente.',
+    };
+  }
+
+  const profile = await structureProfile({ documentText: extraction.text }, { model: deps.model });
+
+  // Em MERGE, o perfil ativo compilado serve de base para soma e conflitos
+  let base;
+  if (input.mode === 'MERGE') {
+    const active = await deps.store.getActiveProfileMarkdown();
+    if (active) base = compileMasterProfile(active).profile;
+  }
+
+  const { draftPath, conflicts } = await deps.store.saveDraft(profile, { mode: input.mode, base });
+  return { outcome: 'DRAFT_PENDING_REVIEW', draftPath, conflicts };
+}
+
+/** Aprovação humana: promove o rascunho e invalida os dados derivados. */
+export async function approveProfileDraft(deps: { store: MasterProfileStore }): Promise<ApproveResult> {
+  const promoted = await deps.store.promoteDraft();
+  const invalidation = invalidateDerivedData();
+  return { activated: promoted.activated, ...invalidation };
+}
