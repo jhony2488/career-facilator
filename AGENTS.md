@@ -4,7 +4,7 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** fase de especificação. Não há código-fonte ainda — apenas `docs/` (arquitetura) e `feature/` (cenários BDD). A implementação seguirá o roadmap em `docs/pt-BR/12-roadmap.md`.
+**Estado atual:** especificação + implementação inicial de `src/` — todos os módulos testados existem e as 27 suites passam (145 testes). Deps externas reais (LLM providers, Playwright, SMTP) seguem injetáveis/stub.
 
 ## Onde encontrar as coisas
 
@@ -14,6 +14,7 @@
 | `docs/en/` | Mesma especificação traduzida para inglês |
 | `feature/*.feature` | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo |
 | `feature/DECISOES.md` | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar** |
+| `src/` | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `db/`, `tracker/`, `generator/`, `cli/` |
 
 ## Convenções do projeto
 
@@ -47,11 +48,11 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **27 suites** derivadas dos `.feature`
-- Testes importam de `../src/` (ainda inexistente → não compilam; TDD intencional)
-- **Contratos provisórios** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **27 suites** derivadas dos `.feature`, todas verdes
+- **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes
-- Comandos: `npm run test:unit|test:integration|test:e2e` (após `npm install` + `src/` existir)
+- Comandos: `npm run test:unit|test:integration|test:e2e` · `npx tsc --noEmit` deve ficar limpo
+- `domCleaner` usa `node-html-parser` + `turndown` (CJS) — **não** reintroduzir `jsdom` (deps ESM-only quebram o Jest)
 
 ## Verificação
 

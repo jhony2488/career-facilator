@@ -68,6 +68,7 @@ The user may also edit `profile.master.md` directly — the next run recompiles 
 - **Summary** — professional title and short pitch
 - **Experience** — role, company, period, responsibilities and metrics
 - **Projects** — name, stack, measurable outcome
+- **Open Source Projects** — name, repository, contribution, measurable outcome
 - **Skills** — stacks, languages, certifications
 - **Education** — course, institution, period
 - **Standard answers** — reusable blocks for common free-text questions
