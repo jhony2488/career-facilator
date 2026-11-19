@@ -1,0 +1,48 @@
+# language: pt
+Funcionalidade: Detecção de bloqueios e escalonamento para intervenção humana
+  Como o mecanismo de segurança do CareerFacilator AI
+  Eu quero escalar bloqueios que exigem ação humana em vez de falhar ou inventar dados
+  Para que nenhuma candidatura saia com informação incorreta ou fique travada silenciosamente
+
+  Contexto:
+    Dado que uma candidatura está em execução automatizada no navegador
+
+  Cenário: Escalonar ao detectar verificação anti-robô
+    Dado que a página exibe um desafio de verificação anti-robô
+    Quando o sistema detecta o desafio
+    Então a candidatura muda para "NEEDS_HUMAN_INPUT"
+    E o usuário é alertado para resolver o desafio manualmente
+
+  Cenário: Escalonar ao detectar código de verificação por e-mail
+    Dado que o fluxo exige um código de verificação enviado por e-mail
+    Quando o sistema identifica a etapa de verificação
+    Então a candidatura muda para "NEEDS_HUMAN_INPUT"
+    E o estado atual da página é preservado para retomada após a verificação
+
+  Cenário: Escalonar ao encontrar campo obrigatório desconhecido
+    Dado que o formulário contém um campo obrigatório sem mapeamento nem resposta gerada
+    Quando o sistema tenta completar a etapa
+    Então nenhum dado é inventado para o campo
+    E a candidatura muda para "NEEDS_HUMAN_INPUT" com o motivo registrado
+
+  Cenário: Preservar o progresso ao escalonar
+    Dado que a candidatura foi escalonada para "NEEDS_HUMAN_INPUT"
+    Quando o escalonamento ocorre
+    Então os campos já preenchidos e o estado da sessão são preservados
+    E a candidatura entra na lista de pendências manuais do usuário
+
+  Cenário: Retomar o fluxo após resolução humana
+    Dado que uma candidatura escalonada teve o bloqueio resolvido pelo usuário
+    Quando o usuário sinaliza a continuação
+    Então o fluxo é retomado do ponto em que parou
+    E a candidatura segue para revisão ou envio conforme o modo ativo
+
+  Cenário: Notificar o usuário sobre candidaturas pendentes de ação
+    Dado que uma ou mais candidaturas estão em "NEEDS_HUMAN_INPUT"
+    Quando o ciclo de execução apresenta o resumo ao usuário
+    Então as pendências são listadas com o motivo do escalonamento de cada uma
+
+# Ambiguidade: a spec não define tempo máximo de espera por intervenção humana
+# nem se a aba do navegador permanece aberta ou é restaurada de um estado salvo.
+# Ambiguidade: não está definido se falhas repetidas de escalonamento na mesma
+# plataforma geram algum bloqueio/adaptação de comportamento (circuit breaker).
