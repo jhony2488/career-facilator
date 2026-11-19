@@ -1,0 +1,11 @@
+# Normaliza finais de linha: LF no repositório, independente do OS.
+* text=auto eol=lf
+
+# Binários — nunca normalizar
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.db binary
+*.sqlite binary
+*.session binary
