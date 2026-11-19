@@ -2,7 +2,12 @@ import { extractPdfText, type PdfExtractionInput, type PdfReader } from './pdfEx
 import { structureProfile, type StructurerModel } from './profileStructurer';
 import type { MasterProfileStore } from './masterProfileStore';
 import { compileMasterProfile, invalidateDerivedData } from './profileCompiler';
-import type { IntakeOutcome, ProfileConflict, ProfileImportMode, ProfileImportSource } from './types';
+import type {
+  IntakeOutcome,
+  ProfileConflict,
+  ProfileImportMode,
+  ProfileImportSource,
+} from './types';
 
 export interface ImportResumeInput {
   file: PdfExtractionInput;
@@ -43,7 +48,8 @@ export async function importResume(
   if (!extraction.hasTextLayer) {
     return {
       outcome: 'UNREADABLE_DOCUMENT',
-      alert: 'Documento sem camada de texto legível (PDF digitalizado ou corrompido). Nenhum dado foi gerado — converta para um PDF com texto e tente novamente.',
+      alert:
+        'Documento sem camada de texto legível (PDF digitalizado ou corrompido). Nenhum dado foi gerado — converta para um PDF com texto e tente novamente.',
     };
   }
 
@@ -61,7 +67,9 @@ export async function importResume(
 }
 
 /** Aprovação humana: promove o rascunho e invalida os dados derivados. */
-export async function approveProfileDraft(deps: { store: MasterProfileStore }): Promise<ApproveResult> {
+export async function approveProfileDraft(deps: {
+  store: MasterProfileStore;
+}): Promise<ApproveResult> {
   const promoted = await deps.store.promoteDraft();
   const invalidation = invalidateDerivedData();
   return { activated: promoted.activated, ...invalidation };

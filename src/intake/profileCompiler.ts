@@ -59,9 +59,17 @@ export function compileMasterProfile(markdown: string): CompileResult {
     github: clean(personal['github']),
     portfolio: clean(personal['portfólio'] ?? personal['portfolio']),
     summary: clean(section(markdown, /## Resumo\b/i).split('\n')[0]),
-    seniorityYears: parseNumber(skillsBullets['anos de experiência'] ?? skillsBullets['anos de experiencia']),
-    salaryExpectationBRL: parseCurrency(personal['pretensão salarial'] ?? personal['pretensao salarial'], /r\$\s*([\d.,]+)/i),
-    salaryExpectationUSD: parseCurrency(personal['pretensão salarial'] ?? personal['pretensao salarial'], /usd\s*([\d.,]+)/i),
+    seniorityYears: parseNumber(
+      skillsBullets['anos de experiência'] ?? skillsBullets['anos de experiencia'],
+    ),
+    salaryExpectationBRL: parseCurrency(
+      personal['pretensão salarial'] ?? personal['pretensao salarial'],
+      /r\$\s*([\d.,]+)/i,
+    ),
+    salaryExpectationUSD: parseCurrency(
+      personal['pretensão salarial'] ?? personal['pretensao salarial'],
+      /usd\s*([\d.,]+)/i,
+    ),
     coreStack: parseCsv(skillsBullets['stacks'] ?? skillsBullets['stack']),
     languages: parseCsv(skillsBullets['idiomas']),
     certifications: parseCsv(skillsBullets['certificações'] ?? skillsBullets['certificacoes']),
@@ -106,7 +114,10 @@ function parseCsv(raw: string | undefined): string[] {
   if (!raw) return [];
   return clean(raw) === NOT_INFORMED
     ? []
-    : raw.split(',').map((s) => s.trim()).filter(Boolean);
+    : raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 
 function parseNumber(raw: string | undefined): number {
@@ -129,7 +140,9 @@ function parseExperiences(body: string): MasterProfile['experiences'] {
   for (const line of body.split('\n')) {
     const h3 = line.match(/^###\s+(.+)$/);
     if (h3) {
-      const m = h3[1].match(/^(.*?)\s*—\s*(.*?)\s*\((.*)\)\s*$/) ?? h3[1].match(/^(.*?)\s*-\s*(.*?)\s*\((.*)\)\s*$/);
+      const m =
+        h3[1].match(/^(.*?)\s*—\s*(.*?)\s*\((.*)\)\s*$/) ??
+        h3[1].match(/^(.*?)\s*-\s*(.*?)\s*\((.*)\)\s*$/);
       current = m
         ? { role: m[1].trim(), company: m[2].trim(), period: m[3].trim(), highlights: [] }
         : { role: h3[1].trim(), company: NOT_INFORMED, period: NOT_INFORMED, highlights: [] };
@@ -137,7 +150,8 @@ function parseExperiences(body: string): MasterProfile['experiences'] {
       continue;
     }
     const bullet = line.match(/^-\s+(.+)$/);
-    if (bullet && current && bullet[1] !== '_NÃO_INFORMADO_') current.highlights.push(bullet[1].trim());
+    if (bullet && current && bullet[1] !== '_NÃO_INFORMADO_')
+      current.highlights.push(bullet[1].trim());
   }
   return out;
 }

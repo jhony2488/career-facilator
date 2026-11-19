@@ -43,28 +43,36 @@ export const MasterProfileSchema = z.object({
   summary: z.string(),
   coreStack: z.array(z.string()),
   seniorityYears: z.number().nullable(),
-  experiences: z.array(z.object({
-    role: z.string(),
-    company: z.string(),
-    period: z.string(),
-    highlights: z.array(z.string()),
-  })),
-  projects: z.array(z.object({
-    name: z.string(),
-    summary: z.string(),
-    metrics: z.array(z.string()),
-  })),
-  openSourceProjects: z.array(z.object({
-    name: z.string(),
-    repo: z.string(),
-    summary: z.string(),
-    metrics: z.array(z.string()),
-  })),
-  education: z.array(z.object({
-    course: z.string(),
-    institution: z.string(),
-    period: z.string(),
-  })),
+  experiences: z.array(
+    z.object({
+      role: z.string(),
+      company: z.string(),
+      period: z.string(),
+      highlights: z.array(z.string()),
+    }),
+  ),
+  projects: z.array(
+    z.object({
+      name: z.string(),
+      summary: z.string(),
+      metrics: z.array(z.string()),
+    }),
+  ),
+  openSourceProjects: z.array(
+    z.object({
+      name: z.string(),
+      repo: z.string(),
+      summary: z.string(),
+      metrics: z.array(z.string()),
+    }),
+  ),
+  education: z.array(
+    z.object({
+      course: z.string(),
+      institution: z.string(),
+      period: z.string(),
+    }),
+  ),
   languages: z.array(z.string()),
   certifications: z.array(z.string()),
   blockedKeywords: z.array(z.string()),
@@ -114,13 +122,9 @@ export async function structureProfile(
   input: { documentText: string },
   deps: { model: StructurerModel },
 ): Promise<ExtractedProfile> {
-  const prompt = [
-    ANTI_FABRICATION_RULE,
-    '',
-    '<document>',
-    input.documentText,
-    '</document>',
-  ].join('\n');
+  const prompt = [ANTI_FABRICATION_RULE, '', '<document>', input.documentText, '</document>'].join(
+    '\n',
+  );
 
   const raw = await deps.model.generate(prompt);
   return MasterProfileSchema.parse(raw);
