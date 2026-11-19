@@ -1,0 +1,45 @@
+# Reliability and Resilience Mechanisms
+
+Five mechanisms that close the end-to-end cycle: Discovery → Geographic Filter → Deduplication → Optimized Triage → Skills → PDF Generation → Multi-Step Filling → Safe Escalation → Response Tracking.
+
+## 1. Session, Authentication and Rate-Limit Management (`src/scraper/sessionVault.ts`)
+
+**The problem:** Portals such as LinkedIn, Gupy and Workday require login (or create temporary accounts during the application) and block bots that make requests too quickly.
+
+**What to add:**
+
+- Encrypted persistence of cookies and Playwright `storageState` (integrated into the AES-256-GCM vault).
+- **Jittered Queue (Random Delay):** Limit execution to at most 1 application every 3 to 8 minutes with random variation, simulating real human behavior.
+
+## 2. Multi-Step Form (Wizards) and Shadow DOM Handling (`src/autofill/wizardNavigator.ts`)
+
+**The problem:** Platforms such as Workday, Gupy and Taleo do not have a single "Submit" button — they split registration into 4 to 6 consecutive screens (Personal Data → Experience → Questions → Review) and use Shadow DOM or iframes.
+
+**What to add:**
+
+- A step navigation loop that fills the current screen, clicks "Next", waits for the DOM transition, validates that no red required-field error message has appeared and repeats until reaching the final review/submit screen.
+
+## 3. Blocker Detection and Human Escalation (`src/core/escalationHandler.ts`)
+
+**The problem:** Even in FULL_AUTO mode, the system will encounter CAPTCHAs (Cloudflare Turnstile, reCAPTCHA), e-mail code verification (Workday account-creation 2FA) or essay questions not covered by the resume.
+
+**What to add:**
+
+- When the bot detects a CAPTCHA, e-mail OTP or unknown required field, it does not fail or invent data: it changes the job status to `NEEDS_HUMAN_INPUT`, saves the tab state and fires an alert on the HUD/notification so you can apply manually.
+
+## 4. Post-Application Tracker and Feedback Loop (`src/tracker/outcomeMonitor.ts`)
+
+**The problem:** Sending 100 resumes is useless without knowing which resume version or which Skill is converting into interviews.
+
+**What to add:**
+
+- Optional inbox reading (via IMAP/Gmail API) filtering only senders from applied companies to automatically update the status in SQLite (`APPLIED` → `REJECTED`, `ASSESSMENT_INVITED` or `INTERVIEW`).
+- Conversion metric per Skill and Fit Score (e.g.: discovering that jobs where you activate the `ai-engineer` skill get 3x more responses than generic `fullstack-ts`).
+
+## 5. Dry-Run Module (Safe Simulation)
+
+**What to add:** A `--dry-run` flag in the CLI that runs the entire funnel (search, deduplication, Fit Score calculation, skill activation, tailored PDF generation and page field mapping), but **does not click Submit**, allowing you to calibrate the Fit Score scale (85% vs 88%) before turning on FULL_AUTO mode for the first time.
+
+---
+
+« [Previous: Configuration](09-configuration.md) | [Index](README.md) | [Next: Email Application →](11-email-application.md)
