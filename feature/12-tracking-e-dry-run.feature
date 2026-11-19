@@ -52,9 +52,19 @@ Funcionalidade: Rastreamento pós-candidatura, feedback loop e modo de simulaç�
     Então é possível identificar quais skills contribuíram para entrevistas
     E ajustar suas regras com base nesse histórico
 
-# Ambiguidade: a leitura da caixa de entrada é "opcional" na spec — não está
-# definido se o monitoramento é ativado por padrão nem quais permissões/escopos
-# de acesso ao e-mail são exigidos.
-# Ambiguidade: a classificação automática de respostas (rejeição vs. entrevista
-# vs. teste) depende de IA ou heurística; o mecanismo e a confiança mínima para
-# mudar status automaticamente não estão definidos.
+  Cenário: Monitoramento de retorno desligado por padrão até ativação do usuário
+    Dado que o monitoramento de e-mail nunca foi habilitado pelo usuário
+    Quando uma execução ocorre
+    Então nenhuma leitura de caixa de entrada é realizada
+    E o acesso solicitado é somente leitura quando o recurso é ativado
+
+  Cenário: Resposta com classificação incerta não muda o status
+    Dado que o monitoramento de retorno está habilitado
+    Quando uma resposta é classificada abaixo da confiança mínima
+    Então o status da candidatura não é alterado automaticamente
+    E a mensagem é sinalizada para conferência do usuário
+
+# Decisão: monitoramento de e-mail é opt-in com acesso somente leitura
+# (IMAP/Gmail read-only).
+# Decisão: classificação usa heurística primeiro e LLM leve para casos
+# ambíguos; confiança mínima 0.8 para mudar status automaticamente.

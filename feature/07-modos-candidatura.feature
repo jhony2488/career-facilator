@@ -64,7 +64,13 @@ Funcionalidade: Modos de candidatura e régua de autonomia
     Então nenhum envio é realizado
     E a decisão fica registrada no histórico da vaga
 
-# Ambiguidade: a spec cita travas "ex: ≥85%" no texto de FULL_AUTO mas o exemplo
-# de configuração usa 88 — o valor default oficial do limiar está pendente.
-# Ambiguidade: não está definido o que acontece quando o usuário abandona a
-# revisão por tempo indeterminado (a candidatura expira? é reenfileirada?).
+  Cenário: Candidatura abandonada em revisão expira após o prazo configurado
+    Dado que uma candidatura está com status "READY_TO_REVIEW"
+    E que o prazo máximo de espera por revisão foi ultrapassado
+    Quando a verificação de expiração é executada
+    Então a candidatura é marcada como "SKIPPED" por expiração
+    E o motivo fica registrado no histórico da vaga
+
+# Decisão: o default oficial de minScoreForFullAuto é 88.
+# Decisão: candidatura em READY_TO_REVIEW expira após reviewExpirationDays
+# (default 7 dias) → SKIPPED com motivo registrado.

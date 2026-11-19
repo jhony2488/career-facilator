@@ -73,9 +73,26 @@ Funcionalidade: Ingestão de perfil a partir de currículos em PDF
     Então nenhuma habilidade ou experiência inexistente é adicionada
     E somente o conteúdo do perfil-mestre ativo é utilizado
 
-# Ambiguidade: a spec não define confiança mínima da extração — se trechos
-# reconhecidos com baixa confiança entram no rascunho marcados ou são omitidos.
-# Ambiguidade: não está definida a granularidade do histórico de versões
-# (a cada aprovação? a cada importação? com limite de retenção?).
-# Ambiguidade: não está definido o efeito da atualização do perfil sobre
-# candidaturas já em "TAILORED" ou "READY_TO_REVIEW" geradas com a versão antiga.
+  Cenário: Trecho extraído com baixa confiança entra marcado no rascunho
+    Dado que um trecho do documento foi extraído com confiança insuficiente
+    Quando o rascunho é gerado
+    Então o trecho aparece marcado como de baixa confiança para revisão
+    E o usuário decide mantê-lo ou removê-lo na aprovação
+
+  Cenário: Aprovação gera snapshot da versão anterior no histórico
+    Dado que existe um perfil-mestre ativo e um rascunho aprovado
+    Quando a aprovação é executada
+    Então um snapshot da versão anterior é gravado no histórico
+    E cada aprovação gera um novo snapshot
+
+  Cenário: Perfil atualizado regenera materiais de candidaturas pendentes
+    Dado que existem candidaturas com status "TAILORED" ou "READY_TO_REVIEW"
+    Quando um novo perfil-mestre é aprovado
+    Então os materiais dessas candidaturas são regenerados com o perfil novo
+    E os Fit Scores pendentes são recalculados
+
+# Decisão: trechos extraídos com baixa confiança entram no rascunho marcados
+# para revisão — o usuário decide na aprovação.
+# Decisão: o histórico guarda um snapshot por aprovação.
+# Decisão: perfil atualizado regenera materiais de TAILORED/READY_TO_REVIEW e
+# recalcula Fit Scores pendentes (alinhado a 03-triagem-fit-score).

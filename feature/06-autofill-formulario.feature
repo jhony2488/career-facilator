@@ -57,8 +57,20 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
     Então o fluxo pausa antes da ação de envio definitivo
     E o status muda para "READY_TO_REVIEW"
 
-# Ambiguidade: a spec não define o comportamento quando um campo padronizado está
-# ausente do perfil (ex: usuário sem pretensão salarial configurada) — se preenche
-# vazio, escala para humano ou usa valor padrão.
-# Ambiguidade: não há critério para distinguir "pergunta dissertativa conhecida"
-# (respondida por respostas padrão em cache) de "inédita" (requer nova geração).
+  Cenário: Campo padronizado ausente no perfil usa valor padrão configurado
+    Dado que o formulário contém um campo padronizado sem dado correspondente no perfil
+    E que existe um valor padrão configurado para aquele campo
+    Quando o preenchimento é executado
+    Então o campo é preenchido com o valor padrão configurado
+    E nenhuma chamada de IA é feita para aquele campo
+
+  Cenário: Pergunta similar a uma já respondida reusa a resposta em cache
+    Dado que a pergunta dissertativa tem alta similaridade com uma pergunta já respondida
+    Quando o preenchimento é executado
+    Então a resposta em cache é utilizada
+    E nenhuma nova geração é acionada para aquela pergunta
+
+# Decisão: campo padronizado ausente no perfil usa o valor padrão configurável
+# (fieldDefaults).
+# Decisão: "pergunta conhecida" = similaridade de texto de pelo menos 90% com uma
+# pergunta já respondida em cache.

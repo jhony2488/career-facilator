@@ -61,15 +61,25 @@ Funcionalidade: Triagem de vagas e cálculo de Fit Score
     Dado que a vaga passou pela filtragem determinística
     Quando o modelo leve de triagem falha ou excede o tempo limite
     Então a vaga não avança no funil
-    E a falha é registrada para reprocessamento posterior
+    E um provedor de fallback é acionado para nova tentativa
+
+  Cenário: Falha de todos os provedores de triagem escala a vaga para intervenção
+    Dado que todos os modelos de triagem estão indisponíveis
+    Quando a triagem da vaga é tentada
+    Então a vaga muda para "NEEDS_HUMAN_INPUT"
+    E a falha é registrada
+
+  Cenário: Atualização do perfil recalcula scores de vagas pendentes
+    Dado que existem vagas com status "TRIAGED" e "TAILORED"
+    Quando o perfil-mestre é atualizado
+    Então os Fit Scores dessas vagas são recalculados com o perfil novo
 
   Cenário: Vaga aprovada gera sugestão de título profissional para o currículo
     Dado que a triagem retornou Fit Score aprovado para a vaga
     Quando a avaliação estruturada é produzida
     Então ela contém uma sugestão de título profissional adequado para sistemas ATS
 
-# Ambiguidade: a spec menciona fallback de modelos (Ollama → Groq/Flash-Lite) mas
-# não define quantas tentativas ou se a vaga fica em fila de retry com status
-# próprio quando todos os provedores falham.
-# Ambiguidade: não está definido se o Fit Score é recalculado quando o perfil
-# mestre é atualizado após a triagem.
+# Decisão: fallback de modelos local → nuvem; falha total de todos os provedores
+# → NEEDS_HUMAN_INPUT.
+# Decisão: atualização do perfil-mestre recalcula os Fit Scores das vagas em
+# TRIAGED e TAILORED.

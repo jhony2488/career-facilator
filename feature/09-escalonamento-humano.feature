@@ -42,7 +42,20 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Quando o ciclo de execução apresenta o resumo ao usuário
     Então as pendências são listadas com o motivo do escalonamento de cada uma
 
-# Ambiguidade: a spec não define tempo máximo de espera por intervenção humana
-# nem se a aba do navegador permanece aberta ou é restaurada de um estado salvo.
-# Ambiguidade: não está definido se falhas repetidas de escalonamento na mesma
-# plataforma geram algum bloqueio/adaptação de comportamento (circuit breaker).
+  Cenário: Timeout de espera humana serializa o estado para retomada
+    Dado que uma candidatura está em "NEEDS_HUMAN_INPUT"
+    Quando o tempo máximo de espera configurado é ultrapassado sem resolução
+    Então o estado da página é serializado e a aba é fechada
+    E a candidatura permanece na lista de pendências para retomada posterior
+
+  Cenário: Circuit breaker pausa plataforma após escalonamentos repetidos
+    Dado que a mesma plataforma acumulou o número máximo de escalonamentos do dia
+    Quando uma nova candidatura para essa plataforma é avaliada
+    Então a fonte é pausada até o dia seguinte
+    E as demais plataformas continuam processando normalmente
+
+# Decisão: a espera por intervenção humana tem timeout configurável
+# (escalationTimeoutMinutes, default 15 min); a aba é fechada e o estado
+# serializado para retomada posterior.
+# Decisão: circuit breaker — após maxEscalationsPerPlatformPerDay (default 3)
+# escalonamentos na mesma plataforma no dia, a fonte pausa até o dia seguinte.

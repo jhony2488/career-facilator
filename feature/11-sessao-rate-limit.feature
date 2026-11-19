@@ -41,8 +41,13 @@ Funcionalidade: Gestão de sessão, autenticação e limitação de ritmo
     Quando várias candidaturas são aprovadas para envio automático
     Então cada envio respeita o mesmo espaçamento variável da fila
 
-# Ambiguidade: a spec menciona integração do cofre a um "Monarch OS" externo —
-# no escopo standalone do CareerFacilator o mecanismo concreto do cofre
-# (arquivo local criptografado? gerenciador do SO?) está em aberto.
-# Ambiguidade: não há definição de comportamento quando a plataforma aplica
-# rate-limit do lado dela (erros 429 / captcha de velocidade) durante a fila.
+  Cenário: Rate-limit da plataforma pausa a fila daquela fonte
+    Dado que a plataforma sinaliza limitação de ritmo durante o processamento da fila
+    Quando o limite é detectado
+    Então a fila daquela fonte é pausada com espera crescente
+    E as demais fontes continuam processando normalmente
+
+# Decisão: o cofre é um arquivo local criptografado AES-256-GCM com senha-mestra
+# (sem dependência de sistema externo).
+# Decisão: rate-limit aplicado pela plataforma (429, desafio de velocidade)
+# pausa a fila daquela fonte com backoff exponencial; demais fontes seguem.
