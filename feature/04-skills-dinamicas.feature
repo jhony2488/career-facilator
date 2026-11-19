@@ -48,8 +48,13 @@ Funcionalidade: Seleção e injeção de skills dinâmicas
     Quando a seleção de skills é executada
     Então a skill de mercado internacional é ativada junto à skill técnica compatível
 
-# Ambiguidade: a spec não define o que acontece quando existem palavras-chave
-# relevantes mas nenhuma skill na biblioteca — se o sistema deve sugerir a criação
-# de uma nova skill ao usuário ou apenas seguir sem contexto extra.
-# Ambiguidade: o limite de 2 skills é citado como padrão; não está claro se é
-# configurável por execução ou fixo.
+  Cenário: Vaga sem skill correspondente segue o funil e sugere criação
+    Dado que a vaga retornou palavras-chave relevantes
+    E que nenhuma skill da biblioteca possui gatilhos para elas
+    Quando a seleção de skills é executada
+    Então a vaga segue o funil sem bloco de skills
+    E uma sugestão de nova skill é registrada para o usuário
+
+# Decisão: sem skill correspondente, a vaga segue sem contexto extra e a criação
+# de uma nova skill é sugerida ao usuário.
+# Decisão: o limite de skills por vaga é configurável (maxSkillsPerJob, default 2).

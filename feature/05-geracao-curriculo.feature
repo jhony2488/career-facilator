@@ -58,8 +58,19 @@ Funcionalidade: Geração de currículo adaptado e respostas dissertativas
     Então a candidatura não avança para "TAILORED"
     E a falha é registrada para nova tentativa
 
-# Ambiguidade: a spec não define o comportamento quando a resposta gerada para uma
-# pergunta dissertativa tem confiança baixa — se marca a vaga para revisão humana
-# ou se envia mesmo assim em modo FULL_AUTO.
-# Ambiguidade: não está especificado se o currículo base (sem adaptação) pode ser
-# usado como fallback quando a geração falha repetidamente.
+  Cenário: Resposta dissertativa com confiança baixa vai para revisão humana
+    Dado que a resposta gerada para uma pergunta dissertativa tem confiança insuficiente
+    Quando a avaliação de confiança é executada
+    Então a candidatura é direcionada para revisão humana
+    E a resposta incerta não é enviada mesmo em modo "FULL_AUTO"
+
+  Cenário: Retentativas esgotadas usam o currículo base como fallback
+    Dado que a geração adaptada falhou o número máximo de tentativas configurado
+    Quando o envio da candidatura é preparado
+    Então o currículo-mestre sem adaptação é usado como anexo
+    E a candidatura é sinalizada para revisão por uso de fallback
+
+# Decisão: resposta dissertativa com confiança baixa vai para revisão humana,
+# mesmo em FULL_AUTO — resposta incerta nunca é enviada.
+# Decisão: após esgotar as retentativas configuradas, o currículo-mestre puro é
+# usado como fallback com flag de revisão.

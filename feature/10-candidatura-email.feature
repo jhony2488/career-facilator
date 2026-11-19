@@ -80,7 +80,12 @@ Funcionalidade: Candidatura por e-mail quando não há formulário web
     Então uma nova tentativa é agendada
     E a candidatura não é marcada como enviada até a confirmação
 
-# Ambiguidade: a spec não define o número máximo de tentativas de reenvio nem o
-# destino da candidatura se todas falharem (NEEDS_HUMAN_INPUT? FAILED?).
-# Ambiguidade: não há regra para responder automaticamente a retornos do
-# recrutador no mesmo thread — o módulo cobre apenas o envio inicial.
+  Cenário: Esgotar as tentativas de envio escala a candidatura
+    Dado que o envio do e-mail falhou o número máximo de tentativas configurado
+    Quando a fila de envio processa a mensagem
+    Então a candidatura muda para "NEEDS_HUMAN_INPUT"
+    E as tentativas esgotadas ficam registradas no histórico
+
+# Decisão: máx. 3 tentativas de envio com backoff; esgotadas → NEEDS_HUMAN_INPUT.
+# Decisão: respostas do recrutador no mesmo thread estão fora de escopo — o
+# módulo cobre apenas o envio inicial e o monitoramento.

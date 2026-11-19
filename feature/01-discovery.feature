@@ -52,7 +52,18 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
     Quando a etapa de descoberta conclui cada extração
     Então cada vaga é encaminhada à verificação de duplicidade antes de qualquer chamada de IA
 
-# Ambiguidade: a spec não define comportamento quando TODAS as fontes falham na
-# mesma execução (abortar o ciclo com alerta? tentar novamente em N minutos?).
-# Ambiguidade: não há regra para o volume máximo de vagas coletadas por execução
-# (existe apenas limite diário de candidaturas, não de descobertas).
+  Cenário: Falha de todas as fontes aborta o ciclo com alerta
+    Dado que nenhuma das fontes de vagas responde com sucesso
+    Quando a execução de descoberta consulta as fontes
+    Então o ciclo é abortado com um alerta ao usuário
+    E nenhum modelo de IA é acionado
+
+  Cenário: Respeitar o limite máximo de vagas coletadas por execução
+    Dado que o limite de vagas coletadas por execução está configurado
+    Quando as fontes retornam mais vagas que o limite configurado
+    Então apenas até o limite configurado é coletado
+    E as vagas excedentes ficam para a próxima execução
+
+# Decisão: falha de todas as fontes aborta o ciclo com alerta, sem consumir IA.
+# Decisão: o volume máximo de vagas coletadas por execução é configurável
+# (maxJobsPerRun, default 100).

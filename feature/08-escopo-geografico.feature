@@ -66,8 +66,23 @@ Funcionalidade: Escopo geográfico e filtro de elegibilidade de mercado
     Então o currículo e as respostas são produzidos em inglês
     E a skill de mercado internacional é considerada na seleção
 
-# Ambiguidade: a spec não define o comportamento quando uma vaga não declara
-# região nem modelo de trabalho — se assume elegível, marca para revisão ou
-# descarta por precaução.
-# Ambiguidade: "AMERICAS_TIMEZONE" aparece como região configurável, mas o
-# critério exato de sobreposição de fuso aceito não está quantificado.
+  Cenário: Vaga internacional sem região declarada é elegível com revisão obrigatória
+    Dado que o escopo internacional está ativo
+    Quando uma vaga não declara região nem modelo de trabalho
+    Então a vaga é considerada elegível
+    E é sinalizada para revisão humana, nunca enviada automaticamente
+
+  Esquema do Cenário: Compatibilidade de fuso das Américas segue faixa fixa
+    Dado que o escopo internacional prioriza o fuso das Américas
+    Quando a vaga indica o fuso "<fuso>"
+    Então a compatibilidade de fuso é "<resultado>"
+
+    Exemplos:
+      | fuso  | resultado   |
+      | UTC-5 | compatível  |
+      | UTC-3 | compatível  |
+      | UTC-9 | incompatível |
+
+# Decisão: vaga sem região nem modelo declarados é elegível com flag de revisão
+# (nunca envio automático).
+# Decisão: AMERICAS_TIMEZONE corresponde à faixa fixa UTC-8 a UTC-3.

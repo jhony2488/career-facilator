@@ -53,8 +53,20 @@ Funcionalidade: Deduplicação de vagas em três níveis
     Quando a verificação de duplicidade é executada
     Então a vaga é marcada como "DISCOVERED" e encaminhada à triagem
 
-# Ambiguidade: o limiar de similaridade do "conteúdo equivalente" (hash sobre os
-# primeiros 300 caracteres normalizados) pode falhar quando portais resumem a
-# descrição de formas diferentes — o critério exato de equivalência está pendente.
-# Ambiguidade: a spec não define se o cooldown por empresa também se aplica a
-# vagas descartadas por SKIPPED ou apenas a candidaturas efetivamente enviadas.
+  Cenário: Detectar vaga equivalente mesmo com formatação diferente entre portais
+    Dado que já existe uma candidatura registrada para uma vaga da "TechCorp"
+    Quando a mesma vaga aparece em outro portal com o texto resumido e formatado de forma diferente
+    Então a comparação de conteúdo ignora diferenças de formatação
+    E a vaga é identificada como duplicada
+
+  Cenário: Vaga descartada não inicia o cooldown por empresa
+    Dado que uma vaga da "TechCorp" foi marcada como "SKIPPED" recentemente
+    E que nenhuma candidatura foi enviada à "TechCorp" dentro do período de cooldown
+    Quando uma vaga inédita da "TechCorp" é descoberta
+    Então ela não é bloqueada pela regra de cooldown
+    E segue normalmente para a triagem
+
+# Decisão: "conteúdo equivalente" compara os 300 primeiros caracteres após
+# normalização (minúsculas, sem pontuação, espaços extras e boilerplate).
+# Decisão: o cooldown por empresa conta apenas candidaturas enviadas
+# (APPLIED/APPLIED_VIA_EMAIL).
