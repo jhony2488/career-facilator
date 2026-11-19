@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+storage/career_facilitator.db
+storage/generated_resumes/
+*.local
+.env
+.env.*
+!.env.example
