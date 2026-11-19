@@ -1,0 +1,33 @@
+{
+  "triggers": [
+    "typescript",
+    "next.js",
+    "nextjs",
+    "react",
+    "node",
+    "node.js",
+    "javascript",
+    "fullstack",
+    "full-stack",
+    "postgres",
+    "trpc"
+  ],
+  "ats_terms": [
+    "TypeScript",
+    "Node.js",
+    "Next.js",
+    "React",
+    "PostgreSQL",
+    "Prisma",
+    "tRPC",
+    "Drizzle",
+    "REST",
+    "GraphQL",
+    "Jest",
+    "Vitest",
+    "Docker",
+    "CI/CD"
+  ],
+  "canonical_stack": ["TypeScript", "Node.js", "Next.js", "PostgreSQL"],
+  "adjacent": ["NestJS", "Express", "Tailwind", "Docker", "Redis"]
+}

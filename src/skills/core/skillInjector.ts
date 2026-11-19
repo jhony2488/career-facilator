@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { SkillMetadata } from './skillRegistry';
+import type { SkillMetadata } from './skillRegistry';
 
 /**
  * Injeção otimizada no prompt (doc 05 §8.4): carrega o corpo do SKILL.md apenas
