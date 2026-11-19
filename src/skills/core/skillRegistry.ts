@@ -14,9 +14,16 @@ export interface LoadedSkill extends SkillMetadata {
 }
 
 /** Extrai frontmatter YAML simples (id, name, triggers, priority) do SKILL.md. */
-export function parseSkillFrontmatter(raw: string): { meta: Omit<SkillMetadata, 'filePath'>; body: string } {
+export function parseSkillFrontmatter(raw: string): {
+  meta: Omit<SkillMetadata, 'filePath'>;
+  body: string;
+} {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return { meta: { id: 'unknown', name: 'unknown', triggers: [], priority: 0 }, body: raw.trim() };
+  if (!match)
+    return {
+      meta: { id: 'unknown', name: 'unknown', triggers: [], priority: 0 },
+      body: raw.trim(),
+    };
 
   const yaml = match[1];
   const body = raw.slice(match[0].length).trim();

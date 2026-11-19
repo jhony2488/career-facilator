@@ -1,0 +1,27 @@
+{
+  "triggers": [
+    "remote",
+    "worldwide",
+    "usd",
+    "latam",
+    "contractor",
+    "anywhere",
+    "remote-first",
+    "international",
+    "async",
+    "fuso",
+    "timezone"
+  ],
+  "ats_terms": [
+    "Remote",
+    "Worldwide",
+    "LATAM",
+    "Contractor",
+    "Async",
+    "Distributed Team",
+    "USD",
+    "C2C"
+  ],
+  "resume_language": "en-US",
+  "salary_field": "salaryExpectationUSD"
+}

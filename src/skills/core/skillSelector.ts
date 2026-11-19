@@ -1,4 +1,4 @@
-import { SkillMetadata } from './skillRegistry';
+import type { SkillMetadata } from './skillRegistry';
 
 /**
  * Seleção determinística de skills (doc 05 §8.4) — custo zero de IA.

@@ -1,0 +1,35 @@
+{
+  "triggers": [
+    "llm",
+    "langchain",
+    "rag",
+    "ai agent",
+    "ai engineer",
+    "machine learning",
+    "ml engineer",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "vector",
+    "embedding",
+    "genai",
+    "prompt"
+  ],
+  "ats_terms": [
+    "LLM",
+    "RAG",
+    "Prompt Engineering",
+    "Function Calling",
+    "Embeddings",
+    "Vector Database",
+    "LangChain",
+    "Vercel AI SDK",
+    "Ollama",
+    "Model Evaluation",
+    "AI Agents",
+    "Prompt Caching"
+  ],
+  "canonical_stack": ["TypeScript", "Vercel AI SDK", "Ollama", "LangChain"],
+  "adjacent": ["pgvector", "Qdrant", "Zod", "Instructor"]
+}
