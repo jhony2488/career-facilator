@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+storage/
+generated_resumes/
+package-lock.json
+docs/
+feature/
+src/config/profile.master.md
+*.feature
