@@ -22,9 +22,9 @@ export interface CareerOpsConfig {
     maxEscalationsPerPlatformPerDay: number;
   };
   ai: {
-    local: ModelRouting;   // Camada 1 — triagem barata (Ollama/ONNX)
-    fast: ModelRouting;    // Fallback rápido em nuvem (Groq/Flash-Lite)
-    smart: ModelRouting;   // Camada 2 — raciocínio + prompt cache
+    local: ModelRouting; // Camada 1 — triagem barata (Ollama/ONNX)
+    fast: ModelRouting; // Fallback rápido em nuvem (Groq/Flash-Lite)
+    smart: ModelRouting; // Camada 2 — raciocínio + prompt cache
   };
   autofill: {
     questionSimilarityThreshold: number;

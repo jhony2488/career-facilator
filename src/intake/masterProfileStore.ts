@@ -21,8 +21,8 @@ export interface PromoteResult {
 
 type AnyProfile = ExtractedProfile | MasterProfile;
 
-const SCALAR_FIELDS = ['fullName', 'email', 'phone', 'linkedin', 'github', 'portfolio', 'summary'] as const;
-const NUMERIC_FIELDS = ['seniorityYears', 'salaryExpectationBRL', 'salaryExpectationUSD'] as const;
+type ScalarField = 'fullName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio' | 'summary';
+type NumericField = 'seniorityYears' | 'salaryExpectationBRL' | 'salaryExpectationUSD';
 
 /**
  * Store do perfil-mestre (doc 13 §13.3): rascunho → revisão humana → promoção.
@@ -34,7 +34,10 @@ export class MasterProfileStore {
     private readonly deps: { fs: FileStore },
   ) {}
 
-  async saveDraft(profile: ExtractedProfile, opts: { mode: ProfileImportMode; base?: MasterProfile }): Promise<SaveDraftResult> {
+  async saveDraft(
+    profile: ExtractedProfile,
+    opts: { mode: ProfileImportMode; base?: MasterProfile },
+  ): Promise<SaveDraftResult> {
     let merged: AnyProfile = profile;
     let conflicts: ProfileConflict[] = [];
 
@@ -74,10 +77,13 @@ export class MasterProfileStore {
  * campos escalares são sinalizados para decisão do usuário — nunca resolvidos
  * sozinho.
  */
-export function mergeProfiles(base: MasterProfile, incoming: ExtractedProfile): { merged: MasterProfile; conflicts: ProfileConflict[] } {
+export function mergeProfiles(
+  base: MasterProfile,
+  incoming: ExtractedProfile,
+): { merged: MasterProfile; conflicts: ProfileConflict[] } {
   const conflicts: ProfileConflict[] = [];
 
-  const scalar = (key: (typeof SCALAR_FIELDS)[number]): string => {
+  const scalar = (key: ScalarField): string => {
     const inc = incoming[key];
     const cur = base[key];
     if (inc === NOT_INFORMED || inc === '') return cur;
@@ -88,7 +94,7 @@ export function mergeProfiles(base: MasterProfile, incoming: ExtractedProfile): 
     return inc;
   };
 
-  const numeric = (key: (typeof NUMERIC_FIELDS)[number]): number => {
+  const numeric = (key: NumericField): number => {
     const inc = incoming[key];
     if (inc === null) return base[key];
     if (base[key] !== 0 && base[key] !== inc) {
@@ -115,7 +121,11 @@ export function mergeProfiles(base: MasterProfile, incoming: ExtractedProfile): 
     blockedKeywords: mergeList(base.blockedKeywords, incoming.blockedKeywords),
     experiences: mergeBy(base.experiences, incoming.experiences, (e) => `${e.role}|${e.company}`),
     projects: mergeBy(base.projects, incoming.projects, (p) => p.name),
-    openSourceProjects: mergeBy(base.openSourceProjects, incoming.openSourceProjects, (p) => p.repo || p.name),
+    openSourceProjects: mergeBy(
+      base.openSourceProjects,
+      incoming.openSourceProjects,
+      (p) => p.repo || p.name,
+    ),
     education: mergeBy(base.education, incoming.education, (e) => `${e.course}|${e.institution}`),
     standardAnswers: { ...incoming.standardAnswers, ...base.standardAnswers },
   };
@@ -136,26 +146,39 @@ const fmt = (v: string) => (v === NOT_INFORMED || v === '' ? '_NÃO_INFORMADO_' 
 
 /** Serializa o perfil no formato canônico do profile.master.md (doc 13 §13.4). */
 export function profileToMarkdown(profile: AnyProfile): string {
-  const salary = [
-    profile.salaryExpectationBRL ? `R$ ${profile.salaryExpectationBRL}` : null,
-    profile.salaryExpectationUSD ? `USD ${profile.salaryExpectationUSD}` : null,
-  ].filter(Boolean).join(' | ') || '_NÃO_INFORMADO_';
+  const salary =
+    [
+      profile.salaryExpectationBRL ? `R$ ${profile.salaryExpectationBRL}` : null,
+      profile.salaryExpectationUSD ? `USD ${profile.salaryExpectationUSD}` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ') || '_NÃO_INFORMADO_';
 
-  const experiences = profile.experiences
-    .map((e) => `### ${e.role} — ${e.company} (${e.period})\n${e.highlights.map((h) => `- ${h}`).join('\n')}`)
-    .join('\n\n') || '_NÃO_INFORMADO_';
+  const experiences =
+    profile.experiences
+      .map(
+        (e) =>
+          `### ${e.role} — ${e.company} (${e.period})\n${e.highlights.map((h) => `- ${h}`).join('\n')}`,
+      )
+      .join('\n\n') || '_NÃO_INFORMADO_';
 
-  const projects = profile.projects
-    .map((p) => `### ${p.name}\n${p.summary}\n${p.metrics.map((m) => `- ${m}`).join('\n')}`)
-    .join('\n\n') || '_NÃO_INFORMADO_';
+  const projects =
+    profile.projects
+      .map((p) => `### ${p.name}\n${p.summary}\n${p.metrics.map((m) => `- ${m}`).join('\n')}`)
+      .join('\n\n') || '_NÃO_INFORMADO_';
 
-  const oss = profile.openSourceProjects
-    .map((p) => `### ${p.name}\n- Repo: ${p.repo}\n${p.summary}\n${p.metrics.map((m) => `- ${m}`).join('\n')}`)
-    .join('\n\n') || '_NÃO_INFORMADO_';
+  const oss =
+    profile.openSourceProjects
+      .map(
+        (p) =>
+          `### ${p.name}\n- Repo: ${p.repo}\n${p.summary}\n${p.metrics.map((m) => `- ${m}`).join('\n')}`,
+      )
+      .join('\n\n') || '_NÃO_INFORMADO_';
 
-  const answers = Object.entries(profile.standardAnswers)
-    .map(([k, v]) => `- ${k}: ${v}`)
-    .join('\n') || '_NÃO_INFORMADO_';
+  const answers =
+    Object.entries(profile.standardAnswers)
+      .map(([k, v]) => `- ${k}: ${v}`)
+      .join('\n') || '_NÃO_INFORMADO_';
 
   return [
     `# ${profile.fullName}`,

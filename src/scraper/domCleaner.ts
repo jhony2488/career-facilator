@@ -7,7 +7,18 @@ export interface CleanJobDocument {
   company?: string;
 }
 
-const STRIP_TAGS = ['script', 'style', 'svg', 'nav', 'footer', 'aside', 'noscript', 'iframe', 'form', 'link'];
+const STRIP_TAGS = [
+  'script',
+  'style',
+  'svg',
+  'nav',
+  'footer',
+  'aside',
+  'noscript',
+  'iframe',
+  'form',
+  'link',
+];
 
 /** Seletores que sinalizam o container principal da descrição da vaga. */
 const MAIN_HINTS = /job|description|descricao|conteudo|content|posting|vacanc|descriptionbody/i;

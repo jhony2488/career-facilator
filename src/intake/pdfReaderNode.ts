@@ -42,7 +42,16 @@ function extractTextOperators(raw: string): string {
 
 function unescapePdf(s: string): string {
   return s.replace(/\\([nrtbf\\()])/g, (_all, c: string) => {
-    const map: Record<string, string> = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '\\': '\\', '(': '(', ')': ')' };
+    const map: Record<string, string> = {
+      n: '\n',
+      r: '\r',
+      t: '\t',
+      b: '\b',
+      f: '\f',
+      '\\': '\\',
+      '(': '(',
+      ')': ')',
+    };
     return map[c] ?? c;
   });
 }
