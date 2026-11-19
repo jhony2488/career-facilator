@@ -13,10 +13,7 @@ describe('checkEligibility — escopo INTERNATIONAL', () => {
     ['patrocínio de visto indisponível', BLOCKING_TEXTS.visaUnavailable],
   ])('bloqueia vaga com exigência: %s', (_label, text) => {
     // feature/08: Restrições eliminatórias internacionais bloqueadas
-    const result = checkEligibility(
-      { ...intlJob, descriptionMarkdown: text },
-      config,
-    );
+    const result = checkEligibility({ ...intlJob, descriptionMarkdown: text }, config);
 
     expect(result.eligible).toBe(false);
     expect(result.reason).toBeTruthy();

@@ -28,9 +28,7 @@ describe('buildSkillsContextBlock', () => {
 
   it('inclui apenas o corpo das skills selecionadas no bloco', async () => {
     // feature/04: Injetar apenas o corpo das skills ativadas no contexto
-    const block = await buildSkillsContextBlock([
-      makeSkill({ filePath: skillPath }),
-    ]);
+    const block = await buildSkillsContextBlock([makeSkill({ filePath: skillPath })]);
 
     expect(block).toContain('<active_skills>');
     expect(block).toContain('</active_skills>');
@@ -40,9 +38,7 @@ describe('buildSkillsContextBlock', () => {
 
   it('remove o frontmatter YAML para não desperdiçar tokens', async () => {
     // feature/04: metadados internos de configuração não são enviados ao modelo
-    const block = await buildSkillsContextBlock([
-      makeSkill({ filePath: skillPath }),
-    ]);
+    const block = await buildSkillsContextBlock([makeSkill({ filePath: skillPath })]);
 
     expect(block).not.toContain('triggers:');
     expect(block).not.toContain('priority:');
@@ -50,9 +46,7 @@ describe('buildSkillsContextBlock', () => {
   });
 
   it('funciona com skills sem frontmatter', async () => {
-    const block = await buildSkillsContextBlock([
-      makeSkill({ filePath: plainSkillPath }),
-    ]);
+    const block = await buildSkillsContextBlock([makeSkill({ filePath: plainSkillPath })]);
 
     expect(block).toContain('Plain Instructions');
   });

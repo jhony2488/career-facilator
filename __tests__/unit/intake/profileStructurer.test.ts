@@ -17,7 +17,10 @@ describe('MasterProfileSchema', () => {
 describe('structureProfile', () => {
   it('produz perfil estruturado a partir do texto do documento', async () => {
     // feature/13: Extrair currículo depositado na área de entrada
-    const model = mockStructurerModel({ fullName: 'Dev Tester', coreStack: ['TypeScript', 'Node.js'] });
+    const model = mockStructurerModel({
+      fullName: 'Dev Tester',
+      coreStack: ['TypeScript', 'Node.js'],
+    });
     const result = await structureProfile({ documentText: SAMPLE_CV_TEXT }, { model });
 
     expect(result.fullName).toBe('Dev Tester');

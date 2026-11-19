@@ -27,14 +27,25 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     const job = makeJob({ descriptionMarkdown: INTL_JOB_DESCRIPTION });
 
     // 1. Triagem (Camada 1 — modelo leve mockado)
-    const triageModel = mockTriageModel({ fitScore: 85, matchedKeywords: ['TypeScript', 'Next.js', 'Remote USD'] });
-    const triage = await triageJob({ jobText: job.descriptionMarkdown, profile }, { model: triageModel });
+    const triageModel = mockTriageModel({
+      fitScore: 85,
+      matchedKeywords: ['TypeScript', 'Next.js', 'Remote USD'],
+    });
+    const triage = await triageJob(
+      { jobText: job.descriptionMarkdown, profile },
+      { model: triageModel },
+    );
     expect(triage.fitScore).toBeGreaterThanOrEqual(75);
 
     // 2. Skills — seleção determinística (0 tokens)
     const skills = selectRelevantSkills(triage.matchedKeywords, [
       makeSkill({ filePath: skillPath }),
-      makeSkill({ id: 'international-remote', triggers: ['remote', 'usd', 'worldwide'], priority: 8, filePath: skillPath }),
+      makeSkill({
+        id: 'international-remote',
+        triggers: ['remote', 'usd', 'worldwide'],
+        priority: 8,
+        filePath: skillPath,
+      }),
     ]);
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.length).toBeLessThanOrEqual(2);
@@ -61,7 +72,10 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     const job = makeJob();
 
     await tailorResume({ job, triage: {}, skillsBlock: '', profile }, { model: tailorModel });
-    await tailorResume({ job: { ...job, id: 'job-002' }, triage: {}, skillsBlock: '', profile }, { model: tailorModel });
+    await tailorResume(
+      { job: { ...job, id: 'job-002' }, triage: {}, skillsBlock: '', profile },
+      { model: tailorModel },
+    );
 
     const [first, second] = tailorModel.calls;
     expect(second.cachedProfileTokens).toBeLessThan(first.cachedProfileTokens);

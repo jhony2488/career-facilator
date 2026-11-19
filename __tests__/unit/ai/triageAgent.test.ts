@@ -17,15 +17,31 @@ describe('JobTriageSchema', () => {
 
   it('rejeita fitScore fora do intervalo 0-100', () => {
     // feature/03: score é aderência de 0 a 100
-    const base = { fitScore: 0, isDealbreaker: false, missingSkills: [], matchedKeywords: [], atsTitleSuggestion: 'x' };
+    const base = {
+      fitScore: 0,
+      isDealbreaker: false,
+      missingSkills: [],
+      matchedKeywords: [],
+      atsTitleSuggestion: 'x',
+    };
     expect(JobTriageSchema.safeParse({ ...base, fitScore: -1 }).success).toBe(false);
     expect(JobTriageSchema.safeParse({ ...base, fitScore: 101 }).success).toBe(false);
   });
 
   it('limita missingSkills a 5 e matchedKeywords a 10 itens', () => {
-    const base = { fitScore: 50, isDealbreaker: false, missingSkills: [], matchedKeywords: [], atsTitleSuggestion: 'x' };
-    expect(JobTriageSchema.safeParse({ ...base, missingSkills: Array(6).fill('s') }).success).toBe(false);
-    expect(JobTriageSchema.safeParse({ ...base, matchedKeywords: Array(11).fill('k') }).success).toBe(false);
+    const base = {
+      fitScore: 50,
+      isDealbreaker: false,
+      missingSkills: [],
+      matchedKeywords: [],
+      atsTitleSuggestion: 'x',
+    };
+    expect(JobTriageSchema.safeParse({ ...base, missingSkills: Array(6).fill('s') }).success).toBe(
+      false,
+    );
+    expect(
+      JobTriageSchema.safeParse({ ...base, matchedKeywords: Array(11).fill('k') }).success,
+    ).toBe(false);
   });
 });
 
@@ -64,6 +80,8 @@ describe('triageJob', () => {
   it('propaga falha do modelo sem aprovar a vaga', async () => {
     // feature/03: Falha do modelo de triagem não aprova a vaga automaticamente
     const model = mockFailingTriageModel();
-    await expect(triageJob({ jobText: INTL_JOB_DESCRIPTION, profile }, { model })).rejects.toThrow();
+    await expect(
+      triageJob({ jobText: INTL_JOB_DESCRIPTION, profile }, { model }),
+    ).rejects.toThrow();
   });
 });

@@ -28,7 +28,9 @@ describe('Pipeline completo — modo dry-run', () => {
     );
 
     expect(page.submitted).toBe(false);
-    expect(result.applications.every((a: { status: JobStatus }) => a.status !== 'APPLIED')).toBe(true);
+    expect(result.applications.every((a: { status: JobStatus }) => a.status !== 'APPLIED')).toBe(
+      true,
+    );
   });
 
   it('apresenta resumo com Fit Scores e destinos previstos para calibração', async () => {

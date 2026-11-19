@@ -2,9 +2,13 @@ import { importResume, approveProfileDraft } from '../../src/intake/intakeCore';
 import { compileMasterProfile } from '../../src/intake/profileCompiler';
 import { MasterProfileStore } from '../../src/intake/masterProfileStore';
 import type { ProfileConflict } from '../helpers/contracts';
-import { mockFileStore, mockPdfReader, mockScannedPdfReader, mockStructurerModel } from '../helpers/mocks';
+import {
+  mockFileStore,
+  mockPdfReader,
+  mockScannedPdfReader,
+  mockStructurerModel,
+} from '../helpers/mocks';
 import { SAMPLE_MASTER_MD } from '../helpers/fixtures';
-import { makeExtractedProfile } from '../helpers/factories';
 
 const paths = {
   draftPath: 'storage/profile.draft.md',

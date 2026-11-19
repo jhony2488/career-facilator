@@ -46,13 +46,17 @@ describe('Pipeline de autofill: inspeção → match determinístico → execuç
     });
 
     const { unmatched } = matchFields(
-      page.fields.map((f) => makeField({ kind: f.kind as never, label: f.label, required: f.required })),
+      page.fields.map((f) =>
+        makeField({ kind: f.kind as never, label: f.label, required: f.required }),
+      ),
       profile,
     );
     expect(unmatched).toHaveLength(1);
 
     const result = await executeFill(page, {
-      aiAnswers: { 'Describe a complex technical challenge': 'I solved a multi-tenant latency issue...' },
+      aiAnswers: {
+        'Describe a complex technical challenge': 'I solved a multi-tenant latency issue...',
+      },
       submitMode: 'PAUSE_BEFORE_SUBMIT',
     });
 

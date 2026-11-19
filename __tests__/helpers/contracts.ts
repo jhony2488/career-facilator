@@ -40,7 +40,8 @@ export type ModelTier = 'LOCAL' | 'FAST' | 'SMART';
 export type EmailDispatchMode = 'REQUIRE_REVIEW' | 'HYBRID_BY_SCORE' | 'AUTO_SEND_HIGH_FIT';
 export type OutcomeStatus = 'REJECTED' | 'ASSESSMENT_INVITED' | 'INTERVIEW';
 export type ApplicationRoute = 'AUTO_SEND' | 'REVIEW' | 'DEFER' | 'ESCALATE';
-export type BlockingSignalKind = 'CAPTCHA' | 'EMAIL_OTP' | 'UNKNOWN_REQUIRED_FIELD' | 'SESSION_EXPIRED';
+export type BlockingSignalKind =
+  'CAPTCHA' | 'EMAIL_OTP' | 'UNKNOWN_REQUIRED_FIELD' | 'SESSION_EXPIRED';
 export type ProfileImportSource = 'INBOX' | 'CLI';
 export type ProfileImportMode = 'MERGE' | 'REPLACE';
 export type IntakeOutcome = 'DRAFT_PENDING_REVIEW' | 'UNREADABLE_DOCUMENT';

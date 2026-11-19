@@ -25,7 +25,9 @@ describe('Pipeline completo — modo FULL_AUTO', () => {
         triageModel: mockTriageModel({ fitScore: 92 }),
         tailorModel: mockTailorModel(),
         pageFactory: () => page,
-        humanApproval: () => { throw new Error('não deve pedir aprovação em FULL_AUTO'); },
+        humanApproval: () => {
+          throw new Error('não deve pedir aprovação em FULL_AUTO');
+        },
       },
     );
 
