@@ -53,7 +53,8 @@ The `email_application` module kicks in when the form inspection step does not f
 - **Respect for Execution Modes:**
   - In review mode (`SEMI_AUTO` or below the automatic threshold), presents the recipient, subject, e-mail body and attachment path for approval before sending.
   - In automatic mode (`FULL_AUTO` above the match scale), dispatches the e-mail after passing the safety checks.
-- **Hardened Credentials and Resilience:** Obtains app passwords, SMTP keys or e-mail provider tokens directly from the encrypted vault (AES-256-GCM), with a local queue and automatic retry in case of temporary network failure.
+- **Hardened Credentials and Resilience:** Obtains app passwords, SMTP keys or e-mail provider tokens directly from the encrypted vault (AES-256-GCM), with a local queue and automatic retry in case of temporary network failure — at most **3 retries with backoff**; once exhausted, the application goes to `NEEDS_HUMAN_INPUT`.
+- **Reply scope:** recruiter replies in the same thread are out of scope — the module sends and monitors, never answers e-mails.
 
 ### 3.4. Submission and Response Tracker (`emailTracker.ts`)
 

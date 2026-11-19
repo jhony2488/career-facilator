@@ -22,6 +22,8 @@ export const JobTriageSchema = z.object({
 export type JobTriageResult = z.infer<typeof JobTriageSchema>;
 ```
 
+Fallback de provedores: a triagem tenta o modelo local primeiro e usa a nuvem como reserva; se **todos** os provedores falharem, a vaga vai para `NEEDS_HUMAN_INPUT` — nunca é aprovada por falta de avaliação.
+
 ## 5.3. Prompt Caching para o Currículo Mestre (`tailorerAgent.ts`)
 
 O `profile.master.json` — artefato compilado a partir do `profile.master.md` aprovado pelo usuário (ver [Ingestão de Perfil](13-ingestao-de-perfil.md)), contendo todo o histórico profissional, projetos, métricas e respostas comportamentais — é enviado como bloco de sistema com **Cache Ephemeral / Prefix Caching**. Ao processar 30 vagas em lote, o sistema paga o processamento do perfil completo apenas na primeira vaga, obtendo desconto de **75% a 90% nos tokens de entrada** das 29 vagas seguintes.

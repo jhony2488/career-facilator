@@ -6,7 +6,7 @@ To allow the system to apply 100% autonomously without firing resumes at mediocr
 
 - **FULL_AUTO (Full Autopilot):**
   - The system finds jobs, calculates the real match against the resume, generates the tailored PDF, fills the form and clicks the submit button by itself, recording everything in SQLite and notifying on the HUD/Terminal.
-  - **Safety Lock:** In FULL_AUTO mode, the system requires a much higher Fit Score (e.g.: ≥ 85%) and blocks automatic submission if the page requires solving a complex CAPTCHA or contains new questions with low AI confidence.
+  - **Safety Lock:** In FULL_AUTO mode, the system requires a much higher Fit Score (default: ≥ 88%) and blocks automatic submission if the page requires solving a complex CAPTCHA or contains new questions with low AI confidence.
 - **SEMI_AUTO (Review Before Submit):**
   - Does all the heavy lifting (search, triage, customized PDF and complete form filling), but pauses before the Submit button awaiting your visual approval.
 - **HYBRID_THRESHOLD (Recommended):**

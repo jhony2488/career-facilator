@@ -8,8 +8,9 @@ Cinco mecanismos que fecham o ciclo de ponta a ponta: Descoberta → Filtro Geog
 
 **O que adicionar:**
 
-- Persistência criptografada de cookies e `storageState` do Playwright (integrado ao cofre AES-256-GCM).
+- Persistência criptografada de cookies e `storageState` do Playwright (cofre = arquivo local AES-256-GCM com senha-mestra).
 - **Fila com Jitter (Atraso Aleatório):** Limitar a execução a no máximo 1 candidatura a cada 3 a 8 minutos com variação aleatória, simulando comportamento humano real.
+- **Rate-limit da plataforma (HTTP 429, desafio de velocidade):** a fila daquela fonte pausa com backoff exponencial; as demais fontes continuam processando normalmente.
 
 ## 2. Tratamento de Formulários Multi-Etapas (Wizards) e Shadow DOM (`src/autofill/wizardNavigator.ts`)
 
@@ -26,6 +27,8 @@ Cinco mecanismos que fecham o ciclo de ponta a ponta: Descoberta → Filtro Geog
 **O que adicionar:**
 
 - Quando o robô detectar um CAPTCHA, OTP por e-mail ou campo obrigatório desconhecido, ele não falha nem inventa dados: muda o status da vaga para `NEEDS_HUMAN_INPUT`, salva o estado da aba e dispara um alerta na HUD/notificação para você conseguir se candidatar manualmente.
+- **Timeout de espera humana:** se o bloqueio não for resolvido dentro do prazo configurado (`escalationTimeoutMinutes`), a aba é fechada e o estado serializado é mantido para retomada posterior — a candidatura segue na lista de pendências.
+- **Circuit breaker por plataforma:** após N escalonamentos na mesma plataforma no dia (`maxEscalationsPerPlatformPerDay`), aquela fonte é pausada até o dia seguinte.
 
 ## 4. Rastreador Pós-Candidatura e Feedback Loop (`src/tracker/outcomeMonitor.ts`)
 
@@ -33,7 +36,8 @@ Cinco mecanismos que fecham o ciclo de ponta a ponta: Descoberta → Filtro Geog
 
 **O que adicionar:**
 
-- Leitura opcional da caixa de entrada (via IMAP/Gmail API) filtrando apenas remetentes das empresas aplicadas para atualizar automaticamente o status no SQLite (`APPLIED` → `REJECTED`, `ASSESSMENT_INVITED` ou `INTERVIEW`).
+- Leitura **opt-in** da caixa de entrada (IMAP/Gmail, acesso somente leitura) filtrando apenas remetentes das empresas aplicadas para atualizar automaticamente o status no SQLite (`APPLIED` → `REJECTED`, `ASSESSMENT_INVITED` ou `INTERVIEW`). Respostas do recrutador no mesmo thread ficam fora de escopo — o sistema não responde e-mails.
+- **Classificação de respostas:** heurística determinística primeiro; modelo leve apenas para casos ambíguos. Status só muda automaticamente com confiança ≥ 0.8 — abaixo disso, a mensagem é sinalizada para conferência do usuário.
 - Métrica de conversão por Skill e Fit Score (ex: descobrir que vagas onde você ativa a skill `ai-engineer` têm 3x mais retorno que `fullstack-ts` genérico).
 
 ## 5. Módulo de Dry-Run (Simulação Segura)
