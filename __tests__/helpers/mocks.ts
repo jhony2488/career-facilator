@@ -1,4 +1,10 @@
-import type { ExtractedProfile, FileStore, JobTriageResult, PdfReader, StructurerModel } from './contracts';
+import type {
+  ExtractedProfile,
+  FileStore,
+  JobTriageResult,
+  PdfReader,
+  StructurerModel,
+} from './contracts';
 import { makeExtractedProfile, makeTriageResult } from './factories';
 import { SAMPLE_CV_TEXT, SCANNED_PDF_RESULT } from './fixtures';
 
@@ -16,11 +22,18 @@ export function mockTriageModel(result: Partial<JobTriageResult> = {}): MockTria
 }
 
 export function mockFailingTriageModel(error = new Error('model unavailable')): MockTriageModel {
-  return { generate: jest.fn(async (_prompt: string) => { throw error; }) };
+  return {
+    generate: jest.fn(async (_prompt: string) => {
+      throw error;
+    }),
+  };
 }
 
 export interface MockTailorModel {
-  tailor: jest.Mock<Promise<{ resumeMarkdown: string; answers: Record<string, string> }>, [prompt: string]>;
+  tailor: jest.Mock<
+    Promise<{ resumeMarkdown: string; answers: Record<string, string> }>,
+    [prompt: string]
+  >;
   calls: { cachedProfileTokens: number }[];
 }
 
@@ -79,7 +92,9 @@ export interface MockSmtpTransport {
 export function mockSmtpTransport(shouldFail = false): MockSmtpTransport {
   return {
     sendMail: shouldFail
-      ? jest.fn(async (_message: unknown) => { throw new Error('SMTP connection reset'); })
+      ? jest.fn(async (_message: unknown) => {
+          throw new Error('SMTP connection reset');
+        })
       : jest.fn(async (_message: unknown) => ({ messageId: 'msg-001' })),
   };
 }
@@ -93,7 +108,9 @@ export interface MockVault {
 export function mockVault(): MockVault {
   return {
     getCredential: jest.fn(async (ref: string) => `secret-for-${ref}`),
-    getSessionState: jest.fn(async (_platform: string) => ({ cookies: [{ name: 'li_at', value: 'x' }] })),
+    getSessionState: jest.fn(async (_platform: string) => ({
+      cookies: [{ name: 'li_at', value: 'x' }],
+    })),
     saveSessionState: jest.fn(async (_platform: string, _state: object) => undefined),
   };
 }
@@ -108,7 +125,7 @@ export function mockRepo() {
       reason: jobs.some((j) => j.url === input.url) ? ('CANONICAL_URL' as const) : undefined,
     })),
     hasRecentApplication: jest.fn(async (company: string, _days: number) =>
-      jobs.some((j) => j.company === company && j.status.startsWith('APPLIED'))
+      jobs.some((j) => j.company === company && j.status.startsWith('APPLIED')),
     ),
     recordJob: jest.fn(async (job: { url: string; company: string; status: string }) => {
       jobs.push(job);
@@ -131,8 +148,14 @@ export function mockStructurerModel(result: Partial<ExtractedProfile> = {}): Moc
   return { generate: jest.fn(async (_prompt: string) => makeExtractedProfile(result)) };
 }
 
-export function mockFailingStructurerModel(error = new Error('model unavailable')): MockStructurerModel {
-  return { generate: jest.fn(async (_prompt: string) => { throw error; }) };
+export function mockFailingStructurerModel(
+  error = new Error('model unavailable'),
+): MockStructurerModel {
+  return {
+    generate: jest.fn(async (_prompt: string) => {
+      throw error;
+    }),
+  };
 }
 
 export function mockPdfReader(text = SAMPLE_CV_TEXT, pages = 2): PdfReader {
@@ -145,7 +168,9 @@ export function mockScannedPdfReader(): PdfReader {
 }
 
 /** FileStore em memória — permite testar o MasterProfileStore sem tocar disco. */
-export function mockFileStore(initialFiles: Record<string, string> = {}): FileStore & { files: Map<string, string> } {
+export function mockFileStore(
+  initialFiles: Record<string, string> = {},
+): FileStore & { files: Map<string, string> } {
   const files = new Map<string, string>(Object.entries(initialFiles));
   return {
     files,

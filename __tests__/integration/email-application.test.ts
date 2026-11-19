@@ -1,13 +1,12 @@
 import { resolveRecipient } from '../../src/email_application/recipientResolver';
 import { composeEmail } from '../../src/email_application/emailComposer';
 import { dispatchEmail } from '../../src/email_application/emailDispatcher';
-import { makeJob, makeMasterProfile, makeSkill, makeConfig } from '../helpers/factories';
+import { makeJob, makeMasterProfile, makeSkill } from '../helpers/factories';
 import { mockRepo, mockSmtpTransport, mockVault } from '../helpers/mocks';
 import { EMAIL_ONLY_JOB_TEXT } from '../helpers/fixtures';
 
 describe('Candidatura por e-mail: resolver → compor → disparar → registrar', () => {
   const profile = makeMasterProfile();
-  const config = makeConfig();
 
   it('completa o fluxo com envio aprovado e registra APPLIED_VIA_EMAIL', async () => {
     // feature/10: fluxo completo feliz
@@ -72,7 +71,13 @@ describe('Candidatura por e-mail: resolver → compor → disparar → registrar
     // feature/10: Obter credenciais de envio apenas do cofre protegido
     const transport = mockSmtpTransport();
     const vault = mockVault();
-    const draft = { to: 'a@b.co', subject: 's', body: 'b', attachments: [], language: 'pt-BR' as const };
+    const draft = {
+      to: 'a@b.co',
+      subject: 's',
+      body: 'b',
+      attachments: [],
+      language: 'pt-BR' as const,
+    };
 
     await dispatchEmail(draft, {
       transport,
@@ -88,7 +93,13 @@ describe('Candidatura por e-mail: resolver → compor → disparar → registrar
     // feature/10: Tentar novamente após falha temporária de envio
     const transport = mockSmtpTransport(true);
     const vault = mockVault();
-    const draft = { to: 'a@b.co', subject: 's', body: 'b', attachments: [], language: 'en-US' as const };
+    const draft = {
+      to: 'a@b.co',
+      subject: 's',
+      body: 'b',
+      attachments: [],
+      language: 'en-US' as const,
+    };
 
     const result = await dispatchEmail(draft, {
       transport,

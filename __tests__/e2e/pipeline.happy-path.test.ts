@@ -1,14 +1,7 @@
 import { runApplicationPipeline } from '../../src/core/pipeline';
-import { makeJob, makeMasterProfile, makeConfig } from '../helpers/factories';
-import {
-  mockRepo,
-  mockTriageModel,
-  mockTailorModel,
-  mockSmtpTransport,
-  mockVault,
-  fakePageState,
-} from '../helpers/mocks';
-import { INTL_JOB_DESCRIPTION, SAMPLE_JOB_HTML } from '../helpers/fixtures';
+import { makeMasterProfile, makeConfig } from '../helpers/factories';
+import { mockRepo, mockTriageModel, mockTailorModel, fakePageState } from '../helpers/mocks';
+import { SAMPLE_JOB_HTML } from '../helpers/fixtures';
 
 /**
  * E2E: discovery → dedup → eligibility → triage → skills → tailor → autofill →
@@ -23,7 +16,12 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
 
     const result = await runApplicationPipeline(
       {
-        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://boards.greenhouse.io/techcorp/jobs/123?utm_source=x' }],
+        rawJobs: [
+          {
+            html: SAMPLE_JOB_HTML,
+            url: 'https://boards.greenhouse.io/techcorp/jobs/123?utm_source=x',
+          },
+        ],
         profile: makeMasterProfile(),
         config,
       },
@@ -102,12 +100,30 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
     ];
     // 1 aprovada (80), 2 reprovadas (50)
     triageModel.generate
-      .mockResolvedValueOnce({ fitScore: 80, isDealbreaker: false, missingSkills: [], matchedKeywords: ['ts'], atsTitleSuggestion: 'x' })
-      .mockResolvedValue({ fitScore: 50, isDealbreaker: false, missingSkills: [], matchedKeywords: [], atsTitleSuggestion: 'x' });
+      .mockResolvedValueOnce({
+        fitScore: 80,
+        isDealbreaker: false,
+        missingSkills: [],
+        matchedKeywords: ['ts'],
+        atsTitleSuggestion: 'x',
+      })
+      .mockResolvedValue({
+        fitScore: 50,
+        isDealbreaker: false,
+        missingSkills: [],
+        matchedKeywords: [],
+        atsTitleSuggestion: 'x',
+      });
 
     const result = await runApplicationPipeline(
       { rawJobs: jobs, profile: makeMasterProfile(), config: makeConfig() },
-      { repo, triageModel, tailorModel, pageFactory: () => fakePageState(), humanApproval: () => true },
+      {
+        repo,
+        triageModel,
+        tailorModel,
+        pageFactory: () => fakePageState(),
+        humanApproval: () => true,
+      },
     );
 
     expect(result.processed).toBe(3);

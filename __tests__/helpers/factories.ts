@@ -81,12 +81,14 @@ export function makeMasterProfile(overrides: Partial<MasterProfile> = {}): Maste
       },
     ],
     projects: [
-      { name: 'SaaS Analytics', summary: 'Multi-tenant dashboard platform', metrics: ['-40% latency'] },
+      {
+        name: 'SaaS Analytics',
+        summary: 'Multi-tenant dashboard platform',
+        metrics: ['-40% latency'],
+      },
     ],
     openSourceProjects: [],
-    education: [
-      { course: 'Ciência da Computação', institution: 'UFPE', period: '2014 — 2018' },
-    ],
+    education: [{ course: 'Ciência da Computação', institution: 'UFPE', period: '2014 — 2018' }],
     languages: ['Português', 'Inglês'],
     certifications: [],
     blockedKeywords: ['estágio', 'junior', 'onsite only'],
@@ -109,7 +111,8 @@ export function makeJob(overrides: Partial<JobPosting> = {}): JobPosting {
     source: 'ATS_DIRECT',
     company: 'TechCorp',
     title: 'Senior Full-Stack Engineer',
-    descriptionMarkdown: 'We are looking for a Senior Full-Stack Engineer with TypeScript, Next.js, Node.js and PostgreSQL. Fully remote.',
+    descriptionMarkdown:
+      'We are looking for a Senior Full-Stack Engineer with TypeScript, Next.js, Node.js and PostgreSQL. Fully remote.',
     scope: 'INTERNATIONAL',
     status: 'DISCOVERED',
     discoveredAt: '2026-11-19T10:00:00.000Z',
@@ -149,7 +152,9 @@ export function makeExtractedProfile(overrides: Partial<ExtractedProfile> = {}):
   return {
     ...base,
     seniorityYears: seniorityYears === undefined ? base.seniorityYears : seniorityYears,
-    salaryExpectationBRL: salaryExpectationBRL === undefined ? base.salaryExpectationBRL : salaryExpectationBRL,
-    salaryExpectationUSD: salaryExpectationUSD === undefined ? base.salaryExpectationUSD : salaryExpectationUSD,
+    salaryExpectationBRL:
+      salaryExpectationBRL === undefined ? base.salaryExpectationBRL : salaryExpectationBRL,
+    salaryExpectationUSD:
+      salaryExpectationUSD === undefined ? base.salaryExpectationUSD : salaryExpectationUSD,
   };
 }

@@ -1,4 +1,8 @@
-import { detectBlockingSignal, escalate, resumeAfterEscalation } from '../../src/core/escalationHandler';
+import {
+  detectBlockingSignal,
+  escalate,
+  resumeAfterEscalation,
+} from '../../src/core/escalationHandler';
 import { fakePageState, mockVault } from '../helpers/mocks';
 
 describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', () => {

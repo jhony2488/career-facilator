@@ -26,12 +26,12 @@ describe('selectRelevantSkills', () => {
 
   it('ativa skills cujos triggers coincidem com as palavras-chave da vaga', () => {
     // feature/04: Ativar skills cujos gatilhos coincidem com as palavras-chave da vaga
-    const selected = selectRelevantSkills(
-      ['TypeScript', 'Next.js', 'Remote USD'],
-      library,
-    );
+    const selected = selectRelevantSkills(['TypeScript', 'Next.js', 'Remote USD'], library);
 
-    expect(selected.map((s: SkillMetadata) => s.id)).toEqual(['fullstack-ts', 'international-remote']);
+    expect(selected.map((s: SkillMetadata) => s.id)).toEqual([
+      'fullstack-ts',
+      'international-remote',
+    ]);
   });
 
   it('é determinística e não exige chamada de IA', () => {

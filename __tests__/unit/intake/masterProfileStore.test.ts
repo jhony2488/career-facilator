@@ -30,7 +30,9 @@ describe('MasterProfileStore', () => {
   it('mantém a versão anterior ativa enquanto o rascunho não é aprovado', async () => {
     // feature/13: Perfil anterior permanece ativo enquanto o rascunho não é aprovado
     const { store } = setup();
-    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Rascunho' }), { mode: 'REPLACE' });
+    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Rascunho' }), {
+      mode: 'REPLACE',
+    });
 
     const active = await store.getActiveProfileMarkdown();
 
@@ -41,7 +43,9 @@ describe('MasterProfileStore', () => {
   it('promove o rascunho a perfil ativo após aprovação', async () => {
     // feature/13: Aprovação humana ativa o perfil-mestre
     const { store } = setup();
-    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Aprovado' }), { mode: 'REPLACE' });
+    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Aprovado' }), {
+      mode: 'REPLACE',
+    });
 
     const promoted = await store.promoteDraft();
 
