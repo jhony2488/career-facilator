@@ -68,6 +68,7 @@ O usuário também pode editar `profile.master.md` diretamente — a próxima ex
 - **Resumo** — título profissional e pitch curto
 - **Experiências** — cargo, empresa, período, responsabilidades e métricas
 - **Projetos** — nome, stack, resultado mensurável
+- **Projetos Open Source** — nome, repositório, contribuição, resultado mensurável
 - **Habilidades** — stacks, idiomas, certificações
 - **Formação** — curso, instituição, período
 - **Respostas padrão** — blocos reutilizáveis para perguntas dissertativas comuns
