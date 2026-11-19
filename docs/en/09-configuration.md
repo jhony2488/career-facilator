@@ -10,6 +10,18 @@ export interface CareerOpsConfig {
     minScoreForFullAuto: number;    // E.g.: 88 (minimum to send autonomously without human intervention)
     maxDailyApplications: number;   // Daily safety lock (e.g.: 15 applications/day)
     companyCooldownDays: number;    // Do not reapply to the same company for X days
+    maxJobsPerRun: number;          // Max jobs collected per discovery run (e.g.: 100)
+    reviewExpirationDays: number;   // READY_TO_REVIEW expiration (e.g.: 7 days → SKIPPED)
+    escalationTimeoutMinutes: number;          // Max wait for human intervention (e.g.: 15 min)
+    maxEscalationsPerPlatformPerDay: number;   // Circuit breaker per platform (e.g.: 3/day)
+  };
+  autofill: {
+    questionSimilarityThreshold: number;       // Min similarity to reuse a cached answer (e.g.: 0.9)
+    fieldDefaults: Record<string, string>;     // Default values for fields missing from the profile
+  };
+  tracking: {
+    emailMonitoring: boolean;       // Post-application monitoring — opt-in (default: false)
+    outcomeConfidenceMin: number;   // Min confidence to auto-change status (e.g.: 0.8)
   };
   marketScope: {
     target: 'NATIONAL' | 'INTERNATIONAL' | 'BOTH';
@@ -43,6 +55,18 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     minScoreForFullAuto: 88,
     maxDailyApplications: 15,
     companyCooldownDays: 30,
+    maxJobsPerRun: 100,
+    reviewExpirationDays: 7,
+    escalationTimeoutMinutes: 15,
+    maxEscalationsPerPlatformPerDay: 3,
+  },
+  autofill: {
+    questionSimilarityThreshold: 0.9,
+    fieldDefaults: {},
+  },
+  tracking: {
+    emailMonitoring: false,
+    outcomeConfidenceMin: 0.8,
   },
   marketScope: {
     target: 'BOTH',

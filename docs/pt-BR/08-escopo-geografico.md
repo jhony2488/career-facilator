@@ -23,6 +23,11 @@ career-facilitator-ts/
 | **Idioma do Currículo & Respostas** | Gera PDF e preenche formulários em Português (PT-BR), mantendo termos técnicos em inglês. | Ativa automaticamente a skill `international-remote`, traduz e adapta o PDF e as respostas para Inglês (EN-US). |
 | **Pretensão Salarial** | Calcula e preenche faixa em BRL (R$) conforme regime CLT/PJ. | Converte e preenche faixa anual/mensal em USD ($) padrão mercado internacional. |
 
+## 10.3. Critérios de Elegibilidade Refinados
+
+- **`AMERICAS_TIMEZONE`:** corresponde à faixa fixa **UTC-8 a UTC-3** (Pacífico a Brasília). Vagas que declaram fuso fora dessa faixa não são priorizadas como compatíveis com as Américas.
+- **Vaga sem região nem modelo declarados:** considerada **elegível**, mas recebe flag de revisão — nunca é enviada automaticamente, mesmo com Fit Score acima do limiar de `FULL_AUTO`.
+
 ---
 
 « [Anterior: Modos de Candidatura](07-modos-de-candidatura.md) | [Índice](README.md) | [Próximo: Configuração →](09-configuracao.md)

@@ -30,7 +30,8 @@ O fluxo é orquestrado por `intakeCore.ts`, que dispara a sequência abaixo tant
 │                          │                                              │
 │                          ▼                                              │
 │  profileStructurer.ts LLM leve + Zod (MasterProfileSchema).             │
-│                       Extrai SOMENTE o que consta no documento.         │
+│                       Extrai SOMENTE o que consta no documento;         │
+│                       trechos de baixa confiança entram marcados.       │
 │                          │                                              │
 │                          ▼                                              │
 │  masterProfileStore.ts Grava storage/profile.draft.md (rascunho).       │
@@ -52,9 +53,9 @@ O fluxo é orquestrado por `intakeCore.ts`, que dispara a sequência abaixo tant
 
 Alinhado ao princípio global de Human-in-the-Loop, **nenhum conteúdo extraído entra em vigor automaticamente**:
 
-1. O PDF processado gera/atualiza `storage/profile.draft.md`;
+1. O PDF processado gera/atualiza `storage/profile.draft.md` — trechos extraídos com baixa confiança entram **marcados para revisão**;
 2. O usuário revisa o rascunho (diff legível contra a versão ativa);
-3. Ao aprovar, o rascunho é promovido a `src/config/profile.master.md` e compilado;
+3. Ao aprovar, o rascunho é promovido a `src/config/profile.master.md` e compilado — a versão anterior vira um **snapshot** no histórico (um por aprovação);
 4. Enquanto houver rascunho pendente, o sistema continua usando a última versão aprovada.
 
 O usuário também pode editar `profile.master.md` diretamente — a próxima execução recompila e adota as alterações.
@@ -87,7 +88,8 @@ profile: {
 
 ## 13.6. Efeitos downstream
 
-- **Triagem:** `triageAgent.ts` continua cruzando a vaga contra o perfil compilado; atualização do perfil sinaliza scores pendentes de recálculo.
+- **Triagem:** `triageAgent.ts` continua cruzando a vaga contra o perfil compilado; atualização do perfil recalcula os Fit Scores das vagas em `TRIAGED`/`TAILORED`.
+- **Candidaturas pendentes:** materiais de vagas em `TAILORED`/`READY_TO_REVIEW` são **regenerados** com o perfil novo.
 - **Tailoring:** `tailorerAgent.ts` recebe o JSON compilado no bloco de cache (ver `03-otimizacao-de-ia.md`, §5.3) — permanece proibido de incluir qualquer habilidade ausente do perfil.
 - **Autofill:** `deterministicMatcher.ts` resolve campos padrão a partir do perfil compilado.
 

@@ -22,6 +22,8 @@ export const JobTriageSchema = z.object({
 export type JobTriageResult = z.infer<typeof JobTriageSchema>;
 ```
 
+Provider fallback: triage tries the local model first and uses the cloud as a backup; if **all** providers fail, the job goes to `NEEDS_HUMAN_INPUT` — it is never approved for lack of evaluation.
+
 ## 5.3. Prompt Caching for the Master Resume (`tailorerAgent.ts`)
 
 The `profile.master.json` — an artifact compiled from the user-approved `profile.master.md` (see [Profile Intake](13-profile-intake.md)), containing the entire professional history, projects, metrics and behavioral answers — is sent as a system block with **Ephemeral Cache / Prefix Caching**. When processing 30 jobs in a batch, the system pays for processing the full profile only on the first job, getting a **75% to 90% discount on input tokens** for the following 29 jobs.

@@ -8,8 +8,9 @@ Five mechanisms that close the end-to-end cycle: Discovery → Geographic Filter
 
 **What to add:**
 
-- Encrypted persistence of cookies and Playwright `storageState` (integrated into the AES-256-GCM vault).
+- Encrypted persistence of cookies and Playwright `storageState` (vault = local AES-256-GCM file with a master password).
 - **Jittered Queue (Random Delay):** Limit execution to at most 1 application every 3 to 8 minutes with random variation, simulating real human behavior.
+- **Platform rate-limit (HTTP 429, speed challenge):** that source's queue pauses with exponential backoff; other sources keep processing normally.
 
 ## 2. Multi-Step Form (Wizards) and Shadow DOM Handling (`src/autofill/wizardNavigator.ts`)
 
@@ -26,6 +27,8 @@ Five mechanisms that close the end-to-end cycle: Discovery → Geographic Filter
 **What to add:**
 
 - When the bot detects a CAPTCHA, e-mail OTP or unknown required field, it does not fail or invent data: it changes the job status to `NEEDS_HUMAN_INPUT`, saves the tab state and fires an alert on the HUD/notification so you can apply manually.
+- **Human wait timeout:** if the blocker is not resolved within the configured deadline (`escalationTimeoutMinutes`), the tab is closed and the serialized state is kept for later resumption — the application stays in the pending list.
+- **Per-platform circuit breaker:** after N escalations on the same platform in a day (`maxEscalationsPerPlatformPerDay`), that source is paused until the next day.
 
 ## 4. Post-Application Tracker and Feedback Loop (`src/tracker/outcomeMonitor.ts`)
 
@@ -33,7 +36,8 @@ Five mechanisms that close the end-to-end cycle: Discovery → Geographic Filter
 
 **What to add:**
 
-- Optional inbox reading (via IMAP/Gmail API) filtering only senders from applied companies to automatically update the status in SQLite (`APPLIED` → `REJECTED`, `ASSESSMENT_INVITED` or `INTERVIEW`).
+- **Opt-in** inbox reading (IMAP/Gmail, read-only access) filtering only senders from applied companies to automatically update the status in SQLite (`APPLIED` → `REJECTED`, `ASSESSMENT_INVITED` or `INTERVIEW`). Recruiter replies in the same thread are out of scope — the system does not send e-mail replies.
+- **Response classification:** deterministic heuristics first; a lightweight model only for ambiguous cases. Status only changes automatically with confidence ≥ 0.8 — below that, the message is flagged for user review.
 - Conversion metric per Skill and Fit Score (e.g.: discovering that jobs where you activate the `ai-engineer` skill get 3x more responses than generic `fullstack-ts`).
 
 ## 5. Dry-Run Module (Safe Simulation)

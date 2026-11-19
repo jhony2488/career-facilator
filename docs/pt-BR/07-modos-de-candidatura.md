@@ -6,7 +6,7 @@ Para permitir que o sistema se candidate de forma 100% autônoma sem disparar cu
 
 - **FULL_AUTO (Piloto Automático Total):**
   - O sistema busca as vagas, calcula a aderência real com o currículo, gera o PDF adaptado, preenche o formulário e clica no botão de envio sozinho, registrando tudo no SQLite e notificando na HUD/Terminal.
-  - **Trava de Segurança:** No modo FULL_AUTO, o sistema exige um Fit Score muito mais alto (ex: ≥ 85%) e bloqueia envio automático caso a página exija resolução de CAPTCHA complexo ou perguntas inéditas com baixa confiança da IA.
+  - **Trava de Segurança:** No modo FULL_AUTO, o sistema exige um Fit Score muito mais alto (default: ≥ 88%) e bloqueia envio automático caso a página exija resolução de CAPTCHA complexo ou perguntas inéditas com baixa confiança da IA.
 - **SEMI_AUTO (Revisão Antes do Envio):**
   - Faz todo o trabalho pesado (busca, triagem, PDF customizado e preenchimento completo do formulário), mas pausa antes do botão Submit aguardando sua aprovação visual.
 - **HYBRID_THRESHOLD (Recomendado):**

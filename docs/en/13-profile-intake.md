@@ -30,7 +30,8 @@ The flow is orchestrated by `intakeCore.ts`, which triggers the sequence below b
 │                          │                                              │
 │                          ▼                                              │
 │  profileStructurer.ts Lightweight LLM + Zod (MasterProfileSchema).      │
-│                       Extracts ONLY what is in the document.            │
+│                       Extracts ONLY what is in the document;            │
+│                       low-confidence excerpts are flagged.              │
 │                          │                                              │
 │                          ▼                                              │
 │  masterProfileStore.ts Writes storage/profile.draft.md (draft).         │
@@ -52,9 +53,9 @@ The flow is orchestrated by `intakeCore.ts`, which triggers the sequence below b
 
 Aligned with the global Human-in-the-Loop principle, **no extracted content takes effect automatically**:
 
-1. A processed PDF generates/updates `storage/profile.draft.md`;
+1. A processed PDF generates/updates `storage/profile.draft.md` — excerpts extracted with low confidence enter **flagged for review**;
 2. The user reviews the draft (readable diff against the active version);
-3. On approval, the draft is promoted to `src/config/profile.master.md` and compiled;
+3. On approval, the draft is promoted to `src/config/profile.master.md` and compiled — the previous version becomes a **snapshot** in the history (one per approval);
 4. While a draft is pending, the system keeps using the last approved version.
 
 The user may also edit `profile.master.md` directly — the next run recompiles and adopts the changes.
@@ -87,7 +88,8 @@ profile: {
 
 ## 13.6. Downstream effects
 
-- **Triage:** `triageAgent.ts` keeps cross-referencing the job against the compiled profile; a profile update flags scores pending recalculation.
+- **Triage:** `triageAgent.ts` keeps cross-referencing the job against the compiled profile; a profile update recalculates the Fit Scores of `TRIAGED`/`TAILORED` jobs.
+- **Pending applications:** materials for `TAILORED`/`READY_TO_REVIEW` jobs are **regenerated** with the new profile.
 - **Tailoring:** `tailorerAgent.ts` receives the compiled JSON in the cache block (see `03-ai-optimization.md`, §5.3) — it remains forbidden from including any skill absent from the profile.
 - **Autofill:** `deterministicMatcher.ts` resolves standard fields from the compiled profile.
 

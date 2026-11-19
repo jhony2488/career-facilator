@@ -23,6 +23,11 @@ career-facilitator-ts/
 | **Resume Language & Answers** | Generates PDF and fills forms in Portuguese (PT-BR), keeping technical terms in English. | Automatically activates the `international-remote` skill, translates and adapts the PDF and answers to English (EN-US). |
 | **Salary Expectation** | Calculates and fills the range in BRL (R$) according to the CLT/PJ regime. | Converts and fills the annual/monthly range in USD ($) following international market standards. |
 
+## 10.3. Refined Eligibility Criteria
+
+- **`AMERICAS_TIMEZONE`:** maps to the fixed **UTC-8 to UTC-3** range (Pacific to Brasília). Jobs declaring a timezone outside this range are not prioritized as Americas-compatible.
+- **Job without declared region or work model:** considered **eligible**, but flagged for review — it is never sent automatically, even with a Fit Score above the `FULL_AUTO` threshold.
+
 ---
 
 « [Previous: Application Modes](07-application-modes.md) | [Index](README.md) | [Next: Configuration →](09-configuration.md)

@@ -53,7 +53,8 @@ O módulo `email_application` entra em ação quando a etapa de inspeção de fo
 - **Respeito aos Modos de Execução:**
   - Em modo de revisão (`SEMI_AUTO` ou abaixo do limiar automático), apresenta destinatário, assunto, corpo do e-mail e caminho do anexo para aprovação antes do envio.
   - Em modo automático (`FULL_AUTO` acima da régua de aderência), dispara o e-mail após passar pelas checagens de segurança.
-- **Credenciais Blindadas e Resiliência:** Obtém senhas de app, chaves SMTP ou tokens de provedor de e-mail diretamente do cofre criptografado (AES-256-GCM), com fila local e nova tentativa automática em caso de falha temporária de rede.
+- **Credenciais Blindadas e Resiliência:** Obtém senhas de app, chaves SMTP ou tokens de provedor de e-mail diretamente do cofre criptografado (AES-256-GCM), com fila local e nova tentativa automática em caso de falha temporária de rede — no máximo **3 tentativas com backoff**; esgotadas, a candidatura vai para `NEEDS_HUMAN_INPUT`.
+- **Escopo de respostas:** respostas do recrutador no mesmo thread ficam fora de escopo — o módulo envia e monitora, nunca responde e-mails.
 
 ### 3.4. Rastreador de Envio e Retorno (`emailTracker.ts`)
 
