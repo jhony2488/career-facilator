@@ -1,4 +1,4 @@
-/** Fixtures de entrada — HTML de vaga, SKILL.md, perfil-mestre compilado (profile.master.json) de exemplo. */
+/** Input fixtures — sample job HTML, SKILL.md, compiled master profile (profile.master.json). */
 
 export const SAMPLE_JOB_HTML = `
 <!DOCTYPE html>
@@ -71,7 +71,7 @@ For general questions contact info@techcorp.io.
 Billing inquiries: finance@techcorp.io.
 `;
 
-/** Texto extraído da camada de texto de um PDF de currículo (entrada do src/intake/). */
+/** Text extracted from the text layer of a resume PDF (input to src/intake/). */
 export const SAMPLE_CV_TEXT = `
 Dev Tester
 dev@example.com · +55 81 99999-0000
@@ -97,7 +97,7 @@ STACK
 TypeScript, Node.js, Next.js, PostgreSQL
 `;
 
-/** Variante do CV sem pretensão salarial nem seção de idiomas — para o cenário "nunca inferir". */
+/** CV variant with no salary expectation or languages section — for the "never infer" scenario. */
 export const SAMPLE_CV_TEXT_SPARSE = `
 Dev Tester
 dev@example.com
@@ -110,7 +110,7 @@ STACK
 TypeScript, Node.js
 `;
 
-/** Perfil-mestre aprovado em Markdown — formato compilado pelo profileCompiler. */
+/** Approved master profile in Markdown — format compiled by profileCompiler. */
 export const SAMPLE_MASTER_MD = `# Dev Tester
 
 ## Dados Pessoais
@@ -145,5 +145,5 @@ Multi-tenant dashboard platform
 - Pretensão salarial: A combinar conforme faixa do mercado
 `;
 
-/** PDF "digitalizado" — leitor retorna páginas mas nenhum texto extraível. */
+/** "Scanned" PDF — the reader returns pages but no extractable text. */
 export const SCANNED_PDF_RESULT = { text: '', pages: 3 };

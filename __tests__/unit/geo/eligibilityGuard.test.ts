@@ -2,7 +2,7 @@ import { checkEligibility } from '../../../src/geo/eligibilityGuard';
 import { makeConfig, makeJob } from '../../helpers/factories';
 import { BLOCKING_TEXTS } from '../../helpers/fixtures';
 
-describe('checkEligibility — escopo INTERNATIONAL', () => {
+describe('checkEligibility — INTERNATIONAL scope', () => {
   const config = makeConfig();
   const intlJob = makeJob({ scope: 'INTERNATIONAL' });
 
@@ -10,17 +10,17 @@ describe('checkEligibility — escopo INTERNATIONAL', () => {
     ['US Citizens Only', BLOCKING_TEXTS.usCitizens],
     ['W2 only', BLOCKING_TEXTS.w2Only],
     ['Security Clearance', BLOCKING_TEXTS.clearance],
-    ['patrocínio de visto indisponível', BLOCKING_TEXTS.visaUnavailable],
-  ])('bloqueia vaga com exigência: %s', (_label, text) => {
-    // feature/08: Restrições eliminatórias internacionais bloqueadas
+    ['visa sponsorship unavailable', BLOCKING_TEXTS.visaUnavailable],
+  ])('blocks job with requirement: %s', (_label, text) => {
+    // feature/08: International eliminatory restrictions are blocked
     const result = checkEligibility({ ...intlJob, descriptionMarkdown: text }, config);
 
     expect(result.eligible).toBe(false);
     expect(result.reason).toBeTruthy();
   });
 
-  it('aprova vaga remota compatível com LATAM e contrato B2B', () => {
-    // feature/08: priorizar vagas com LATAM/Async/Contractor
+  it('approves a remote job compatible with LATAM and B2B contract', () => {
+    // feature/08: prioritize jobs with LATAM/Async/Contractor
     const result = checkEligibility(
       { ...intlJob, descriptionMarkdown: BLOCKING_TEXTS.latamFriendly },
       config,
@@ -29,7 +29,7 @@ describe('checkEligibility — escopo INTERNATIONAL', () => {
     expect(result.eligible).toBe(true);
   });
 
-  it('não bloqueia exigência de visto quando blockVisaRequired está desligado', () => {
+  it('does not block a visa requirement when blockVisaRequired is off', () => {
     const relaxed = makeConfig({
       marketScope: {
         ...config.marketScope,
@@ -45,8 +45,8 @@ describe('checkEligibility — escopo INTERNATIONAL', () => {
     expect(result.eligible).toBe(true);
   });
 
-  it('marca para revisão vaga sem região nem modelo de trabalho declarados', () => {
-    // DECISOES.md sugestão #6: elegível com flag de revisão
+  it('flags for review a job with no declared region or work model', () => {
+    // DECISOES.md suggestion #6: eligible with a review flag
     const result = checkEligibility(
       { ...intlJob, descriptionMarkdown: 'Great engineer wanted. TypeScript a plus.' },
       config,
@@ -57,20 +57,20 @@ describe('checkEligibility — escopo INTERNATIONAL', () => {
   });
 });
 
-describe('checkEligibility — escopo NATIONAL', () => {
+describe('checkEligibility — NATIONAL scope', () => {
   const config = makeConfig();
   const natJob = makeJob({
     scope: 'NATIONAL',
     descriptionMarkdown: 'Vaga remota, contratação PJ, Brasil.',
   });
 
-  it('aprova vaga remota nacional com contrato aceito (PJ/CLT)', () => {
-    // feature/08: Validar modelo de contratação no escopo nacional
+  it('approves a national remote job with an accepted contract type (PJ/CLT)', () => {
+    // feature/08: Validate the contract type under the national scope
     const result = checkEligibility(natJob, config);
     expect(result.eligible).toBe(true);
   });
 
-  it('rejeita vaga nacional com modelo de contratação não listado', () => {
+  it('rejects a national job with an unlisted contract type', () => {
     const result = checkEligibility(
       { ...natJob, descriptionMarkdown: 'Contratação Cooperado, remoto.' },
       config,
@@ -79,8 +79,8 @@ describe('checkEligibility — escopo NATIONAL', () => {
     expect(result.eligible).toBe(false);
   });
 
-  it('rejeita vaga híbrida em cidade fora da lista permitida', () => {
-    // feature/08: Validar cidade permitida para vaga híbrida nacional
+  it('rejects a hybrid job in a city outside the allowed list', () => {
+    // feature/08: Validate the allowed city for a national hybrid job
     const result = checkEligibility(
       { ...natJob, descriptionMarkdown: 'Modelo híbrido em São Paulo, 3x por semana. CLT.' },
       config,
@@ -89,7 +89,7 @@ describe('checkEligibility — escopo NATIONAL', () => {
     expect(result.eligible).toBe(false);
   });
 
-  it('aceita vaga híbrida em cidade permitida', () => {
+  it('accepts a hybrid job in an allowed city', () => {
     const result = checkEligibility(
       { ...natJob, descriptionMarkdown: 'Modelo híbrido em Recife, 2x por semana. CLT.' },
       config,

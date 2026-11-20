@@ -5,18 +5,18 @@ import { mockStructurerModel, mockFailingStructurerModel } from '../../helpers/m
 import { SAMPLE_CV_TEXT, SAMPLE_CV_TEXT_SPARSE } from '../../helpers/fixtures';
 
 describe('MasterProfileSchema', () => {
-  it('aceita um perfil extraído válido', () => {
+  it('accepts a valid extracted profile', () => {
     expect(MasterProfileSchema.safeParse(makeExtractedProfile()).success).toBe(true);
   });
 
-  it('rejeita estrutura sem os campos mínimos de identificação', () => {
+  it('rejects a structure missing the minimum identification fields', () => {
     expect(MasterProfileSchema.safeParse({ coreStack: ['TypeScript'] }).success).toBe(false);
   });
 });
 
 describe('structureProfile', () => {
-  it('produz perfil estruturado a partir do texto do documento', async () => {
-    // feature/13: Extrair currículo depositado na área de entrada
+  it('produces a structured profile from the document text', async () => {
+    // feature/13: Extract the resume dropped in the inbox area
     const model = mockStructurerModel({
       fullName: 'Dev Tester',
       coreStack: ['TypeScript', 'Node.js'],
@@ -28,7 +28,7 @@ describe('structureProfile', () => {
     expect(model.generate).toHaveBeenCalledTimes(1);
   });
 
-  it('envia o texto do documento ao modelo, não metadados externos', async () => {
+  it('sends the document text to the model, not external metadata', async () => {
     const model = mockStructurerModel();
     await structureProfile({ documentText: SAMPLE_CV_TEXT }, { model });
 
@@ -37,8 +37,8 @@ describe('structureProfile', () => {
     expect(prompt).toContain('dev@example.com');
   });
 
-  it('nunca infere dados ausentes — campos ficam não informados ou vazios', async () => {
-    // feature/13: Nunca inferir dados ausentes no documento
+  it('never infers missing data — fields stay uninformed or empty', async () => {
+    // feature/13: Never infer data missing from the document
     const model = mockStructurerModel({
       fullName: 'Dev Tester',
       languages: [],
@@ -52,8 +52,8 @@ describe('structureProfile', () => {
     expect(result.salaryExpectationUSD).toBeNull();
   });
 
-  it('usa sentinela para campos de texto ausentes no documento', async () => {
-    // feature/13: Nunca inferir dados ausentes no documento
+  it('uses the sentinel for text fields missing from the document', async () => {
+    // feature/13: Never infer data missing from the document
     const model = mockStructurerModel({ portfolio: NOT_INFORMED, certifications: [] });
     const result = await structureProfile({ documentText: SAMPLE_CV_TEXT_SPARSE }, { model });
 
@@ -61,7 +61,7 @@ describe('structureProfile', () => {
     expect(result.portfolio).not.toContain('http');
   });
 
-  it('propaga falha do modelo sem produzir perfil parcial', async () => {
+  it('propagates model failure without producing a partial profile', async () => {
     const model = mockFailingStructurerModel();
     await expect(structureProfile({ documentText: SAMPLE_CV_TEXT }, { model })).rejects.toThrow();
   });

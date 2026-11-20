@@ -4,15 +4,15 @@ import { makeMasterProfile, makeConfig } from '../helpers/factories';
 import { mockRepo, mockTriageModel, mockTailorModel, fakePageState } from '../helpers/mocks';
 import { SAMPLE_JOB_HTML } from '../helpers/fixtures';
 
-describe('Pipeline completo — modo FULL_AUTO', () => {
+describe('Full pipeline — FULL_AUTO mode', () => {
   const fullAutoConfig = () => {
     const c = makeConfig();
     c.execution.mode = 'FULL_AUTO';
     return c;
   };
 
-  it('envia sozinho quando score >= limiar e não há bloqueios', async () => {
-    // feature/07: modo FULL_AUTO com score 90 → envio automático
+  it('submits on its own when score >= threshold and there are no blockers', async () => {
+    // feature/07: FULL_AUTO mode with score 90 → automatic submission
     const page = fakePageState();
     const result = await runApplicationPipeline(
       {
@@ -26,7 +26,7 @@ describe('Pipeline completo — modo FULL_AUTO', () => {
         tailorModel: mockTailorModel(),
         pageFactory: () => page,
         humanApproval: () => {
-          throw new Error('não deve pedir aprovação em FULL_AUTO');
+          throw new Error('must not request approval in FULL_AUTO');
         },
       },
     );
@@ -34,8 +34,8 @@ describe('Pipeline completo — modo FULL_AUTO', () => {
     expect(result.applications[0].status).toBe('APPLIED');
   });
 
-  it('escala para humano ao encontrar CAPTCHA mesmo com score altíssimo', async () => {
-    // feature/07 + feature/09: CAPTCHA bloqueia envio automático
+  it('escalates to a human upon hitting a CAPTCHA even with a very high score', async () => {
+    // feature/07 + feature/09: CAPTCHA blocks automatic submission
     const page = fakePageState({ hasCaptcha: true });
     const result = await runApplicationPipeline(
       {
@@ -55,8 +55,8 @@ describe('Pipeline completo — modo FULL_AUTO', () => {
     expect(page.submitted).toBe(false);
   });
 
-  it('defere envios quando o limite diário é atingido', async () => {
-    // feature/07: Respeitar o limite diário de candidaturas
+  it('defers submissions when the daily limit is reached', async () => {
+    // feature/07: Respect the daily application limit
     const config = fullAutoConfig();
     config.execution.maxDailyApplications = 1;
 

@@ -9,8 +9,8 @@ import { makeExtractedProfile, makeTriageResult } from './factories';
 import { SAMPLE_CV_TEXT, SCANNED_PDF_RESULT } from './fixtures';
 
 /**
- * Mocks de dependências externas. Os módulos de src/ recebem essas dependências
- * por injeção — os testes nunca importam playwright, nodemailer ou SDKs de LLM.
+ * Mocks of external dependencies. src/ modules receive these dependencies
+ * via injection — tests never import playwright, nodemailer, or LLM SDKs.
  */
 
 export interface MockTriageModel {
@@ -51,7 +51,7 @@ export function mockTailorModel(): MockTailorModel {
   };
 }
 
-/** Estado serializável de uma página — o que o inspetor/escalonador enxerga. */
+/** Serializable state of a page — what the inspector/escalator sees. */
 export interface FakePageState {
   url: string;
   fields: Array<{ kind: string; label: string; required: boolean; value?: string }>;
@@ -115,7 +115,7 @@ export function mockVault(): MockVault {
   };
 }
 
-/** Repositório em memória para testes que não exercitam o SQLite real. */
+/** In-memory repository for tests that do not exercise the real SQLite. */
 export function mockRepo() {
   const jobs: Array<{ url: string; company: string; status: string; appliedAt?: string }> = [];
   return {
@@ -138,7 +138,7 @@ export function mockRepo() {
   };
 }
 
-// ─── Mocks do módulo de intake (feature/13) ──────────────────────────────────
+// ─── Mocks for the intake module (feature/13) ────────────────────────────────
 
 export interface MockStructurerModel extends StructurerModel {
   generate: jest.Mock<Promise<ExtractedProfile>, [prompt: string]>;
@@ -162,12 +162,12 @@ export function mockPdfReader(text = SAMPLE_CV_TEXT, pages = 2): PdfReader {
   return { extract: jest.fn(async () => ({ text, pages })) };
 }
 
-/** PDF digitalizado: páginas existem, mas não há camada de texto extraível. */
+/** Scanned PDF: pages exist, but there is no extractable text layer. */
 export function mockScannedPdfReader(): PdfReader {
   return { extract: jest.fn(async () => SCANNED_PDF_RESULT) };
 }
 
-/** FileStore em memória — permite testar o MasterProfileStore sem tocar disco. */
+/** In-memory FileStore — allows testing MasterProfileStore without touching disk. */
 export function mockFileStore(
   initialFiles: Record<string, string> = {},
 ): FileStore & { files: Map<string, string> } {

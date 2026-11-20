@@ -21,12 +21,12 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     await fs.rm(skillPath, { force: true });
   });
 
-  it('encadeia triagem → seleção de skills → geração de currículo', async () => {
-    // features 03 + 04 + 05: fluxo completo de uma vaga aprovada
+  it('chains triage → skill selection → resume generation', async () => {
+    // features 03 + 04 + 05: full flow of an approved job
     const profile = makeMasterProfile();
     const job = makeJob({ descriptionMarkdown: INTL_JOB_DESCRIPTION });
 
-    // 1. Triagem (Camada 1 — modelo leve mockado)
+    // 1. Triage (Tier 1 — mocked light model)
     const triageModel = mockTriageModel({
       fitScore: 85,
       matchedKeywords: ['TypeScript', 'Next.js', 'Remote USD'],
@@ -37,7 +37,7 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     );
     expect(triage.fitScore).toBeGreaterThanOrEqual(75);
 
-    // 2. Skills — seleção determinística (0 tokens)
+    // 2. Skills — deterministic selection (0 tokens)
     const skills = selectRelevantSkills(triage.matchedKeywords, [
       makeSkill({ filePath: skillPath }),
       makeSkill({
@@ -50,11 +50,11 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.length).toBeLessThanOrEqual(2);
 
-    // 3. Injeção de contexto enxuto
+    // 3. Lean context injection
     const skillsBlock = await buildSkillsContextBlock(skills);
     expect(skillsBlock).toContain('<active_skills>');
 
-    // 4. Geração (Camada 2 — modelo smart mockado)
+    // 4. Generation (Tier 2 — mocked smart model)
     const tailorModel = mockTailorModel();
     const assets = await tailorResume(
       { job, triage, skillsBlock, profile },
@@ -65,8 +65,8 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     expect(tailorModel.tailor).toHaveBeenCalled();
   });
 
-  it('reusa o perfil em cache na segunda vaga processada', async () => {
-    // feature/05: Reutilizar o perfil mestre em cache ao processar vagas em lote
+  it('reuses the cached profile on the second processed job', async () => {
+    // feature/05: Reuse the cached master profile when processing jobs in batch
     const tailorModel = mockTailorModel();
     const profile = makeMasterProfile();
     const job = makeJob();

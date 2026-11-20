@@ -2,27 +2,29 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { careerHome, envFilePath, packageRoot, resolveHome } from '../../../src/config/paths';
 
-describe('paths — diretório de dados da CLI global', () => {
-  it('home default é ~/.careerfacilator', () => {
+describe('paths — global CLI data directory', () => {
+  it('default home is ~/.careerfacilator', () => {
     expect(careerHome({})).toBe(join(homedir(), '.careerfacilator'));
   });
 
-  it('CAREER_HOME sobrescreve o default', () => {
+  it('CAREER_HOME overrides the default', () => {
     expect(careerHome({ CAREER_HOME: 'tmp/custom-home' })).toBe(resolve('tmp/custom-home'));
   });
 
-  it('resolveHome junta relativo sob home e respeita absoluto', () => {
-    const env = { CAREER_HOME: '/cfhome' };
-    expect(resolveHome('storage/jobs.sqlite', env)).toBe(join('/cfhome', 'storage/jobs.sqlite'));
+  it('resolveHome joins relative paths under home and respects absolute ones', () => {
+    const home = resolve('/cfhome'); // absolute on this machine
+    const env = { CAREER_HOME: home };
+    expect(resolveHome('storage/jobs.sqlite', env)).toBe(join(home, 'storage/jobs.sqlite'));
     const abs = resolve('/elsewhere/file.txt');
     expect(resolveHome(abs, env)).toBe(abs);
   });
 
-  it('envFilePath aponta para <home>/.env', () => {
-    expect(envFilePath({ CAREER_HOME: '/cfhome' })).toBe(join('/cfhome', '.env'));
+  it('envFilePath points to <home>/.env', () => {
+    const home = resolve('/cfhome');
+    expect(envFilePath({ CAREER_HOME: home })).toBe(join(home, '.env'));
   });
 
-  it('packageRoot resolve assets do pacote independente do cwd', () => {
+  it('packageRoot resolves package assets regardless of cwd', () => {
     expect(join(packageRoot, 'src/skills/library')).toContain('skills');
   });
 });

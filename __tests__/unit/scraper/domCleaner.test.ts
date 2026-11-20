@@ -1,9 +1,9 @@
 import { cleanJobHtml, estimateTokens } from '../../../src/scraper/domCleaner';
 import { SAMPLE_JOB_HTML } from '../../helpers/fixtures';
 
-describe('cleanJobHtml — limpeza agressiva de contexto', () => {
-  it('extrai apenas o conteúdo principal da descrição da vaga', () => {
-    // doc 03 (5.1): converte apenas o container principal em Markdown compacto
+describe('cleanJobHtml — aggressive context cleanup', () => {
+  it('extracts only the main content of the job description', () => {
+    // doc 03 (5.1): converts only the main container into compact Markdown
     const clean = cleanJobHtml(SAMPLE_JOB_HTML);
 
     expect(clean.markdown).toContain('Senior Full-Stack Engineer');
@@ -11,8 +11,8 @@ describe('cleanJobHtml — limpeza agressiva de contexto', () => {
     expect(clean.markdown).toContain('PostgreSQL');
   });
 
-  it('remove scripts, estilos, svg, navegação, ads e rodapé', () => {
-    // doc 03 (5.1): remove tags script, style, svg, menus e rodapés
+  it('removes scripts, styles, svg, navigation, ads and footer', () => {
+    // doc 03 (5.1): removes script, style, svg tags, menus and footers
     const clean = cleanJobHtml(SAMPLE_JOB_HTML);
 
     expect(clean.markdown).not.toContain('window.tracker');
@@ -22,14 +22,14 @@ describe('cleanJobHtml — limpeza agressiva de contexto', () => {
     expect(clean.markdown).not.toContain('Privacy · Cookies');
   });
 
-  it('produz saída em markdown enxuto, não HTML', () => {
+  it('produces lean markdown output, not HTML', () => {
     const clean = cleanJobHtml(SAMPLE_JOB_HTML);
 
     expect(clean.markdown).not.toMatch(/<script|<style|<nav|<footer|<svg/i);
   });
 
-  it('reduz drasticamente o volume de tokens da página', () => {
-    // doc 03 (5.1): página média de 18k tokens → ~900 tokens
+  it('drastically reduces the page token volume', () => {
+    // doc 03 (5.1): average 18k-token page → ~900 tokens
     const clean = cleanJobHtml(SAMPLE_JOB_HTML);
     const rawTokens = estimateTokens(SAMPLE_JOB_HTML);
     const cleanTokens = estimateTokens(clean.markdown);
@@ -37,7 +37,7 @@ describe('cleanJobHtml — limpeza agressiva de contexto', () => {
     expect(cleanTokens).toBeLessThan(rawTokens * 0.3);
   });
 
-  it('extrai título e empresa quando identificáveis', () => {
+  it('extracts title and company when identifiable', () => {
     const clean = cleanJobHtml(SAMPLE_JOB_HTML);
 
     expect(clean.title).toMatch(/Senior Full-Stack Engineer/i);
@@ -46,7 +46,7 @@ describe('cleanJobHtml — limpeza agressiva de contexto', () => {
 });
 
 describe('estimateTokens', () => {
-  it('estima tokens proporcionalmente ao tamanho do texto', () => {
+  it('estimates tokens proportionally to the text size', () => {
     const short = estimateTokens('hello world');
     const long = estimateTokens('hello world '.repeat(100));
 

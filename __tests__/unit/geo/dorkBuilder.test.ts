@@ -1,9 +1,9 @@
 import { buildSearchQueries } from '../../../src/geo/dorkBuilder';
 import { makeConfig } from '../../helpers/factories';
 
-describe('buildSearchQueries — queries por mercado e idioma', () => {
-  it('gera queries em inglês para portais globais no escopo INTERNATIONAL', () => {
-    // feature/08: fontes variam conforme o escopo ativo
+describe('buildSearchQueries — queries per market and language', () => {
+  it('generates English queries for global job boards under the INTERNATIONAL scope', () => {
+    // feature/08: sources vary according to the active scope
     const config = makeConfig({
       marketScope: { ...makeConfig().marketScope, target: 'INTERNATIONAL' },
     });
@@ -22,7 +22,7 @@ describe('buildSearchQueries — queries por mercado e idioma', () => {
     );
   });
 
-  it('gera queries com filtro de região Brasil/LATAM no escopo NATIONAL', () => {
+  it('generates queries with a Brazil/LATAM region filter under the NATIONAL scope', () => {
     const config = makeConfig({
       marketScope: { ...makeConfig().marketScope, target: 'NATIONAL' },
     });
@@ -34,8 +34,8 @@ describe('buildSearchQueries — queries por mercado e idioma', () => {
     );
   });
 
-  it('gera queries para os dois mercados no escopo BOTH', () => {
-    // feature/08: BOTH cobre a união dos dois conjuntos
+  it('generates queries for both markets under the BOTH scope', () => {
+    // feature/08: BOTH covers the union of the two sets
     const config = makeConfig();
     const queries = buildSearchQueries(config);
 
@@ -47,7 +47,7 @@ describe('buildSearchQueries — queries por mercado e idioma', () => {
     expect(hasNat).toBe(true);
   });
 
-  it('não gera queries para um mercado desabilitado', () => {
+  it('does not generate queries for a disabled market', () => {
     const config = makeConfig({
       marketScope: {
         ...makeConfig().marketScope,

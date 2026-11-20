@@ -11,7 +11,7 @@ const profile = makeMasterProfile({
 });
 
 describe('profileFitTerms', () => {
-  it('extrai stack + termos de títulos ≥4 letras', () => {
+  it('extracts stack + terms from titles ≥4 letters long', () => {
     const terms = profileFitTerms(profile);
     for (const t of ['typescript', 'react', 'node.js', 'postgresql', 'senior', 'fullstack', 'jobsearch']) {
       expect(terms).toContain(t);
@@ -23,7 +23,7 @@ describe('profileFitTerms', () => {
 describe('computeLexicalFit', () => {
   const terms = ['typescript', 'react', 'node.js', 'postgresql'];
 
-  it('casa termos exatos e conta hits', () => {
+  it('matches exact terms and counts hits', () => {
     const fit = computeLexicalFit(
       'Procuramos dev TypeScript com React e TypeScript novamente',
       terms,
@@ -38,13 +38,13 @@ describe('computeLexicalFit', () => {
     expect(fit.matchedTerms).toContain('typescript');
   });
 
-  it('sem overlap → coverage 0 e matchedTerms vazio', () => {
+  it('no overlap → coverage 0 and empty matchedTerms', () => {
     const fit = computeLexicalFit('Analista de COBOL com experiência em mainframe', terms);
     expect(fit.matchedTerms).toHaveLength(0);
     expect(fit.coverage).toBe(0);
   });
 
-  it('lista de termos vazia → coverage 0 sem crash', () => {
+  it('empty term list → coverage 0 without crashing', () => {
     expect(computeLexicalFit('qualquer vaga', []).coverage).toBe(0);
   });
 });

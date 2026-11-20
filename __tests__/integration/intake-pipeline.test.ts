@@ -31,9 +31,9 @@ function setup(activeMd: string | null = SAMPLE_MASTER_MD) {
   };
 }
 
-describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo', () => {
-  it('PDF na área de entrada gera rascunho pendente de revisão', async () => {
-    // feature/13: Extrair currículo depositado na área de entrada
+describe('Intake pipeline: PDF → draft → approval → active profile', () => {
+  it('PDF in the inbox generates a draft pending review', async () => {
+    // feature/13: Extract a resume dropped in the inbox
     const { store, reader, model, fs } = setup();
 
     const result = await importResume(
@@ -46,8 +46,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(await store.getActiveProfileMarkdown()).toBe(SAMPLE_MASTER_MD);
   });
 
-  it('importação por comando produz o mesmo rascunho pendente', async () => {
-    // feature/13: Importar currículo por comando explícito
+  it('import via command produces the same pending draft', async () => {
+    // feature/13: Import a resume via explicit command
     const { store, reader, model } = setup();
 
     const result = await importResume(
@@ -59,8 +59,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(result.draftPath).toBe(paths.draftPath);
   });
 
-  it('aprovação ativa o novo perfil e invalida os dados derivados', async () => {
-    // feature/13: Aprovação humana ativa o perfil-mestre + Atualização invalida dados derivados
+  it('approval activates the new profile and invalidates derived data', async () => {
+    // feature/13: Human approval activates the master profile + Update invalidates derived data
     const { store, reader, model } = setup();
     await importResume(
       { file: { path: 'storage/profile_inbox/cv.pdf' }, mode: 'REPLACE', source: 'INBOX' },
@@ -74,8 +74,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(approved.scoresToRecalculate).toBe(true);
   });
 
-  it('documento sem texto legível não gera rascunho e alerta o usuário', async () => {
-    // feature/13: Documento sem texto legível não gera dados
+  it('a document without readable text generates no draft and alerts the user', async () => {
+    // feature/13: A document without readable text generates no data
     const { store, model, fs } = setup();
     const reader = mockScannedPdfReader();
 
@@ -90,8 +90,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(model.generate).not.toHaveBeenCalled();
   });
 
-  it('merge soma dados novos e sinaliza conflitos para decisão', async () => {
-    // feature/13: Mesclar novo documento com o perfil existente
+  it('merge adds new data and flags conflicts for decision', async () => {
+    // feature/13: Merge a new document with the existing profile
     const { store, reader, fs } = setup();
     const model = mockStructurerModel({ certifications: ['AWS SAA'], email: 'outro@example.com' });
 
@@ -107,8 +107,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(draft).toContain('Dev Tester');
   });
 
-  it('substituição aprovada preserva a versão anterior no histórico', async () => {
-    // feature/13: Substituir o perfil preservando histórico
+  it('an approved replacement preserves the previous version in history', async () => {
+    // feature/13: Replace the profile preserving history
     const { store, reader, model } = setup();
     await importResume(
       { file: { path: 'storage/profile_inbox/cv.pdf' }, mode: 'REPLACE', source: 'INBOX' },
@@ -122,8 +122,8 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(active).not.toBe(SAMPLE_MASTER_MD);
   });
 
-  it('somente o perfil aprovado alimenta as execuções — rascunho fica isolado', async () => {
-    // feature/13: Candidaturas usam apenas o perfil aprovado
+  it('only the approved profile feeds the runs — the draft stays isolated', async () => {
+    // feature/13: Applications use only the approved profile
     const { store, reader, fs } = setup();
     const model = mockStructurerModel({ fullName: 'Nome Inventado No Rascunho' });
     await importResume(
@@ -131,7 +131,7 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
       { reader, model, store },
     );
 
-    // O que alimenta triagem/tailoring é o perfil ativo compilado — nunca o rascunho
+    // What feeds triage/tailoring is the compiled active profile — never the draft
     const active = await store.getActiveProfileMarkdown();
     const compiled = compileMasterProfile(active as string);
 
@@ -141,7 +141,7 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
   });
 });
 
-describe('Pasta monitorada: varredura da área de entrada', () => {
+describe('Watched folder: inbox scanning', () => {
   const inboxDir = 'storage/profile_inbox';
 
   function mockScanner(pending: string[]) {
@@ -156,8 +156,8 @@ describe('Pasta monitorada: varredura da área de entrada', () => {
     return { scanner, moved };
   }
 
-  it('varre a inbox, importa cada PDF como INBOX e arquiva o processado', async () => {
-    // feature/13: Extrair currículo depositado na área de entrada
+  it('scans the inbox, imports each PDF as INBOX and archives the processed one', async () => {
+    // feature/13: Extract a resume dropped in the inbox
     const { store, reader, model, fs } = setup();
     const { scanner, moved } = mockScanner([`${inboxDir}/cv-a.pdf`, `${inboxDir}/cv-b.pdf`]);
 
@@ -176,8 +176,8 @@ describe('Pasta monitorada: varredura da área de entrada', () => {
     expect(await fs.exists(paths.draftPath)).toBe(true);
   });
 
-  it('inbox vazia não chama o modelo nem gera rascunho', async () => {
-    // feature/13: Extrair currículo depositado na área de entrada
+  it('an empty inbox does not call the model nor generate a draft', async () => {
+    // feature/13: Extract a resume dropped in the inbox
     const { store, reader, model } = setup();
     const { scanner, moved } = mockScanner([]);
 
@@ -192,8 +192,8 @@ describe('Pasta monitorada: varredura da área de entrada', () => {
     expect(model.generate).not.toHaveBeenCalled();
   });
 
-  it('documento ilegível é arquivado mesmo sem gerar rascunho', async () => {
-    // feature/13: Documento sem texto legível não gera dados
+  it('an unreadable document is archived even without generating a draft', async () => {
+    // feature/13: A document without readable text generates no data
     const { store, model } = setup();
     const { scanner, moved } = mockScanner([`${inboxDir}/scan.pdf`]);
 

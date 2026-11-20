@@ -2,8 +2,8 @@ import { compileMasterProfile, invalidateDerivedData } from '../../../src/intake
 import { SAMPLE_MASTER_MD } from '../../helpers/fixtures';
 
 describe('compileMasterProfile', () => {
-  it('compila o perfil-mestre em Markdown para a estrutura tipada', () => {
-    // feature/13: Aprovação humana ativa o perfil-mestre (uso downstream)
+  it('compiles the master profile Markdown into the typed structure', () => {
+    // feature/13: Human approval activates the master profile (downstream use)
     const result = compileMasterProfile(SAMPLE_MASTER_MD);
 
     expect(result.profile.fullName).toBe('Dev Tester');
@@ -12,17 +12,17 @@ describe('compileMasterProfile', () => {
     expect(result.profile.experiences[0].company).toBe('TechCorp');
   });
 
-  it('adota edições manuais feitas no arquivo mestre', () => {
-    // feature/13: Edição manual do perfil-mestre é adotada
-    const edited = SAMPLE_MASTER_MD.replace('Dev Tester', 'Dev Tester Editado');
+  it('adopts manual edits made to the master file', () => {
+    // feature/13: Manual edit of the master profile is adopted
+    const edited = SAMPLE_MASTER_MD.replace('Dev Tester', 'Dev Tester Edited');
     const result = compileMasterProfile(edited);
 
-    expect(result.profile.fullName).toBe('Dev Tester Editado');
+    expect(result.profile.fullName).toBe('Dev Tester Edited');
   });
 
-  it('sinaliza seções fora do padrão sem inventar conteúdo', () => {
-    // feature/13: regra anti-fabricação — o compilador nunca "corrige" inventando
-    const withExtraSection = `${SAMPLE_MASTER_MD}\n## Seção Improvisada\nTexto livre fora do padrão.\n`;
+  it('flags non-standard sections without inventing content', () => {
+    // feature/13: anti-fabrication rule — the compiler never "fixes" by inventing
+    const withExtraSection = `${SAMPLE_MASTER_MD}\n## Improvised Section\nFree-form text outside the standard.\n`;
     const result = compileMasterProfile(withExtraSection);
 
     expect(result.warnings.length).toBeGreaterThan(0);
@@ -31,8 +31,8 @@ describe('compileMasterProfile', () => {
 });
 
 describe('invalidateDerivedData', () => {
-  it('invalida o cache e sinaliza scores para recálculo', () => {
-    // feature/13: Atualização do perfil invalida dados derivados
+  it('invalidates the cache and flags scores for recalculation', () => {
+    // feature/13: Profile update invalidates derived data
     const result = invalidateDerivedData();
 
     expect(result.cacheInvalidated).toBe(true);

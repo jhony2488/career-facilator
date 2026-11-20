@@ -1,11 +1,11 @@
 import { resolveLocale } from '../../../src/geo/localeAdapter';
 import { makeConfig } from '../../helpers/factories';
 
-describe('resolveLocale — idioma e moeda por escopo', () => {
+describe('resolveLocale — language and currency per scope', () => {
   const config = makeConfig();
 
-  it('resolve PT-BR e BRL para o escopo NATIONAL', () => {
-    // feature/08: Pretensão salarial preenchida conforme o mercado (BRL)
+  it('resolves PT-BR and BRL for the NATIONAL scope', () => {
+    // feature/08: Salary expectation filled according to the market (BRL)
     const locale = resolveLocale('NATIONAL', config);
 
     expect(locale.resumeLanguage).toBe('pt-BR');
@@ -13,8 +13,8 @@ describe('resolveLocale — idioma e moeda por escopo', () => {
     expect(locale.salaryExpectation).toBe(config.marketScope.national.salaryExpectationBRL);
   });
 
-  it('resolve EN-US e USD para o escopo INTERNATIONAL', () => {
-    // feature/08: escopo internacional adapta CV para inglês e USD
+  it('resolves EN-US and USD for the INTERNATIONAL scope', () => {
+    // feature/08: the international scope adapts the resume to English and USD
     const locale = resolveLocale('INTERNATIONAL', config);
 
     expect(locale.resumeLanguage).toBe('en-US');

@@ -16,8 +16,8 @@ function setup(activeMd: string | null = SAMPLE_MASTER_MD) {
 }
 
 describe('MasterProfileStore', () => {
-  it('grava o perfil extraído como rascunho sem alterar o perfil ativo', async () => {
-    // feature/13: Extrair currículo depositado na área de entrada
+  it('saves the extracted profile as a draft without changing the active profile', async () => {
+    // feature/13: Extract the resume dropped in the inbox area
     const { store, fs } = setup();
 
     const result = await store.saveDraft(makeExtractedProfile(), { mode: 'REPLACE' });
@@ -27,34 +27,34 @@ describe('MasterProfileStore', () => {
     expect(await store.getActiveProfileMarkdown()).toBe(SAMPLE_MASTER_MD);
   });
 
-  it('mantém a versão anterior ativa enquanto o rascunho não é aprovado', async () => {
-    // feature/13: Perfil anterior permanece ativo enquanto o rascunho não é aprovado
+  it('keeps the previous version active while the draft is not approved', async () => {
+    // feature/13: Previous profile stays active while the draft is not approved
     const { store } = setup();
-    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Rascunho' }), {
+    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Draft' }), {
       mode: 'REPLACE',
     });
 
     const active = await store.getActiveProfileMarkdown();
 
     expect(active).toBe(SAMPLE_MASTER_MD);
-    expect(active).not.toContain('Rascunho');
+    expect(active).not.toContain('Draft');
   });
 
-  it('promove o rascunho a perfil ativo após aprovação', async () => {
-    // feature/13: Aprovação humana ativa o perfil-mestre
+  it('promotes the draft to active profile after approval', async () => {
+    // feature/13: Human approval activates the master profile
     const { store } = setup();
-    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Aprovado' }), {
+    await store.saveDraft(makeExtractedProfile({ fullName: 'Dev Tester Approved' }), {
       mode: 'REPLACE',
     });
 
     const promoted = await store.promoteDraft();
 
     expect(promoted.activated).toBe(true);
-    expect(await store.getActiveProfileMarkdown()).toContain('Dev Tester Aprovado');
+    expect(await store.getActiveProfileMarkdown()).toContain('Dev Tester Approved');
   });
 
-  it('arquiva a versão anterior no histórico ao substituir', async () => {
-    // feature/13: Substituir o perfil preservando histórico
+  it('archives the previous version to history when replacing', async () => {
+    // feature/13: Replace the profile preserving history
     const { store, fs } = setup();
     await store.saveDraft(makeExtractedProfile(), { mode: 'REPLACE' });
 
@@ -64,8 +64,8 @@ describe('MasterProfileStore', () => {
     expect(await fs.readFile(promoted.archivedTo as string)).toBe(SAMPLE_MASTER_MD);
   });
 
-  it('mescla novos dados sem apagar os existentes', async () => {
-    // feature/13: Mesclar novo documento com o perfil existente
+  it('merges new data without deleting the existing data', async () => {
+    // feature/13: Merge a new document with the existing profile
     const { store } = setup();
     const base = makeMasterProfile();
     const incoming = makeExtractedProfile({ certifications: ['AWS SAA'] });
@@ -78,17 +78,17 @@ describe('MasterProfileStore', () => {
     expect(draft).toContain('TypeScript');
   });
 
-  it('sinaliza trechos conflitantes em vez de sobrescrever sozinho', async () => {
-    // feature/13: Mesclar novo documento com o perfil existente (conflitos sinalizados)
+  it('flags conflicting fields instead of overwriting on its own', async () => {
+    // feature/13: Merge a new document with the existing profile (conflicts flagged)
     const { store } = setup();
     const base = makeMasterProfile({ email: 'dev@example.com' });
-    const incoming = makeExtractedProfile({ email: 'outro@example.com' });
+    const incoming = makeExtractedProfile({ email: 'other@example.com' });
 
     const result = await store.saveDraft(incoming, { mode: 'MERGE', base });
 
     expect(result.conflicts.some((c: ProfileConflict) => c.field === 'email')).toBe(true);
     const emailConflict = result.conflicts.find((c: ProfileConflict) => c.field === 'email');
     expect(emailConflict?.existing).toBe('dev@example.com');
-    expect(emailConflict?.incoming).toBe('outro@example.com');
+    expect(emailConflict?.incoming).toBe('other@example.com');
   });
 });

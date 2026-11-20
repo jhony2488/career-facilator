@@ -5,11 +5,11 @@ import { makeJob, makeMasterProfile, makeSkill } from '../helpers/factories';
 import { mockRepo, mockSmtpTransport, mockVault } from '../helpers/mocks';
 import { EMAIL_ONLY_JOB_TEXT } from '../helpers/fixtures';
 
-describe('Candidatura por e-mail: resolver → compor → disparar → registrar', () => {
+describe('Email application: resolve → compose → dispatch → record', () => {
   const profile = makeMasterProfile();
 
-  it('completa o fluxo com envio aprovado e registra APPLIED_VIA_EMAIL', async () => {
-    // feature/10: fluxo completo feliz
+  it('completes the flow with an approved send and records APPLIED_VIA_EMAIL', async () => {
+    // feature/10: full happy-path flow
     const repo = mockRepo();
     const transport = mockSmtpTransport();
     const vault = mockVault();
@@ -44,8 +44,8 @@ describe('Candidatura por e-mail: resolver → compor → disparar → registrar
     expect(vault.getCredential).toHaveBeenCalledWith('smtp-main');
   });
 
-  it('exige revisão quando dispatchMode é REQUIRE_REVIEW', async () => {
-    // feature/10: Exigir revisão antes do envio em modo de revisão
+  it('requires review when dispatchMode is REQUIRE_REVIEW', async () => {
+    // feature/10: Require review before sending in review mode
     const transport = mockSmtpTransport();
     const vault = mockVault();
     const draft = {
@@ -67,8 +67,8 @@ describe('Candidatura por e-mail: resolver → compor → disparar → registrar
     expect(transport.sendMail).not.toHaveBeenCalled();
   });
 
-  it('busca credenciais exclusivamente no cofre, nunca em config', async () => {
-    // feature/10: Obter credenciais de envio apenas do cofre protegido
+  it('fetches credentials exclusively from the vault, never from config', async () => {
+    // feature/10: Obtain sending credentials only from the protected vault
     const transport = mockSmtpTransport();
     const vault = mockVault();
     const draft = {
@@ -86,11 +86,11 @@ describe('Candidatura por e-mail: resolver → compor → disparar → registrar
     });
 
     expect(vault.getCredential).toHaveBeenCalledWith('smtp-main');
-    // a config passada não contém senha — apenas referência
+    // the provided config contains no password — only a reference
   });
 
-  it('reagenda tentativa após falha temporária e não marca como enviado', async () => {
-    // feature/10: Tentar novamente após falha temporária de envio
+  it('reschedules the attempt after a temporary failure and does not mark as sent', async () => {
+    // feature/10: Retry after a temporary sending failure
     const transport = mockSmtpTransport(true);
     const vault = mockVault();
     const draft = {

@@ -3,9 +3,9 @@ import { makeJob } from '../../helpers/factories';
 import { mockRepo } from '../../helpers/mocks';
 import { EMAIL_ONLY_JOB_TEXT } from '../../helpers/fixtures';
 
-describe('resolveRecipient — resolução do destinatário', () => {
-  it('extrai o endereço de recrutamento do texto da vaga', async () => {
-    // feature/10: Detectar canal de envio por e-mail na vaga sem formulário
+describe('resolveRecipient — recipient resolution', () => {
+  it('extracts the recruitment address from the job text', async () => {
+    // feature/10: Detect the e-mail submission channel in a job without a form
     const repo = mockRepo();
     const job = makeJob({ descriptionMarkdown: 'Apply to jobs@techcorp.io' });
 
@@ -14,8 +14,8 @@ describe('resolveRecipient — resolução do destinatário', () => {
     expect(recipient?.email).toBe('jobs@techcorp.io');
   });
 
-  it('prioriza e-mail de recrutamento quando há múltiplos contatos', async () => {
-    // feature/10: Priorizar endereço de recrutamento quando há múltiplos contatos
+  it('prioritizes the recruitment e-mail when there are multiple contacts', async () => {
+    // feature/10: Prioritize the recruitment address when there are multiple contacts
     const repo = mockRepo();
     const job = makeJob({ descriptionMarkdown: EMAIL_ONLY_JOB_TEXT });
 
@@ -24,8 +24,8 @@ describe('resolveRecipient — resolução do destinatário', () => {
     expect(recipient?.email).toBe('careers@techcorp.io');
   });
 
-  it('descarta endereços genéricos sem relação com contratação', async () => {
-    // feature/10: endereços genéricos sem relação são descartados
+  it('discards generic addresses unrelated to hiring', async () => {
+    // feature/10: unrelated generic addresses are discarded
     const repo = mockRepo();
     const job = makeJob({
       descriptionMarkdown: 'Billing: finance@techcorp.io. Press: press@techcorp.io.',
@@ -36,8 +36,8 @@ describe('resolveRecipient — resolução do destinatário', () => {
     expect(recipient).toBeNull();
   });
 
-  it('bloqueia envio duplicado dentro do cooldown para o mesmo destinatário', async () => {
-    // feature/10: Bloquear envio duplicado para o mesmo destinatário na janela de cooldown
+  it('blocks duplicate sending within the cooldown for the same recipient', async () => {
+    // feature/10: Block duplicate sending to the same recipient within the cooldown window
     const repo = mockRepo();
     repo.hasEmailSentTo.mockResolvedValue(true);
     const job = makeJob({ descriptionMarkdown: 'Apply to jobs@techcorp.io' });
@@ -47,7 +47,7 @@ describe('resolveRecipient — resolução do destinatário', () => {
     expect(recipient).toBeNull();
   });
 
-  it('retorna null quando a vaga não contém nenhum e-mail', async () => {
+  it('returns null when the job contains no e-mail', async () => {
     const repo = mockRepo();
     const job = makeJob({ descriptionMarkdown: 'Apply via our careers portal.' });
 

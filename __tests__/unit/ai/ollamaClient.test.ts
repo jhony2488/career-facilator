@@ -19,7 +19,7 @@ function ndjsonResponse(lines: object[]): Response {
 }
 
 describe('createOllamaClient', () => {
-  it('chat sem streaming → retorna message.content', async () => {
+  it('chat without streaming → returns message.content', async () => {
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>
     ).mockResolvedValue(jsonResponse({ message: { content: '{"ok":true}' } }));
@@ -36,7 +36,7 @@ describe('createOllamaClient', () => {
     expect(body.keep_alive).toBe('10m');
   });
 
-  it('chat com onToken → stream NDJSON acumulado + callback por chunk', async () => {
+  it('chat with onToken → accumulated NDJSON stream + per-chunk callback', async () => {
     const chunks = ['{"resu', 'meMarkdown":', ' "x"}'];
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>
@@ -56,7 +56,7 @@ describe('createOllamaClient', () => {
     expect(body.format).toBe('json');
   });
 
-  it('embed → POST /api/embed devolve embeddings', async () => {
+  it('embed → POST /api/embed returns embeddings', async () => {
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>
     ).mockResolvedValue(jsonResponse({ embeddings: [[0.1, 0.2], [0.3, 0.4]] }));
@@ -69,7 +69,7 @@ describe('createOllamaClient', () => {
     );
   });
 
-  it('baseUrl customizado é usado nos endpoints', async () => {
+  it('custom baseUrl is used in the endpoints', async () => {
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>
     ).mockResolvedValue(jsonResponse({ message: { content: 'x' } }));
@@ -78,7 +78,7 @@ describe('createOllamaClient', () => {
     expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('http://gpu:11434/api/chat');
   });
 
-  it('HTTP não-ok → erro com status e corpo', async () => {
+  it('non-ok HTTP → error with status and body', async () => {
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>
     ).mockResolvedValue(new Response('model not found', { status: 404 }));
@@ -86,7 +86,7 @@ describe('createOllamaClient', () => {
     await expect(client.chat('inexistente', [])).rejects.toThrow('HTTP 404');
   });
 
-  it('isReachable → true quando /api/tags responde, false quando lança', async () => {
+  it('isReachable → true when /api/tags responds, false when it throws', async () => {
     const ok = createOllamaClient({
       fetchImpl: (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(jsonResponse({ models: [] })),
     });

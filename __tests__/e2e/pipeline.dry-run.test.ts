@@ -4,9 +4,9 @@ import { makeMasterProfile, makeConfig } from '../helpers/factories';
 import { mockRepo, mockTriageModel, mockTailorModel, fakePageState } from '../helpers/mocks';
 import { SAMPLE_JOB_HTML } from '../helpers/fixtures';
 
-describe('Pipeline completo — modo dry-run', () => {
-  it('executa todo o funil sem realizar nenhum envio', async () => {
-    // feature/12: Simular o funil completo sem enviar candidaturas
+describe('Full pipeline — dry-run mode', () => {
+  it('runs the entire funnel without performing any submission', async () => {
+    // feature/12: Simulate the full funnel without sending applications
     const page = fakePageState();
     const result = await runApplicationPipeline(
       {
@@ -33,8 +33,8 @@ describe('Pipeline completo — modo dry-run', () => {
     );
   });
 
-  it('apresenta resumo com Fit Scores e destinos previstos para calibração', async () => {
-    // feature/12: Registrar o resultado simulado para calibração da régua
+  it('presents a summary with Fit Scores and intended destinations for calibration', async () => {
+    // feature/12: Record the simulated result for threshold calibration
     const result = await runApplicationPipeline(
       {
         rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://a.co/dry-3' }],

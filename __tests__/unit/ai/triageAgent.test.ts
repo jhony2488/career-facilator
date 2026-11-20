@@ -4,7 +4,7 @@ import { mockTriageModel, mockFailingTriageModel } from '../../helpers/mocks';
 import { INTL_JOB_DESCRIPTION } from '../../helpers/fixtures';
 
 describe('JobTriageSchema', () => {
-  it('aceita um resultado de triagem válido', () => {
+  it('accepts a valid triage result', () => {
     const valid = {
       fitScore: 80,
       isDealbreaker: false,
@@ -15,8 +15,8 @@ describe('JobTriageSchema', () => {
     expect(JobTriageSchema.safeParse(valid).success).toBe(true);
   });
 
-  it('rejeita fitScore fora do intervalo 0-100', () => {
-    // feature/03: score é aderência de 0 a 100
+  it('rejects fitScore outside the 0-100 range', () => {
+    // feature/03: score is a job-fit rating from 0 to 100
     const base = {
       fitScore: 0,
       isDealbreaker: false,
@@ -28,7 +28,7 @@ describe('JobTriageSchema', () => {
     expect(JobTriageSchema.safeParse({ ...base, fitScore: 101 }).success).toBe(false);
   });
 
-  it('limita missingSkills a 5 e matchedKeywords a 10 itens', () => {
+  it('limits missingSkills to 5 and matchedKeywords to 10 items', () => {
     const base = {
       fitScore: 50,
       isDealbreaker: false,
@@ -49,8 +49,8 @@ describe('triageJob', () => {
   const profile = makeMasterProfile();
   const job = makeJob();
 
-  it('produz avaliação estruturada com score, impedimento e palavras-chave', async () => {
-    // feature/03: Calcular Fit Score estruturado para vaga que passou na camada zero
+  it('produces a structured assessment with score, dealbreaker and keywords', async () => {
+    // feature/03: Compute structured Fit Score for a job that passed layer zero
     const model = mockTriageModel({ fitScore: 82, matchedKeywords: ['TypeScript', 'Next.js'] });
     const result = await triageJob({ jobText: INTL_JOB_DESCRIPTION, profile }, { model });
 
@@ -60,7 +60,7 @@ describe('triageJob', () => {
     expect(model.generate).toHaveBeenCalledTimes(1);
   });
 
-  it('envia o markdown limpo da vaga, não o HTML bruto, ao modelo', async () => {
+  it('sends the job clean markdown, not the raw HTML, to the model', async () => {
     const model = mockTriageModel();
     await triageJob({ jobText: job.descriptionMarkdown, profile }, { model });
 
@@ -69,16 +69,16 @@ describe('triageJob', () => {
     expect(prompt).not.toContain('<style>');
   });
 
-  it('sinaliza impedimento quando o modelo o detecta', async () => {
-    // feature/03: Descartar vaga com impedimento declarado mesmo com score alto
+  it('flags the dealbreaker when the model detects it', async () => {
+    // feature/03: Discard a job with a declared dealbreaker even with a high score
     const model = mockTriageModel({ fitScore: 90, isDealbreaker: true });
     const result = await triageJob({ jobText: INTL_JOB_DESCRIPTION, profile }, { model });
 
     expect(result.isDealbreaker).toBe(true);
   });
 
-  it('propaga falha do modelo sem aprovar a vaga', async () => {
-    // feature/03: Falha do modelo de triagem não aprova a vaga automaticamente
+  it('propagates model failure without approving the job', async () => {
+    // feature/03: Triage model failure does not automatically approve the job
     const model = mockFailingTriageModel();
     await expect(
       triageJob({ jobText: INTL_JOB_DESCRIPTION, profile }, { model }),

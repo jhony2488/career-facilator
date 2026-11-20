@@ -24,8 +24,8 @@ describe('selectRelevantSkills', () => {
   });
   const library = [fullstackTs, intlRemote, aiEngineer, gupyAts];
 
-  it('ativa skills cujos triggers coincidem com as palavras-chave da vaga', () => {
-    // feature/04: Ativar skills cujos gatilhos coincidem com as palavras-chave da vaga
+  it('activates skills whose triggers match the job keywords', () => {
+    // feature/04: Activate skills whose triggers match the job keywords
     const selected = selectRelevantSkills(['TypeScript', 'Next.js', 'Remote USD'], library);
 
     expect(selected.map((s: SkillMetadata) => s.id)).toEqual([
@@ -34,15 +34,15 @@ describe('selectRelevantSkills', () => {
     ]);
   });
 
-  it('é determinística e não exige chamada de IA', () => {
-    // feature/04: seleção sem nenhuma chamada de IA (função pura)
+  it('is deterministic and requires no AI call', () => {
+    // feature/04: selection with no AI call (pure function)
     const first = selectRelevantSkills(['typescript'], library);
     const second = selectRelevantSkills(['typescript'], library);
     expect(first).toEqual(second);
   });
 
-  it('limita a quantidade de skills ativadas a no máximo 2', () => {
-    // feature/04: Limitar a quantidade de skills ativadas por vaga
+  it('limits the number of activated skills to at most 2', () => {
+    // feature/04: Limit the number of skills activated per job
     const selected = selectRelevantSkills(
       ['typescript', 'next.js', 'remote', 'usd', 'llm', 'rag', 'gupy'],
       library,
@@ -51,19 +51,19 @@ describe('selectRelevantSkills', () => {
     expect(selected.length).toBeLessThanOrEqual(2);
   });
 
-  it('escolhe as mais bem pontuadas quando há mais candidatas que o limite', () => {
-    // feature/04: as mais bem pontuadas são escolhidas
+  it('picks the highest scoring ones when there are more candidates than the limit', () => {
+    // feature/04: the highest scoring ones are chosen
     const selected = selectRelevantSkills(
       ['typescript', 'next.js', 'node', 'postgresql', 'remote', 'llm'],
       library,
     );
 
-    // fullstack-ts tem 4+ hits — deve ser a primeira
+    // fullstack-ts has 4+ hits — must be the first
     expect(selected[0].id).toBe('fullstack-ts');
   });
 
-  it('usa a prioridade da skill como desempate de pontuação igual', () => {
-    // feature/04: Prioridade da skill desempata pontuações iguais de gatilhos
+  it('uses skill priority as the tiebreaker for equal scores', () => {
+    // feature/04: Skill priority breaks ties between equal trigger scores
     const skillA = makeSkill({ id: 'a', triggers: ['typescript'], priority: 1 });
     const skillB = makeSkill({ id: 'b', triggers: ['typescript'], priority: 10 });
     const skillC = makeSkill({ id: 'c', triggers: ['typescript'], priority: 5 });
@@ -73,13 +73,13 @@ describe('selectRelevantSkills', () => {
     expect(selected.map((s: SkillMetadata) => s.id)).toEqual(['b', 'c']);
   });
 
-  it('faz matching case-insensitive e parcial entre keywords e triggers', () => {
+  it('does case-insensitive partial matching between keywords and triggers', () => {
     const selected = selectRelevantSkills(['TYPESCRIPT ', ' next.js'], library);
     expect(selected.map((s: SkillMetadata) => s.id)).toContain('fullstack-ts');
   });
 
-  it('retorna lista vazia quando não há coincidência de triggers', () => {
-    // feature/04: Nenhuma skill ativada quando não há coincidência de gatilhos
+  it('returns an empty list when no triggers match', () => {
+    // feature/04: No skill activated when no triggers match
     const selected = selectRelevantSkills(['cobol', 'mainframe'], library);
     expect(selected).toEqual([]);
   });
