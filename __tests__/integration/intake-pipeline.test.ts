@@ -1,4 +1,9 @@
-import { importResume, approveProfileDraft } from '../../src/intake/intakeCore';
+import {
+  importResume,
+  approveProfileDraft,
+  processInbox,
+  type InboxScanner,
+} from '../../src/intake/intakeCore';
 import { compileMasterProfile } from '../../src/intake/profileCompiler';
 import { MasterProfileStore } from '../../src/intake/masterProfileStore';
 import type { ProfileConflict } from '../helpers/contracts';
@@ -133,5 +138,72 @@ describe('Pipeline de intake: PDF → rascunho → aprovação → perfil ativo'
     expect(compiled.profile.fullName).toBe('Dev Tester');
     expect(compiled.profile.fullName).not.toContain('Rascunho');
     expect(await fs.readFile(paths.masterPath)).toBe(SAMPLE_MASTER_MD);
+  });
+});
+
+describe('Pasta monitorada: varredura da área de entrada', () => {
+  const inboxDir = 'storage/profile_inbox';
+
+  function mockScanner(pending: string[]) {
+    const moved: string[] = [];
+    const scanner: InboxScanner = {
+      listPendingPdfs: jest.fn(async () => pending),
+      moveToProcessed: jest.fn(async (p: string) => {
+        moved.push(p);
+        return `${inboxDir}/processed/${p.split('/').pop()}`;
+      }),
+    };
+    return { scanner, moved };
+  }
+
+  it('varre a inbox, importa cada PDF como INBOX e arquiva o processado', async () => {
+    // feature/13: Extrair currículo depositado na área de entrada
+    const { store, reader, model, fs } = setup();
+    const { scanner, moved } = mockScanner([`${inboxDir}/cv-a.pdf`, `${inboxDir}/cv-b.pdf`]);
+
+    const result = await processInbox(
+      { inboxDir, mode: 'MERGE' },
+      { reader, model, store, scanner },
+    );
+
+    expect(result.scanned).toBe(2);
+    expect(result.results.map((r) => r.outcome)).toEqual([
+      'DRAFT_PENDING_REVIEW',
+      'DRAFT_PENDING_REVIEW',
+    ]);
+    expect(moved).toEqual([`${inboxDir}/cv-a.pdf`, `${inboxDir}/cv-b.pdf`]);
+    expect(result.results[0].archivedTo).toBe(`${inboxDir}/processed/cv-a.pdf`);
+    expect(await fs.exists(paths.draftPath)).toBe(true);
+  });
+
+  it('inbox vazia não chama o modelo nem gera rascunho', async () => {
+    // feature/13: Extrair currículo depositado na área de entrada
+    const { store, reader, model } = setup();
+    const { scanner, moved } = mockScanner([]);
+
+    const result = await processInbox(
+      { inboxDir, mode: 'MERGE' },
+      { reader, model, store, scanner },
+    );
+
+    expect(result.scanned).toBe(0);
+    expect(result.results).toEqual([]);
+    expect(moved).toEqual([]);
+    expect(model.generate).not.toHaveBeenCalled();
+  });
+
+  it('documento ilegível é arquivado mesmo sem gerar rascunho', async () => {
+    // feature/13: Documento sem texto legível não gera dados
+    const { store, model } = setup();
+    const { scanner, moved } = mockScanner([`${inboxDir}/scan.pdf`]);
+
+    const result = await processInbox(
+      { inboxDir, mode: 'MERGE' },
+      { reader: mockScannedPdfReader(), model, store, scanner },
+    );
+
+    expect(result.results[0].outcome).toBe('UNREADABLE_DOCUMENT');
+    expect(result.results[0].alert).toBeTruthy();
+    expect(moved).toEqual([`${inboxDir}/scan.pdf`]);
   });
 });
