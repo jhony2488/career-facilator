@@ -3,8 +3,10 @@ import { isAbsolute, join, resolve } from 'node:path';
 import {
   defaultCareerOpsConfig,
   type CareerOpsConfig,
+  type EmailDispatchMode,
   type ExecutionMode,
   type ModelRouting,
+  type WhatsappMode,
 } from './careerOps.config';
 import { careerHome } from './paths';
 
@@ -163,12 +165,23 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
     : defaultCareerOpsConfig.execution.lexicalMinTerms;
   const embeddingsEnabled =
     env.AI_EMBEDDINGS_ENABLED === 'true' || env.AI_EMBEDDINGS_ENABLED === '1';
+  const fitMin = Number(env.FIT_MIN_SCORE);
+  const fitAuto = Number(env.FIT_AUTO_SCORE);
+  const titles = env.JOB_TITLES?.split(/[;,]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
   return {
     ...defaultCareerOpsConfig,
     execution: {
       ...defaultCareerOpsConfig.execution,
       ...(mode ? { mode } : {}),
       lexicalMinTerms,
+      ...(Number.isFinite(fitMin) ? { minScoreForTailoring: fitMin } : {}),
+      ...(Number.isFinite(fitAuto) ? { minScoreForFullAuto: fitAuto } : {}),
+    },
+    discovery: {
+      targetTitles:
+        titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
     },
     ai: (() => {
       const tiers = {
@@ -204,6 +217,57 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       historyDir: homePath(
         env.PROFILE_HISTORY_DIR ?? defaultCareerOpsConfig.profile.historyDir,
       ),
+    },
+    email: {
+      ...defaultCareerOpsConfig.email,
+      ...(env.EMAIL_ENABLED !== undefined
+        ? { enabled: env.EMAIL_ENABLED === 'true' || env.EMAIL_ENABLED === '1' }
+        : {}),
+      ...(env.EMAIL_DISPATCH_MODE
+        ? { dispatchMode: env.EMAIL_DISPATCH_MODE as EmailDispatchMode }
+        : {}),
+      ...(env.EMAIL_MIN_SCORE_AUTO_SEND
+        ? { minScoreAutoSend: Number(env.EMAIL_MIN_SCORE_AUTO_SEND) }
+        : {}),
+      ...(env.EMAIL_MAX_DAILY ? { maxDailyEmails: Number(env.EMAIL_MAX_DAILY) } : {}),
+      ...(env.EMAIL_SMTP_CREDENTIAL_REF
+        ? { smtpCredentialRef: env.EMAIL_SMTP_CREDENTIAL_REF }
+        : {}),
+      ...(env.EMAIL_COOLDOWN_DAYS
+        ? { recipientCooldownDays: Number(env.EMAIL_COOLDOWN_DAYS) }
+        : {}),
+      ...(env.EMAIL_RETRY_MAX ? { maxRetries: Number(env.EMAIL_RETRY_MAX) } : {}),
+      ...(env.EMAIL_RETRY_BACKOFF_MS
+        ? { retryBackoffMs: Number(env.EMAIL_RETRY_BACKOFF_MS) }
+        : {}),
+      ...(env.EMAIL_TEMPLATE_PATH
+        ? { bodyTemplatePath: homePath(env.EMAIL_TEMPLATE_PATH) }
+        : { bodyTemplatePath: homePath(defaultCareerOpsConfig.email.bodyTemplatePath) }),
+      ...(env.EMAIL_INCLUDE_SALARY !== undefined
+        ? { includeSalaryExpectation: env.EMAIL_INCLUDE_SALARY === 'true' || env.EMAIL_INCLUDE_SALARY === '1' }
+        : {}),
+    },
+    whatsapp: {
+      ...defaultCareerOpsConfig.whatsapp,
+      ...(env.WHATSAPP_ENABLED !== undefined
+        ? { enabled: env.WHATSAPP_ENABLED === 'true' || env.WHATSAPP_ENABLED === '1' }
+        : {}),
+      ...(env.WHATSAPP_MODE ? { mode: env.WHATSAPP_MODE as WhatsappMode } : {}),
+      ...(env.WHATSAPP_TEMPLATE_PATH
+        ? { bodyTemplatePath: homePath(env.WHATSAPP_TEMPLATE_PATH) }
+        : { bodyTemplatePath: homePath(defaultCareerOpsConfig.whatsapp.bodyTemplatePath) }),
+      ...(env.WHATSAPP_COOLDOWN_DAYS
+        ? { recipientCooldownDays: Number(env.WHATSAPP_COOLDOWN_DAYS) }
+        : {}),
+      ...(env.WHATSAPP_ATTACH_RESUME !== undefined
+        ? { attachResume: env.WHATSAPP_ATTACH_RESUME === 'true' || env.WHATSAPP_ATTACH_RESUME === '1' }
+        : {}),
+      ...(env.WHATSAPP_RETRY_MAX ? { maxRetries: Number(env.WHATSAPP_RETRY_MAX) } : {}),
+      ...(env.WHATSAPP_RETRY_BACKOFF_MS
+        ? { retryBackoffMs: Number(env.WHATSAPP_RETRY_BACKOFF_MS) }
+        : {}),
+      ...(env.EVOLUTION_API_URL ? { apiUrlEnv: 'EVOLUTION_API_URL' } : {}),
+      ...(env.EVOLUTION_INSTANCE ? { apiInstance: env.EVOLUTION_INSTANCE } : {}),
     },
   };
 }

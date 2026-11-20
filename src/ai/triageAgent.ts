@@ -13,6 +13,8 @@ export type JobTriageResult = z.infer<typeof JobTriageSchema>;
 export interface TriageInput {
   jobText: string; // markdown limpo da vaga (nunca HTML bruto)
   profile: unknown;
+  /** Cargos almejados (config.discovery.targetTitles) — orienta o fitScore. */
+  targetTitles?: string[];
 }
 
 export interface TriageModel {
@@ -66,6 +68,9 @@ function buildTriagePrompt(input: TriageInput): string {
     'Return ONLY a JSON object with exactly these fields:',
     'fitScore (0-100 number), isDealbreaker (boolean), missingSkills (string[] max 5),',
     'matchedKeywords (string[] max 10), atsTitleSuggestion (string).',
+    ...(input.targetTitles?.length
+      ? ['', `Target job titles: ${input.targetTitles.join(', ')}`]
+      : []),
     '',
     '<candidate_profile>',
     summarizeProfileForTriage(input.profile),
