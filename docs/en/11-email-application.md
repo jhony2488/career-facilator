@@ -66,13 +66,15 @@ The `email_application` module kicks in when the form inspection step does not f
 src/email_application/
 ├── emailAppCore.ts          # Central orchestrator of the email application flow
 ├── recipientResolver.ts     # Extraction, validation and deduplication of destination e-mails
-├── emailComposer.ts         # Subject/body generation with LLM + cache and attachment binding
-├── emailDispatcher.ts       # Sending via SMTP/API, queue control and vault integration
+├── emailComposer.ts         # Fixed subject + body via preferred template (email_template.md)
+├── emailDispatcher.ts       # Review/send, transient retry and vault integration
+├── smtpTransport.ts         # Real transport via nodemailer — vault credential per send
+├── credentialVault.ts       # AES-256-GCM credential vault (vault/*.cred)
 ├── emailTracker.ts          # Persistence of logs, status and history in the local database
-└── emailAppConfig.ts        # Approval rules, language, attachments and sending limits
+└── ../utils/textTemplate.ts # Shared {{placeholder}} renderer (also used by WhatsApp)
 ```
 
-## 5. Configuration Parameters (`emailAppConfig.ts`)
+## 5. Configuration Parameters (`email:` in `careerOps.config.ts`)
 
 The behavior of resume submission by e-mail is defined declaratively:
 
@@ -80,10 +82,14 @@ The behavior of resume submission by e-mail is defined declaratively:
 |-----------|-------------|
 | `enabled` | Turns the e-mail application fallback on or off when there is no web form. |
 | `dispatchMode` | Defines whether sending requires prior review (`REQUIRE_REVIEW`), operates in a hybrid Fit Score-based mode (`HYBRID_BY_SCORE`) or sends automatically (`AUTO_SEND_HIGH_FIT`). |
-| `minScoreAutoSend` | Minimum match score required to dispatch the e-mail without prior manual review. |
+| `minScoreAutoSend` | Minimum match score required to dispatch the e-mail without prior manual review (default 88). |
 | `attachTailoredResume` | Ensures the tailored PDF/DOCX resume is automatically attached (with fallback to the base resume if no specific version was generated). |
-| `maxDailyEmails` | Daily cap on e-mail applications to protect the sender account's reputation. |
+| `maxDailyEmails` | Daily cap on e-mail applications to protect the sender account's reputation (**default 45** — customizable via `EMAIL_MAX_DAILY`). |
 | `smtpCredentialRef` | Points to the protected secret in the system's encrypted vault, without exposing sensitive data in configuration. |
+| `recipientCooldownDays` | Per-recipient anti-duplicate window (default 30). |
+| `maxRetries` / `retryBackoffMs` | Transient failure → retry with backoff; exhausted → `NEEDS_HUMAN_INPUT` (default 3 × 60s). |
+| `bodyTemplatePath` | Editable file of the preferred body model — fallback to the built-in PT/EN template. |
+| `includeSalaryExpectation` | Adds the salary-expectation line from `marketScope` + locale (default `true`). |
 
 ## 6. Integration Flow with CareerFacilator AI
 

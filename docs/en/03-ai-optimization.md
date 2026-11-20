@@ -42,6 +42,8 @@ The system supports small local models (e.g. `hermes3:latest` via Ollama) with t
 
 **Streaming + guaranteed JSON (`ollamaClient.ts`, `jsonRepair.ts`)** — the real client calls `/api/chat` with `format:'json'` (forced structured output, critical for 3B), `keep_alive` (warm model), env-driven `options`, and **NDJSON streaming** with `onToken` — the CLI shows progress in real time (`--verbose`). When the model wraps JSON in prose, `generateStructured` extracts the balanced object and retries once with the validation error.
 
+**Two-layer title matching (`titleMatcher.ts`)** — compares the job title against `JOB_TITLES` before triage. The **deterministic** layer (zero cost, always on) handles common spelling variations: normalization (accent/punctuation/case), *squashed* substring ("Fullstack" ↔ "Full Stack"), PT↔EN aliases (`dev`/`developer`/`desenvolvedor`/`engineer`/`engenheiro` → canonical token), *containment* of distinctive tokens (generic ones like `dev`/`senior` don't count — "Backend" ≠ "Frontend"), and proportional Levenshtein for typos (disabled for titles under 6 chars). When nothing matches, the **probabilistic** layer — with `AI_EMBEDDINGS_ENABLED` — computes cosine similarity between embeddings (`nomic-embed-text`): "JS Developer" or "Programador React" match "Node.js Developer"/"Desenvolvedor Front End" with no manual rules. Target vectors are cached per run (N jobs = N+1 embeds); a strong deterministic match never calls the embedder; embedder failure silently degrades to deterministic.
+
 ---
 
 « [Previous: Architecture](02-architecture.md) | [Index](README.md) | [Next: Flow and Safety →](04-flow-and-safety.md)

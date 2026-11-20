@@ -99,10 +99,18 @@ career-facilitator-ts/
 │   ├── email_application/
 │   │   ├── emailAppCore.ts          # Orquestrador do fluxo de candidatura por e-mail
 │   │   ├── recipientResolver.ts     # Extração, validação e deduplicação de destinatários
-│   │   ├── emailComposer.ts         # Assunto/corpo com LLM + cache e vínculo de anexo
-│   │   ├── emailDispatcher.ts       # Envio via SMTP/API, fila e integração com o cofre
-│   │   ├── emailTracker.ts          # Persistência de logs, status e histórico
-│   │   └── emailAppConfig.ts        # Regras de aprovação, idioma e limites de envio
+│   │   ├── emailComposer.ts         # Assunto fixo + corpo via template preferido
+│   │   ├── emailDispatcher.ts       # Revisão/envio, retry transitório e cofre
+│   │   ├── smtpTransport.ts         # Transporte real via nodemailer
+│   │   ├── credentialVault.ts       # Cofre AES-256-GCM de credenciais
+│   │   └── emailTracker.ts          # Persistência de logs, status e histórico
+│   ├── whatsapp_application/
+│   │   ├── whatsappResolver.ts      # Extração de número WhatsApp + cooldown
+│   │   ├── whatsappComposer.ts      # Mensagem via template + PDF do currículo
+│   │   ├── evolutionClient.ts       # REST da Evolution API (sendText/sendMedia)
+│   │   └── whatsappAppCore.ts       # Orquestrador: fila manual ou envio via API
+│   ├── utils/
+│   │   └── textTemplate.ts          # Renderer {{placeholder}} das mensagens
 │   ├── tracker/
 │   │   └── outcomeMonitor.ts        # Feedback loop pós-candidatura (IMAP/Gmail API)
 │   ├── db/

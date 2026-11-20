@@ -4,17 +4,17 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação de `src/` — **36 suites passam** (169 unit + 34 integration + e2e). Deps externas reais (Playwright, SMTP) seguem injetáveis/stub; Ollama funciona de verdade via `import`/`run`.
+**Estado atual:** especificação + implementação de `src/` — **42 suites passam** (217 unit + 43 integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`.
 
 ## Onde encontrar as coisas
 
 | Caminho | Conteúdo |
 |---------|----------|
-| `docs/pt-BR/` | Especificação de arquitetura (fonte da verdade, 13 docs numerados) |
+| `docs/pt-BR/` | Especificação de arquitetura (fonte da verdade, 15 docs numerados) |
 | `docs/en/` | Mesma especificação traduzida para inglês |
 | `feature/*.feature` | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo |
 | `feature/DECISOES.md` | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar** |
-| `src/` | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `db/`, `tracker/`, `generator/`, `cli/` |
+| `src/` | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
 
 ## Convenções do projeto
 
@@ -36,11 +36,12 @@
 - Ambiguidades: comentário `# Ambiguidade:` ao fim do arquivo + consolidar em `feature/DECISOES.md`
 
 ### Conceitos-chave do domínio
-- **Máquina de estados:** `DISCOVERED → TRIAGED → TAILORED → READY_TO_REVIEW → APPLIED` (+ `SKIPPED`, `APPLIED_VIA_EMAIL`, `NEEDS_HUMAN_INPUT`, `REJECTED`, `INTERVIEW`, `ASSESSMENT_INVITED`)
+- **Máquina de estados:** `DISCOVERED → TRIAGED → TAILORED → READY_TO_REVIEW → APPLIED` (+ `SKIPPED`, `APPLIED_VIA_EMAIL`, `APPLIED_VIA_WHATSAPP`, `NEEDS_HUMAN_INPUT`, `REJECTED`, `INTERVIEW`, `ASSESSMENT_INVITED`)
 - **Modos de execução:** `FULL_AUTO` / `SEMI_AUTO` / `HYBRID_THRESHOLD` (régua: 75 para tailoring, 88 para auto-envio)
 - **Escopo de mercado:** `NATIONAL` / `INTERNATIONAL` / `BOTH`
 - **Skills dinâmicas:** `SKILL.md` + `keywords.json`, seleção determinística (máx. 2 por vaga)
 - **Perfil-mestre:** `profile.master.md` editável é a fonte da verdade; `profile.master.json` é o artefato compilado usado no cache de prompt. Ingestão via `src/intake/` (ver `docs/pt-BR/13-ingestao-de-perfil.md`) — anti-fabricação: nada entra no perfil sem vir de documento do usuário ou de edição manual
+- **Canais de candidatura:** web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT`. E-mail: credencial SMTP no cofre (`career vault set`), teto 45/dia (`EMAIL_MAX_DAILY`), corpo via template `email_template.md`. WhatsApp: `MANUAL_QUEUE` (fila no `review`) ou `EVOLUTION_API` — ver `docs/pt-BR/14` e `docs/pt-BR/15`
 
 ### CLI e dados do usuário
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
@@ -53,7 +54,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **36 suites** derivadas dos `.feature` + contratos de infra, todas verdes
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **42 suites** derivadas dos `.feature` + contratos de infra, todas verdes
 - Descrições de `describe`/`it` e comentários nos testes sempre em **inglês**
 - **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes

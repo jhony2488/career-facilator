@@ -21,3 +21,6 @@ Versão em português disponível em [`../pt-BR/`](../pt-BR/README.md).
 | 11 | [Email Application](11-email-application.md) | Resume submission fallback via SMTP/API for jobs without a form |
 | 12 | [Roadmap](12-roadmap.md) | Next implementation steps |
 | 13 | [Profile Intake](13-profile-intake.md) | `src/intake/` module: PDF → Markdown master profile with human review |
+
+| 14 | [SMTP Setup — Gmail/Outlook](14-smtp-gmail-outlook-setup.md) | App password guide, credential vault and the 45 e-mails/day cap |
+| 15 | [WhatsApp Application](15-whatsapp-application.md) | Manual queue or Evolution API with template text + resume PDF |

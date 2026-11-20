@@ -60,9 +60,11 @@ npm run cli -- import --inbox       # processa PDFs pendentes na área de entrad
 npm run cli -- import --inbox --watch  # monitora a pasta: solte um PDF e ele é processado
 npm run cli -- run --jobs-file jobs.json --dry-run   # funil completo (jobs.json = [{url, html}])
 npm run cli -- approve              # promove o rascunho de perfil a profile.master.md
-npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW (SQLite real)
+npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW + fila WhatsApp
 npm run cli -- status               # contagens por status no jobs.sqlite
 npm run cli -- config check         # testa endpoint+modelo dos 3 tiers (preflight)
+npm run cli -- vault set smtp-main  # grava credencial SMTP cifrada (interativo no shell)
+npm run cli -- vault list           # refs gravadas no cofre (sem expor segredos)
 
 npm run build     # compila para dist/
 npm run start -- <comando>   # roda o build compilado
@@ -126,7 +128,9 @@ CareerFacilator/
 │   ├── skills/      # core (registry/selector/injector) + library/ (SKILL.md + keywords.json)
 │   ├── autofill/    # deterministicMatcher, wizardNavigator, formExecutor
 │   ├── core/        # pipeline, autonomyEngine, escalationHandler
-│   ├── email_application/  # resolver, composer, dispatcher, tracker
+│   ├── email_application/  # resolver, composer (template), dispatcher, smtpTransport, credentialVault, tracker
+│   ├── whatsapp_application/ # resolver, composer, evolutionClient, appCore (MANUAL_QUEUE|EVOLUTION_API)
+│   ├── utils/       # textTemplate — renderer {{placeholder}} compartilhado
 │   ├── db/          # schema + repository (SQLite)
 │   ├── tracker/     # outcomeMonitor
 │   ├── generator/   # resumeBuilder
@@ -154,7 +158,7 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · better-sqlite3 (+ Drizzle
 
 - **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
 - **Discovery/browser**: `run` consome `jobs.json` (`[{url, html}]`); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
-- **SMTP**: `emailDispatcher` implementado com transporte injetável; nodemailer real a conectar.
+- **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
 
 ## Próximos passos

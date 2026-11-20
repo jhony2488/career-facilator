@@ -19,6 +19,7 @@ Cenários comportamentais em Gherkin (`# language: pt`) cobrindo todos os módul
 | 11 | [11-sessao-rate-limit.feature](11-sessao-rate-limit.feature) | Cofre de sessões e fila com jitter |
 | 12 | [12-tracking-e-dry-run.feature](12-tracking-e-dry-run.feature) | Feedback loop pós-candidatura e modo de simulação |
 | 13 | [13-ingestao-de-perfil.feature](13-ingestao-de-perfil.feature) | Ingestão de currículos em PDF, rascunho com revisão humana e perfil-mestre |
+| 15 | [15-candidatura-whatsapp.feature](15-candidatura-whatsapp.feature) | Candidatura por número de WhatsApp — fila manual ou Evolution API |
 
 ## Documentos auxiliares
 
