@@ -21,6 +21,6 @@ English version available in [`../en/`](../en/README.md).
 | 11 | [Candidatura por E-mail](11-candidatura-por-email.md) | Fallback de envio de currículo via SMTP/API para vagas sem formulário |
 | 12 | [Roadmap](12-roadmap.md) | Próximos passos de implementação |
 | 13 | [Ingestão de Perfil](13-ingestao-de-perfil.md) | Módulo `src/intake/`: PDF → perfil-mestre em Markdown com revisão humana |
-
 | 14 | [Configurar SMTP — Gmail/Outlook](14-configurar-smtp-gmail-outlook.md) | Guia de senha de app, cofre de credenciais e teto de 45 e-mails/dia |
 | 15 | [Candidatura por WhatsApp](15-candidatura-por-whatsapp.md) | Fila manual ou Evolution API com texto em template + PDF do currículo |
+| 16 | [Tutoriais](../../../tutorials/pt-BR/README.md) | Guias passo a passo de instalação (repositório, npm global, binários de release) e configuração de modelos de IA |
