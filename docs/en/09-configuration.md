@@ -46,6 +46,31 @@ export interface CareerOpsConfig {
     compiledPath: string;  // Compiled JSON used in the prompt cache
     historyDir: string;    // Previous versions of the master profile
   };
+  email: {                 // E-mail applications (docs 11/14)
+    enabled: boolean;
+    dispatchMode: 'REQUIRE_REVIEW' | 'HYBRID_BY_SCORE' | 'AUTO_SEND_HIGH_FIT';
+    minScoreAutoSend: number;
+    attachTailoredResume: boolean;
+    maxDailyEmails: number;      // Daily cap — default 45
+    smtpCredentialRef: string;   // Vault secret ref — never the password itself
+    recipientCooldownDays: number;
+    maxRetries: number;          // Transient → retry; exhausted → NEEDS_HUMAN_INPUT
+    retryBackoffMs: number;
+    bodyTemplatePath: string;    // Editable body template
+    includeSalaryExpectation: boolean;
+  };
+  whatsapp: {              // WhatsApp applications (doc 15)
+    enabled: boolean;
+    mode: 'MANUAL_QUEUE' | 'EVOLUTION_API';
+    apiUrlEnv: string;           // Env name holding the Evolution API URL
+    apiInstance: string;
+    apiKeyEnv: string;           // Env name holding the apikey
+    bodyTemplatePath: string;
+    recipientCooldownDays: number;
+    attachResume: boolean;       // Sends the resume PDF
+    maxRetries: number;
+    retryBackoffMs: number;
+  };
 }
 
 export const defaultCareerOpsConfig: CareerOpsConfig = {
@@ -91,6 +116,31 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     compiledPath: 'src/config/profile.master.json',
     historyDir: 'storage/profile_history/',
   },
+  email: {
+    enabled: true,
+    dispatchMode: 'HYBRID_BY_SCORE',
+    minScoreAutoSend: 88,
+    attachTailoredResume: true,
+    maxDailyEmails: 45,
+    smtpCredentialRef: 'smtp-main',
+    recipientCooldownDays: 30,
+    maxRetries: 3,
+    retryBackoffMs: 60000,
+    bodyTemplatePath: 'storage/email_template.md',
+    includeSalaryExpectation: true,
+  },
+  whatsapp: {
+    enabled: true,
+    mode: 'MANUAL_QUEUE',
+    apiUrlEnv: 'EVOLUTION_API_URL',
+    apiInstance: 'default',
+    apiKeyEnv: 'EVOLUTION_API_KEY',
+    bodyTemplatePath: 'storage/whatsapp_template.md',
+    recipientCooldownDays: 30,
+    attachResume: true,
+    maxRetries: 3,
+    retryBackoffMs: 60000,
+  },
 };
 ```
 
@@ -105,6 +155,22 @@ Relative paths in `profile` and `storage/` (including `jobs.sqlite`) resolve und
 **Configuration precedence:** `defaults` < `<home>/.env` < `./.env` (project) < environment variables. Reading is handled by `src/config/loadConfig.ts` and path resolution by `src/config/paths.ts`.
 
 **Individual path overrides (env):** `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH` — relative values also resolve under `<home>`.
+
+**Application channels (env):** `EMAIL_ENABLED`, `EMAIL_DISPATCH_MODE`, `EMAIL_MAX_DAILY`, `EMAIL_MIN_SCORE_AUTO_SEND`, `EMAIL_SMTP_CREDENTIAL_REF`, `EMAIL_COOLDOWN_DAYS`, `EMAIL_RETRY_MAX`, `EMAIL_RETRY_BACKOFF_MS`, `EMAIL_TEMPLATE_PATH`, `EMAIL_INCLUDE_SALARY` — see doc 14. `WHATSAPP_ENABLED`, `WHATSAPP_MODE`, `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `WHATSAPP_TEMPLATE_PATH`, `WHATSAPP_COOLDOWN_DAYS`, `WHATSAPP_ATTACH_RESUME`, `WHATSAPP_RETRY_*` — see doc 15. SMTP credentials live in the vault (`vault set`), never in env.
+
+**Prospecting and fit thresholds (env):** `JOB_TITLES` — job titles to look for, comma/semicolon-separated (default: fullstack/backend dev); approximate matching, does not need to be exact (see `titleMatcher.ts`, doc 03 §5.5). `FIT_MIN_SCORE` — minimum fit to proceed to tailoring (default 75); `FIT_AUTO_SCORE` — fit for fully automatic sending without review (default 88). `LEXICAL_MIN_TERMS` — profile terms required in the job text by the Layer 0 filter (default 1).
+
+**Semantic embeddings (env):** `AI_EMBEDDINGS_ENABLED=true` enables the probabilistic layer: `OLLAMA_EMBED_MODEL` (default `nomic-embed-text`) via Ollama's `/api/embed`. Powers two features: profile RAG for tailoring (`retrieveHybrid`, lexical+semantic fusion via RRF) and semantic `JOB_TITLES` matching (fallback when the deterministic layer finds no match — cosine ≥ 0.72). `false`/absent → both run deterministically at zero cost.
+
+```powershell
+ollama pull nomic-embed-text                          # once — ~270 MB
+career config set AI_EMBEDDINGS_ENABLED true          # writes to the home .env
+
+# warms the model and validates the endpoint (response: {"embeddings": [[...]]} )
+curl.exe http://localhost:11434/api/embed -d '{\"model\": \"nomic-embed-text\", \"input\": \"warmup\", \"keep_alive\": -1}'
+```
+
+> **Note:** embedding models do not respond on `/api/generate` — the correct endpoint is `/api/embed`.
 
 **Configuration through the CLI itself** — no manual file editing:
 

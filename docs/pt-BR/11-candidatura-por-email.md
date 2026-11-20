@@ -66,13 +66,15 @@ O módulo `email_application` entra em ação quando a etapa de inspeção de fo
 src/email_application/
 ├── emailAppCore.ts          # Orquestrador central do fluxo de candidatura por e-mail
 ├── recipientResolver.ts     # Extração, validação e deduplicação de e-mails de destino
-├── emailComposer.ts         # Geração de assunto/corpo com LLM + cache e vínculo de anexo
-├── emailDispatcher.ts       # Envio via SMTP/API, controle de fila e integração com o cofre
+├── emailComposer.ts         # Assunto fixo + corpo via template preferido (email_template.md)
+├── emailDispatcher.ts       # Revisão/envio, retry transitório e integração com o cofre
+├── smtpTransport.ts         # Transporte real via nodemailer — credencial do cofre por envio
+├── credentialVault.ts       # Cofre AES-256-GCM de credenciais (vault/*.cred)
 ├── emailTracker.ts          # Persistência de logs, status e histórico no banco local
-└── emailAppConfig.ts        # Regras de aprovação, idioma, anexos e limites de envio
+└── ../utils/textTemplate.ts # Renderer {{placeholder}} compartilhado com o WhatsApp
 ```
 
-## 5. Parâmetros de Configuração (`emailAppConfig.ts`)
+## 5. Parâmetros de Configuração (`email:` no `careerOps.config.ts`)
 
 O comportamento do envio de currículos por e-mail é definido de forma declarativa:
 
@@ -80,10 +82,14 @@ O comportamento do envio de currículos por e-mail é definido de forma declarat
 |-----------|-----------|
 | `enabled` | Liga ou desliga o fallback de candidatura por e-mail quando não houver formulário web. |
 | `dispatchMode` | Define se o envio exige revisão prévia (`REQUIRE_REVIEW`), opera de forma híbrida por Fit Score (`HYBRID_BY_SCORE`) ou envia automaticamente (`AUTO_SEND_HIGH_FIT`). |
-| `minScoreAutoSend` | Score mínimo de aderência exigido para disparar o e-mail sem revisão manual prévia. |
+| `minScoreAutoSend` | Score mínimo de aderência exigido para disparar o e-mail sem revisão manual prévia (default 88). |
 | `attachTailoredResume` | Garante que o currículo PDF/DOCX adaptado à vaga seja anexado automaticamente (com fallback para o currículo base caso não haja geração específica). |
-| `maxDailyEmails` | Teto diário de candidaturas por e-mail para proteger a reputação da conta remetente. |
+| `maxDailyEmails` | Teto diário de candidaturas por e-mail para proteger a reputação da conta remetente (**default 45** — customizável via `EMAIL_MAX_DAILY`). |
 | `smtpCredentialRef` | Aponta para o segredo protegido no cofre criptografado do sistema, sem expor dados sensíveis em configuração. |
+| `recipientCooldownDays` | Janela anti-duplicidade por destinatário (default 30). |
+| `maxRetries` / `retryBackoffMs` | Falha transitória → retry com backoff; esgotado → `NEEDS_HUMAN_INPUT` (default 3 × 60s). |
+| `bodyTemplatePath` | Arquivo editável do modelo preferido de corpo — fallback para o built-in PT/EN. |
+| `includeSalaryExpectation` | Inclui a linha de pretensão salarial conforme `marketScope` + locale (default `true`). |
 
 ## 6. Fluxo de Integração com o CareerFacilator AI
 

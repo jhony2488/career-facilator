@@ -60,6 +60,11 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 - [x] Efeito da atualização do perfil sobre candidaturas em `TAILORED`/`READY_TO_REVIEW`. **Decisão:** regenerar os materiais com o perfil novo.
 - [x] Atualização do perfil recalcula Fit Scores pendentes? **Decisão:** sim — alinhado ao item de 03-triagem (recálculo de `TRIAGED`/`TAILORED`).
 
+### 15-candidatura-whatsapp.feature
+- [x] Modo padrão para vagas com candidatura por WhatsApp. **Decisão:** `MANUAL_QUEUE` — número + mensagem + PDF ficam na fila do `review` para envio manual; `EVOLUTION_API` exige configuração explícita.
+- [x] Precedência quando a vaga oferece e-mail e WhatsApp. **Decisão:** web > e-mail > WhatsApp — o primeiro canal alcançável vence.
+- [x] Falha no envio via Evolution API. **Decisão:** mesmo contrato do e-mail — retry transitório até 3× com backoff; esgotado → `NEEDS_HUMAN_INPUT`.
+
 ## Nota sobre os testes (`__tests__/`)
 
 As suites Jest em `__tests__/` usam **assinaturas provisórias** dos módulos `src/`, centralizadas em `__tests__/helpers/contracts.ts`. Elas representam a leitura mais plausível da spec, mas são um contrato a confirmar quando a implementação começar — divergências devem ser resolvidas naquele arquivo primeiro.
@@ -76,3 +81,6 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 4 | Limite de skills | Configurável (`maxSkillsPerJob`), default 2 |
 | 5 | Retry de e-mail | Máx. 3 tentativas com backoff; depois `NEEDS_HUMAN_INPUT` |
 | 6 | Vaga sem região declarada (escopo internacional) | Elegível, com flag de revisão |
+| 7 | Teto diário de e-mails | **45/dia** configurável (`EMAIL_MAX_DAILY`) |
+| 8 | Canal WhatsApp default | `MANUAL_QUEUE` (fila no `review`); `EVOLUTION_API` opt-in |
+| 9 | Precedência de canal | Web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT` |
