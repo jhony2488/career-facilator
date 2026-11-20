@@ -15,7 +15,7 @@ Thanks for contributing! This document defines the project's workflow, style and
 npm run lint         # ESLint
 npm run format:check # Prettier
 npx tsc --noEmit     # Typecheck
-npm run test         # 28 Jest suites
+npm run test         # 34 Jest suites
 ```
 
 ## PR rules

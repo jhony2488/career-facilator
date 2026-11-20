@@ -15,7 +15,7 @@ Obrigado por contribuir! Este documento define as regras de fluxo, estilo e qual
 npm run lint        # ESLint
 npm run format:check# Prettier
 npx tsc --noEmit    # Typecheck
-npm run test        # 28 suites Jest
+npm run test        # 34 suites Jest
 ```
 
 ## Regras de PR
