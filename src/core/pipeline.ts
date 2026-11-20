@@ -22,6 +22,7 @@ import { resolveHome } from '../config/paths';
 import type { CareerOpsConfig } from '../config/careerOps.config';
 import type { MasterProfileLike } from './types';
 import { computeLexicalFit, profileFitTerms } from './lexicalMatch';
+import { matchTargetTitle } from './titleMatcher';
 import {
   chunkProfile,
   retrieveRelevant,
@@ -187,11 +188,16 @@ export async function runApplicationPipeline(
 
     // 5. Triagem IA — Camada 1
     tokenReport.triageCalls++;
+    const titleMatch = matchTargetTitle(
+      clean.title ?? '',
+      config.discovery.targetTitles,
+    );
     const triage: JobTriageResult = await triageJob(
       {
         jobText: markdown,
         profile,
         targetTitles: config.discovery.targetTitles,
+        ...(titleMatch ? { titleMatch: titleMatch.target } : {}),
       },
       { model: deps.triageModel },
     );
