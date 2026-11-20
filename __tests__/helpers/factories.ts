@@ -69,6 +69,7 @@ export function makeMasterProfile(overrides: Partial<MasterProfile> = {}): Maste
     linkedin: 'https://linkedin.com/in/devtester',
     github: 'https://github.com/devtester',
     portfolio: 'https://devtester.dev',
+    location: 'Recife, PE',
     summary: 'Senior Full-Stack TypeScript Engineer',
     coreStack: ['TypeScript', 'Node.js', 'Next.js', 'PostgreSQL'],
     seniorityYears: 6,

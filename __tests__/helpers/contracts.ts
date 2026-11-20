@@ -85,6 +85,7 @@ export interface MasterProfile {
   linkedin: string;
   github: string;
   portfolio: string;
+  location: string;
   summary: string;
   coreStack: string[];
   seniorityYears: number;

@@ -25,7 +25,8 @@ describe('structureProfile', () => {
 
     expect(result.fullName).toBe('Dev Tester');
     expect(result.coreStack).toContain('TypeScript');
-    expect(model.generate).toHaveBeenCalledTimes(1);
+    // seções em caps no fixture → chamadas focadas por seção (≥1)
+    expect(model.generate).toHaveBeenCalled();
   });
 
   it('sends the document text to the model, not external metadata', async () => {

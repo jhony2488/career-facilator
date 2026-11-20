@@ -7,6 +7,7 @@ import type { TailorModel } from './tailorerAgent';
 import type { StructurerModel } from '../intake/profileStructurer';
 import { MasterProfileSchema } from '../intake/profileStructurer';
 import { z } from 'zod';
+import { zodSchema } from 'ai';
 import type { CareerOpsConfig, ModelRouting } from '../config/careerOps.config';
 
 export interface LlmClients {
@@ -61,8 +62,10 @@ function ollamaOptions(env: Record<string, string | undefined>): Record<string, 
   const opts: Record<string, unknown> = {};
   const temperature = Number(env.AI_TEMPERATURE);
   const numPredict = Number(env.AI_NUM_PREDICT);
+  const numCtx = Number(env.AI_NUM_CTX);
   if (Number.isFinite(temperature)) opts.temperature = temperature;
   if (Number.isFinite(numPredict) && numPredict > 0) opts.num_predict = numPredict;
+  if (Number.isFinite(numCtx) && numCtx > 0) opts.num_ctx = numCtx;
   return Object.keys(opts).length ? opts : undefined;
 }
 
@@ -71,7 +74,17 @@ function ollamaOptions(env: Record<string, string | undefined>): Record<string, 
  * `AI_NUM_PREDICT` na env sobrescreve todos.
  */
 const NUM_PREDICT_DEFAULTS = { triage: 512, structurer: 3072, tailor: 4096 } as const;
-const DEFAULT_TIMEOUT_MS = 180_000;
+
+/**
+ * Structured outputs do Ollama: passar o JSON Schema em `format` força a
+ * decodificação a obedecer o shape (gramática) — muito mais confiável que
+ * 'json' genérico para modelos pequenos.
+ */
+const TRIAGE_JSON_SCHEMA = zodSchema(JobTriageSchema).jsonSchema as Record<string, unknown>;
+const PROFILE_JSON_SCHEMA = zodSchema(MasterProfileSchema).jsonSchema as Record<string, unknown>;
+const TAILOR_JSON_SCHEMA = zodSchema(TailorOutputSchema).jsonSchema as Record<string, unknown>;
+/** Timeout por chamada — 10 min: modelos 7-8B em CPU demoram muito além de 3 min. */
+const DEFAULT_TIMEOUT_MS = 600_000;
 
 function callOptions(
   env: Record<string, string | undefined>,
@@ -166,7 +179,7 @@ export function createModelClients(
               generateStructured(
                 (p) =>
                   chatText(client, local.modelId, p, {
-                    format: 'json',
+                    format: TRIAGE_JSON_SCHEMA,
                     numPredict: NUM_PREDICT_DEFAULTS.triage,
                   }, 'triage', local.provider),
                 prompt,
@@ -185,11 +198,26 @@ export function createModelClients(
               generateStructured(
                 (p) =>
                   chatText(client, smart.modelId, p, {
-                    format: 'json',
+                    format: PROFILE_JSON_SCHEMA,
                     numPredict: NUM_PREDICT_DEFAULTS.structurer,
                   }, 'structurer', smart.provider),
                 prompt,
                 MasterProfileSchema,
+              ),
+            /**
+             * Saída parcial por seção — o adapter traduz `jsonSchema` para o
+             * "structured output" do provider (Ollama: format; OpenAI:
+             * response_format.json_schema; Anthropic: tool/schema).
+             */
+            generatePart: (prompt: string, jsonSchema: Record<string, unknown>) =>
+              generateStructured(
+                (p) =>
+                  chatText(client, smart.modelId, p, {
+                    format: jsonSchema,
+                    numPredict: NUM_PREDICT_DEFAULTS.structurer,
+                  }, 'structurer', smart.provider),
+                prompt,
+                z.unknown(),
               ),
           };
         })()
@@ -210,7 +238,7 @@ export function createModelClients(
               return generateStructured(
                 (p) =>
                   chatText(client, smart.modelId, p, {
-                    format: 'json',
+                    format: TAILOR_JSON_SCHEMA,
                     numPredict: NUM_PREDICT_DEFAULTS.tailor,
                   }, 'tailor', smart.provider),
                 guided,

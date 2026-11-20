@@ -1,8 +1,19 @@
+import { Agent } from 'undici';
+
 /**
- * Client Ollama real — HTTP via fetch nativo (Node 22+, zero deps).
+ * Client Ollama real — HTTP via fetch nativo (Node 22+).
  * Suporta geração de chat com/sem streaming (NDJSON), format:json para saída
  * estruturada de modelos pequenos, embeddings e keep-alive.
  */
+
+/**
+ * Undici default: headersTimeout=300s. Em CPU um 3-8B pode ficar >5min em
+ * fila/prompt-eval antes do 1º byte — sobe pra 10min (AbortSignal continua
+ * governando o total).
+ */
+const agent = new Agent({ headersTimeout: 600_000, bodyTimeout: 0 });
+const withDispatcher = (init: RequestInit): RequestInit =>
+  Object.assign(init, { dispatcher: agent });
 
 export interface OllamaMessage {
   role: 'system' | 'user' | 'assistant';
@@ -64,7 +75,7 @@ export interface OllamaClientDeps {
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_KEEP_ALIVE = '10m';
-const DEFAULT_TIMEOUT_MS = 300_000;
+const DEFAULT_TIMEOUT_MS = 600_000;
 
 /**
  * keep_alive: Ollama aceita duration string ('10m', '0' segundos) ou inteiro
@@ -87,7 +98,7 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     const stream = opts.stream ?? opts.onToken !== undefined;
     const signals = [AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)];
     if (opts.signal) signals.push(opts.signal);
-    const res = await fetchImpl(`${baseUrl}/api/chat`, {
+    const res = await fetchImpl(`${baseUrl}/api/chat`, withDispatcher({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.any(signals),
@@ -100,7 +111,7 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
         ...(opts.format !== undefined ? { format: opts.format } : {}),
         ...(opts.options ? { options: opts.options } : {}),
       }),
-    });
+    }));
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
