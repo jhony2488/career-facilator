@@ -4,7 +4,7 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação de `src/` — **44 suites passam** (247 unit + 43 integration + 9 e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`.
+**Estado atual:** especificação + implementação de `src/` — suites Jest passam (unit + integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`. Discovery roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + registry de 145 fontes; adapters ATS/HTML/LinkedIn/dorks seguem stub.
 
 ## Onde encontrar as coisas
 
@@ -15,7 +15,7 @@
 | `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, binários de release) e configuração de modelos de IA                                                                            |
 | `feature/*.feature`                  | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo                                                                                                                           |
 | `feature/DECISOES.md`                | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar**                                                                                                    |
-| `src/`                               | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
+| `src/`                               | Implementação: `intake/`, `ai/`, `discovery/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
 
 ## Convenções do projeto
 
@@ -61,7 +61,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **44 suites** derivadas dos `.feature` + contratos de infra, todas verdes
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — suites derivadas dos `.feature` + contratos de infra, todas verdes
 - Descrições de `describe`/`it` e comentários nos testes sempre em **inglês**
 - **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes
@@ -84,7 +84,7 @@ Select-String -Path feature\*.feature -Pattern '^# language: pt'
 
 ## Regras para agentes
 
-1. **Antes de implementar qualquer módulo**, ler o doc correspondente em `docs/pt-BR/` e o `.feature` correspondente — e verificar `feature/DECISOES.md` por decisões pendentes daquele módulo.
+1. **Antes de implementar qualquer módulo**, ler o doc correspondente em `docs/en/` e o `.feature` correspondente — e verificar `feature/DECISOES.md` por decisões pendentes daquele módulo.
 2. **Não implementar código** a menos que explicitamente pedido — o projeto está em fase de especificação.
 3. **Human-in-the-loop é requisito, não opção:** nenhum fluxo pode enviar candidatura sem respeitar o modo de execução configurado.
 4. **Nunca commitar segredos** — credenciais SMTP/sessões vivem no cofre criptografado (ver `docs/pt-BR/10-confiabilidade.md`).

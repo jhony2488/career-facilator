@@ -37,6 +37,15 @@ Antes mesmo de gastar 1 único token de IA, o repositório (`src/db/repository.t
 - **Gravação do Histórico:** Assim que a candidatura é enviada (ou pulada por baixo Fit Score), o SQLite grava a data, a URL, o hash, a versão exata do PDF enviado, as skills ativadas e o status (`APPLIED`, `SKIPPED`, `INTERVIEW`, `REJECTED`).
 - **Detecção Visual na Página:** Além do banco local, se o scraper abrir uma vaga no LinkedIn ou Gupy e detectar elementos nativos da própria plataforma como "Candidatura enviada há 2 dias", ele sincroniza automaticamente o status para `APPLIED` no banco e aborta o fluxo.
 
+## 4. Fontes e comandos implementados
+
+- **APIs JSON públicas (habilitadas):** `remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, além de `weworkremotely` (RSS). Rodam em `src/discovery/adapters/apiAdapter.ts`/`rssAdapter.ts` e produzem `RawJobInput` (`{url, html}`) para o pipeline.
+- **Registro de fontes:** `src/discovery/registry.ts` mantém 100+ fontes/ATS/job boards; `getActiveSources` em `src/discovery/sourceRegistry.ts` aplica filtros `DISCOVERY_*` (allowlist, exclusão, regiões, modelo de trabalho, risky/auth).
+- **CLI:** `career run` (sem `--jobs-file`) executa descoberta; `career discover [--sources id1,id2] [--max-jobs N] [--export out.json]` lista ou exporta vagas; `career scan <source-id> [--max-jobs N]` testa uma fonte. `--dry-run` em `discover` lista fontes ativas sem buscar.
+- **Isolamento de erro:** uma fonte que falha retorna `DiscoveryError` e o motor segue nas demais; se todas falham, o ciclo alerta e aborta sem tocar nos tiers de IA.
+- **Limites/rate:** `DISCOVERY_MAX_JOBS_PER_SOURCE`, `DISCOVERY_CONCURRENCY`, `DISCOVERY_PER_DOMAIN_DELAY_MS`, `MAX_JOBS_PER_RUN` (global).
+- **Não implementado ainda:** boards ATS por slug de empresa (Greenhouse/Lever/Gupy), scrapers HTML genéricos, LinkedIn/sessão autenticada e dorks de busca estão registrados, mas retornam erro `not implemented` até os adapters existirem.
+
 ---
 
 « [Anterior: Skills Dinâmicas](05-skills-dinamicas.md) | [Índice](README.md) | [Próximo: Modos de Candidatura →](07-modos-de-candidatura.md)
