@@ -12,7 +12,7 @@ describe('renderTemplate — shared message template engine (docs 11/15)', () =>
     // Anti-fabrication: a placeholder with no value never produces invented text;
     // a line left meaningless by empty placeholders is removed entirely
     expect(renderTemplate('Value: {{missing}}!', { name: 'x' })).toBe('');
-    expect(renderTemplate('Keep {{ok}} and {{missing}}', { ok: 'yes' })).toBe('Keep yes and ');
+    expect(renderTemplate('Keep {{ok}} and {{missing}}', { ok: 'yes' })).toBe('Keep yes and');
   });
 
   it('drops a line whose placeholders all resolve empty', () => {

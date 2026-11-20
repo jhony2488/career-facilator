@@ -355,12 +355,31 @@ export interface CareerOpsConfig {
 //   evaluateStepResult(stepState): 'ADVANCE' | 'ESCALATE' | 'READY'
 //
 // src/email_application/recipientResolver.ts
-//   resolveRecipient(job, deps: {repo}): Promise<{email: string} | null>
+//   resolveRecipient(job, deps: {repo, cooldownDays?}): Promise<{email: string} | null>
 // src/email_application/emailComposer.ts
-//   composeEmail({job, profile, skills, resumePath, locale}): Promise<EmailDraft>
+//   composeEmail({job, profile, skills, resumePath, baseResumePath, locale, fitScore?,
+//     bodyTemplatePath?, includeSalaryExpectation?}): Promise<EmailDraft>
 // src/email_application/emailDispatcher.ts
-//   dispatchEmail(draft, deps: {transport, vault, config: {dispatchMode, smtpCredentialRef}}):
-//     Promise<{sent: boolean; status?: JobStatus; retryScheduled?: boolean}>
+//   dispatchEmail(draft, deps: {transport, vault, config: {dispatchMode, smtpCredentialRef,
+//     minScoreAutoSend?, maxRetries?, retryBackoffMs?}}):
+//     Promise<{sent: boolean; status?: JobStatus; attempts?: number}>
+// src/email_application/credentialVault.ts
+//   class FileCredentialVault implements CredentialVault { getCredential|setCredential|has|list|remove }
+// src/email_application/smtpTransport.ts
+//   createSmtpTransport({vault, ref, transportFactory?}): SmtpTransport  (nodemailer real)
+// src/email_application/emailAppCore.ts
+//   applyViaEmail(input: EmailApplyInput, deps: {repo, transport?, vault?, config: email}):
+//     Promise<{sent, status, reason?, attempts?}>
+//
+// src/whatsapp_application/whatsappResolver.ts
+//   resolveWhatsappRecipient(job, deps: {repo, cooldownDays?}): Promise<{number} | null>
+// src/whatsapp_application/whatsappComposer.ts
+//   composeWhatsapp(input): Promise<WhatsappMessage>  (text + resumePath)
+// src/whatsapp_application/evolutionClient.ts
+//   createEvolutionClient({apiUrl, apiKey, instance, fetchImpl?}): EvolutionTransport
+// src/whatsapp_application/whatsappAppCore.ts
+//   applyViaWhatsapp(input, deps: {repo, transport?, config: whatsapp}):
+//     Promise<{sent, status, reason?, message?, attempts?}>
 //
 // src/tracker/outcomeMonitor.ts
 //   classifyOutcome(message: {from, subject, body}, appliedSenders: string[]): OutcomeStatus | null
