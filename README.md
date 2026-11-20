@@ -8,11 +8,11 @@ Sistema autônomo de prospecção, triagem semântica, adaptação de currículo
 
 O CareerFacilator AI automatiza o ciclo ponta a ponta de busca e candidatura a vagas (LinkedIn, Greenhouse, Lever, Gupy, Workday e portais próprios) operando sob um **Funil de Otimização de Inferência em 3 Camadas**:
 
-| Camada | Função | Custo |
-|--------|--------|-------|
-| **0 — Determinística** | Limpeza de DOM, deduplicação, filtros léxicos, aderência TF-IDF/BM25 | Zero / 0ms |
-| **1 — Modelos leves** | Fit Score + requisitos estruturados (Ollama local / Groq / Flash-Lite) | Baixo / rápido |
-| **2 — Raciocínio + cache** | Currículo adaptado e Q&A apenas para vagas ≥ 75% (prompt caching) | Alto / preciso |
+| Camada                     | Função                                                                 | Custo          |
+| -------------------------- | ---------------------------------------------------------------------- | -------------- |
+| **0 — Determinística**     | Limpeza de DOM, deduplicação, filtros léxicos, aderência TF-IDF/BM25   | Zero / 0ms     |
+| **1 — Modelos leves**      | Fit Score + requisitos estruturados (Ollama local / Groq / Flash-Lite) | Baixo / rápido |
+| **2 — Raciocínio + cache** | Currículo adaptado e Q&A apenas para vagas ≥ 75% (prompt caching)      | Alto / preciso |
 
 ## Como rodar
 
@@ -102,11 +102,11 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 Baixe o binário da aba [Releases](../../releases) — **não precisa de Node.js**:
 
-| Arquivo | Primeiro uso |
-|---------|--------------|
+| Arquivo                  | Primeiro uso                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
 | `career-windows-x64.exe` | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim" |
-| `career-macos-arm64` | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper) |
-| `career-linux-x64` | `chmod +x` |
+| `career-macos-arm64`     | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper)                |
+| `career-linux-x64`       | `chmod +x`                                                                                  |
 
 O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele. Para a biblioteca de skills no exe, copie `src/skills/library/` para `skills/` na mesma pasta.
 

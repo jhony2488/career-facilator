@@ -41,12 +41,12 @@ Deixe o terminal aberto ou configure o serviço do SO para iniciar sozinho.
 
 Ollama quantiza os modelos em 4 bits por padrão. A memória necessária é aproximadamente o tamanho do arquivo `.gguf` mais folga do sistema operacional.
 
-| Memória livre | Modelos recomendados | Uso sugerido |
-|---------------|----------------------|--------------|
-| ~8 GB | `llama3.2:3b`, `qwen2.5:3b`, `hermes3:latest`, `gemma2:2b` | Triagem rápida (`LOCAL`) e triagem média (`FAST`) |
-| ~16 GB | `mistral:7b`, `qwen2.5:7b`, `gemma2:9b`, `llama3.1:8b` | Triagem + tailor simples (`SMART`) |
-| ~32 GB ou mais | `qwen2.5:14b`, `qwen2.5:32b`, `mistral-nemo:12b`, `deepseek-coder-v2:16b-lite` | Tailor mais refinado e estruturação de PDF |
-| Apenas CPU | Qualquer dos acima, mas mais lentos. Use 3B para testes. | `AI_TIMEOUT_MS` alto recomendado |
+| Memória livre  | Modelos recomendados                                                           | Uso sugerido                                      |
+| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------- |
+| ~8 GB          | `llama3.2:3b`, `qwen2.5:3b`, `hermes3:latest`, `gemma2:2b`                     | Triagem rápida (`LOCAL`) e triagem média (`FAST`) |
+| ~16 GB         | `mistral:7b`, `qwen2.5:7b`, `gemma2:9b`, `llama3.1:8b`                         | Triagem + tailor simples (`SMART`)                |
+| ~32 GB ou mais | `qwen2.5:14b`, `qwen2.5:32b`, `mistral-nemo:12b`, `deepseek-coder-v2:16b-lite` | Tailor mais refinado e estruturação de PDF        |
+| Apenas CPU     | Qualquer dos acima, mas mais lentos. Use 3B para testes.                       | `AI_TIMEOUT_MS` alto recomendado                  |
 
 ### Modelos de embedding
 
@@ -96,10 +96,10 @@ career config set OLLAMA_KEEP_ALIVE 10m
 O currículo inteiro é enviado no prompt de `structurer` e `tailor`. Se a janela for pequena, o modelo perde informações do fim do texto.
 
 | Tamanho do modelo | `AI_NUM_CTX` recomendado |
-|-------------------|--------------------------|
-| 3B | 2048 a 4096 |
-| 7B–8B | 4096 a 8192 |
-| 14B+ | 8192 a 16384 |
+| ----------------- | ------------------------ |
+| 3B                | 2048 a 4096              |
+| 7B–8B             | 4096 a 8192              |
+| 14B+              | 8192 a 16384             |
 
 Exemplo:
 

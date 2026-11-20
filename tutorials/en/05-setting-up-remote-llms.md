@@ -13,13 +13,13 @@ You can use remote configuration to:
 
 ## Provider table
 
-| Provider | Dashboard | API key env | Model env | Example config |
-|----------|-----------|-------------|-----------|----------------|
-| Groq | [console.groq.com](https://console.groq.com) | `GROQ_API_KEY` | `GROQ_MODEL` | `AI_SMART_PROVIDER=groq` + `AI_SMART_MODEL=llama-3.3-70b-versatile` |
-| Anthropic | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` | `AI_SMART_PROVIDER=anthropic` + `AI_SMART_MODEL=claude-3-5-haiku-latest` |
-| OpenAI | [platform.openai.com](https://platform.openai.com) | `OPENAI_API_KEY` | `OPENAI_MODEL` | `AI_SMART_PROVIDER=openai` + `AI_SMART_MODEL=gpt-4o-mini` |
-| Kimi / Moonshot | [platform.moonshot.ai](https://platform.moonshot.ai) | `KIMI_API_KEY` | `KIMI_MODEL` | `AI_SMART_PROVIDER=kimi` + `AI_SMART_MODEL=moonshot-v1-8k` |
-| Gemini / Google | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` | `GEMINI_MODEL` | `AI_SMART_PROVIDER=gemini` + `AI_SMART_MODEL=gemini-2.0-flash` |
+| Provider        | Dashboard                                              | API key env         | Model env         | Example config                                                           |
+| --------------- | ------------------------------------------------------ | ------------------- | ----------------- | ------------------------------------------------------------------------ |
+| Groq            | [console.groq.com](https://console.groq.com)           | `GROQ_API_KEY`      | `GROQ_MODEL`      | `AI_SMART_PROVIDER=groq` + `AI_SMART_MODEL=llama-3.3-70b-versatile`      |
+| Anthropic       | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` | `AI_SMART_PROVIDER=anthropic` + `AI_SMART_MODEL=claude-3-5-haiku-latest` |
+| OpenAI          | [platform.openai.com](https://platform.openai.com)     | `OPENAI_API_KEY`    | `OPENAI_MODEL`    | `AI_SMART_PROVIDER=openai` + `AI_SMART_MODEL=gpt-4o-mini`                |
+| Kimi / Moonshot | [platform.moonshot.ai](https://platform.moonshot.ai)   | `KIMI_API_KEY`      | `KIMI_MODEL`      | `AI_SMART_PROVIDER=kimi` + `AI_SMART_MODEL=moonshot-v1-8k`               |
+| Gemini / Google | [aistudio.google.com](https://aistudio.google.com)     | `GEMINI_API_KEY`    | `GEMINI_MODEL`    | `AI_SMART_PROVIDER=gemini` + `AI_SMART_MODEL=gemini-2.0-flash`           |
 
 ## Configure via CLI
 
