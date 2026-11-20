@@ -3,6 +3,8 @@ export type MarketScope = 'NATIONAL' | 'INTERNATIONAL' | 'BOTH';
 export type WorkModel = 'REMOTE' | 'HYBRID' | 'ONSITE';
 export type ContractType = 'CLT' | 'PJ';
 export type IntlRegion = 'WORLDWIDE' | 'LATAM' | 'AMERICAS_TIMEZONE';
+export type EmailDispatchMode = 'REQUIRE_REVIEW' | 'HYBRID_BY_SCORE' | 'AUTO_SEND_HIGH_FIT';
+export type WhatsappMode = 'MANUAL_QUEUE' | 'EVOLUTION_API';
 
 export interface ModelRouting {
   provider: string;
@@ -32,6 +34,11 @@ export interface CareerOpsConfig {
     maxEscalationsPerPlatformPerDay: number;
     /** Termos do perfil que devem aparecer na vaga p/ não pular (filtro Camada 0). Default 1. */
     lexicalMinTerms?: number;
+  };
+  /** Prospecção: o que o sistema procura. */
+  discovery: {
+    /** Títulos de cargo a procurar (JOB_TITLES env — sobrescreve). */
+    targetTitles: string[];
   };
   ai: {
     local: ModelRouting; // Camada 1 — triagem barata (Ollama/ONNX)
@@ -71,6 +78,39 @@ export interface CareerOpsConfig {
     compiledPath: string;
     historyDir: string;
   };
+  /** Candidatura por e-mail (doc 11) — credenciais SMTP só via cofre. */
+  email: {
+    enabled: boolean;
+    dispatchMode: EmailDispatchMode;
+    minScoreAutoSend: number;
+    attachTailoredResume: boolean;
+    /** Teto diário de e-mails p/ proteger a reputação do remetente. Default 45. */
+    maxDailyEmails: number;
+    /** Referência do segredo SMTP no cofre — nunca a senha em si. */
+    smtpCredentialRef: string;
+    recipientCooldownDays: number;
+    /** Retry em falha transitória; esgotadas → NEEDS_HUMAN_INPUT (DECISOES). */
+    maxRetries: number;
+    retryBackoffMs: number;
+    /** Template do corpo (arquivo editável) — fallback p/ built-in. */
+    bodyTemplatePath: string;
+    includeSalaryExpectation: boolean;
+  };
+  /** Candidatura por WhatsApp (doc 15): fila manual ou Evolution API. */
+  whatsapp: {
+    enabled: boolean;
+    mode: WhatsappMode;
+    /** Nome da env var com a base URL da Evolution API (self-hosted). */
+    apiUrlEnv: string;
+    apiInstance: string;
+    /** Nome da env var com a apikey da Evolution API. */
+    apiKeyEnv: string;
+    bodyTemplatePath: string;
+    recipientCooldownDays: number;
+    attachResume: boolean;
+    maxRetries: number;
+    retryBackoffMs: number;
+  };
 }
 
 export const defaultCareerOpsConfig: CareerOpsConfig = {
@@ -85,6 +125,15 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     escalationTimeoutMinutes: 15,
     maxEscalationsPerPlatformPerDay: 3,
     lexicalMinTerms: 1,
+  },
+  discovery: {
+    targetTitles: [
+      'Desenvolvedor Full Stack',
+      'Full Stack Developer',
+      'Desenvolvedor Backend',
+      'Backend Developer',
+      'Node.js Developer',
+    ],
   },
   ai: {
     local: { provider: 'ollama', modelId: 'qwen2.5:7b' },
@@ -121,5 +170,30 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     masterPath: 'src/config/profile.master.md',
     compiledPath: 'src/config/profile.master.json',
     historyDir: 'storage/profile_history/',
+  },
+  email: {
+    enabled: true,
+    dispatchMode: 'HYBRID_BY_SCORE',
+    minScoreAutoSend: 88,
+    attachTailoredResume: true,
+    maxDailyEmails: 45,
+    smtpCredentialRef: 'smtp-main',
+    recipientCooldownDays: 30,
+    maxRetries: 3,
+    retryBackoffMs: 60_000,
+    bodyTemplatePath: 'storage/email_template.md',
+    includeSalaryExpectation: true,
+  },
+  whatsapp: {
+    enabled: true,
+    mode: 'MANUAL_QUEUE',
+    apiUrlEnv: 'EVOLUTION_API_URL',
+    apiInstance: 'default',
+    apiKeyEnv: 'EVOLUTION_API_KEY',
+    bodyTemplatePath: 'storage/whatsapp_template.md',
+    recipientCooldownDays: 30,
+    attachResume: true,
+    maxRetries: 3,
+    retryBackoffMs: 60_000,
   },
 };
