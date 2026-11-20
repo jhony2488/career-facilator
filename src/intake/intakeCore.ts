@@ -34,6 +34,22 @@ export interface ApproveResult {
   scoresToRecalculate: boolean;
 }
 
+/** Varredura da pasta monitorada — injetável (real em inboxScanner.ts, mock nos testes). */
+export interface InboxScanner {
+  listPendingPdfs(inboxDir: string): Promise<string[]>;
+  moveToProcessed(pdfPath: string, inboxDir: string): Promise<string>;
+}
+
+export interface InboxItemResult extends ImportResumeResult {
+  path: string;
+  archivedTo?: string;
+}
+
+export interface ProcessInboxResult {
+  scanned: number;
+  results: InboxItemResult[];
+}
+
 /**
  * Orquestrador da ingestão (doc 13 §13.2): PDF → extração → estruturação →
  * rascunho pendente de revisão. Documento sem texto legível não gera rascunho
@@ -64,6 +80,25 @@ export async function importResume(
 
   const { draftPath, conflicts } = await deps.store.saveDraft(profile, { mode: input.mode, base });
   return { outcome: 'DRAFT_PENDING_REVIEW', draftPath, conflicts };
+}
+
+/**
+ * Pasta monitorada (doc 13): processa todos os PDFs pendentes da área de
+ * entrada como source 'INBOX' e arquiva cada um em processed/ — legíveis ou
+ * não — para que nenhum documento seja reprocessado na varredura seguinte.
+ */
+export async function processInbox(
+  input: { inboxDir: string; mode: ProfileImportMode },
+  deps: ImportResumeDeps & { scanner: InboxScanner },
+): Promise<ProcessInboxResult> {
+  const pending = await deps.scanner.listPendingPdfs(input.inboxDir);
+  const results: InboxItemResult[] = [];
+  for (const path of pending) {
+    const result = await importResume({ file: { path }, mode: input.mode, source: 'INBOX' }, deps);
+    const archivedTo = await deps.scanner.moveToProcessed(path, input.inboxDir);
+    results.push({ ...result, path, archivedTo });
+  }
+  return { scanned: pending.length, results };
 }
 
 /** Aprovação humana: promove o rascunho e invalida os dados derivados. */

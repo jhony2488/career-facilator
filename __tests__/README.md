@@ -1,45 +1,45 @@
-# Testes — CareerFacilator AI
+# Tests — CareerFacilator AI
 
-Suites Jest + ts-jest derivadas das especificações em `docs/pt-BR/` e `feature/*.feature`.
+Jest + ts-jest suites derived from the specs in `docs/pt-BR/` and `feature/*.feature`.
 
-> **Status:** os testes importam de `../src/`, que ainda não existe — eles **não compilam/rodam** até a implementação começar. Isso é intencional (TDD/red-first): os testes são a spec executável dos módulos.
+> **Status:** the tests import from `../src/`, which does not exist yet — they **do not compile/run** until the implementation begins. This is intentional (TDD/red-first): the tests are the executable spec of the modules.
 
-## Estrutura
+## Structure
 
 ```text
 __tests__/
 ├── helpers/
-│   ├── contracts.ts    # Tipos de domínio + assinaturas esperadas de src/ (FONTE DA VERDADE)
+│   ├── contracts.ts    # Domain types + expected src/ signatures (SOURCE OF TRUTH)
 │   ├── factories.ts    # Builders: makeJob, makeMasterProfile, makeTriageResult, makeConfig...
-│   ├── mocks.ts        # Mocks de deps externas: LLM, page state, SMTP, vault, repo
-│   └── fixtures.ts     # HTML de vaga, SKILL.md, textos bloqueantes de exemplo
-├── unit/               # Lógica pura e limites de decisão (17 suites)
-├── integration/        # Pipelines com deps externas mockadas (7 suites)
-└── e2e/                # Fluxo completo ponta a ponta com tudo mockado (3 suites)
+│   ├── mocks.ts        # Mocks of external deps: LLM, page state, SMTP, vault, repo
+│   └── fixtures.ts     # Job HTML, SKILL.md, sample blocking texts
+├── unit/               # Pure logic and decision boundaries (17 suites)
+├── integration/        # Pipelines with mocked external deps (7 suites)
+└── e2e/                # Full end-to-end flow with everything mocked (3 suites)
 ```
 
-## Convenções
+## Conventions
 
-- **Rastreabilidade:** cada `it()` referencia o cenário de origem com `// feature/NN: <nome>` quando mapeia 1:1 um cenário Gherkin.
-- **Imports:** tipos vêm de `../helpers/contracts`; funções testadas vêm de `../src/...` (caminho espelhando `src/`).
-- **Sem deps externas nos testes:** nunca importar `playwright`, `nodemailer`, SDKs de LLM — usar os mocks de `helpers/mocks.ts`.
-- **Determinismo:** testes que envolvem IA injetam `mockTriageModel`/`mockTailorModel` — nunca dependem de modelo real.
-- **Config:** usar `makeConfig()` com overrides — nunca hardcodar thresholds fora dos cenários que os testam explicitamente.
+- **Traceability:** each `it()` references its source scenario with `// feature/NN: <name>` when it maps 1:1 to a Gherkin scenario.
+- **Imports:** types come from `../helpers/contracts`; tested functions come from `../src/...` (path mirroring `src/`).
+- **No external deps in tests:** never import `playwright`, `nodemailer`, or LLM SDKs — use the mocks in `helpers/mocks.ts`.
+- **Determinism:** tests involving AI inject `mockTriageModel`/`mockTailorModel` — they never depend on a real model.
+- **Config:** use `makeConfig()` with overrides — never hardcode thresholds outside the scenarios that explicitly test them.
 
-## Contratos provisórios
+## Provisional contracts
 
-As assinaturas esperadas de cada módulo `src/` estão documentadas em [`helpers/contracts.ts`](helpers/contracts.ts). Se a implementação divergir, discutir/atualizar lá **antes** de alterar testes em massa.
+The expected signatures of each `src/` module are documented in [`helpers/contracts.ts`](helpers/contracts.ts). If the implementation diverges, discuss/update it there **before** changing tests in bulk.
 
-## Comandos (quando `src/` existir e `npm install` tiver sido rodado)
+## Commands (once `src/` exists and `npm install` has been run)
 
 ```powershell
-npm run test:unit          # só unit/
-npm run test:integration   # só integration/
-npm run test:e2e           # só e2e/
-npm test                   # tudo
+npm run test:unit          # unit/ only
+npm run test:integration   # integration/ only
+npm run test:e2e           # e2e/ only
+npm test                   # everything
 ```
 
-## Mapa feature → suites
+## Feature → suites map
 
 | Feature | Unit | Integration | E2E |
 |---------|------|-------------|-----|
@@ -53,6 +53,6 @@ npm test                   # tudo
 | 08-escopo-geo | `geo/eligibilityGuard`, `geo/localeAdapter` | — | — |
 | 09-escalonamento | — | `escalation` | `pipeline.full-auto` |
 | 10-email | `email/recipientResolver` | `email-application` | — |
-| 11-sessao | — | `escalation` (sessão expirada) | — |
+| 11-sessao | — | `escalation` (expired session) | — |
 | 12-tracking/dry-run | `tracker/outcomeMonitor` | — | `pipeline.dry-run` |
 | 13-ingestao-perfil | `intake/pdfExtractor`, `intake/profileStructurer`, `intake/masterProfileStore`, `intake/profileCompiler` | `intake-pipeline` | — |
