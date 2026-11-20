@@ -51,18 +51,42 @@ Providers válidos: `ollama`, `groq`, `anthropic`, `openai`, `kimi`, `gemini` (o
 ### Comandos
 
 ```powershell
-npm run cli -- <comando>          # roda o CLI em dev (tsx, sem build)
+npm run cli                       # shell interativo (prompt career>) — dev, sem build
+npm run cli -- <comando>          # comando único em dev
 
-npm run cli -- config               # mostra o roteamento de modelos resolvido do .env
-npm run cli -- import --pdf cv.pdf  # estrutura seu CV via Ollama → storage/profile.draft.md
-npm run cli -- import --pdf cv.pdf --verbose  # idem, com streaming de tokens no terminal
+npm run cli -- config               # roteamento de modelos + caminhos de dados resolvidos
+npm run cli -- import --pdf cv.pdf  # estrutura seu CV via Ollama → profile.draft.md
+npm run cli -- import --inbox       # processa PDFs pendentes na área de entrada
 npm run cli -- run --jobs-file jobs.json --dry-run   # funil completo (jobs.json = [{url, html}])
 npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW (SQLite real)
-npm run cli -- status               # contagens por status no storage/jobs.sqlite
+npm run cli -- status               # contagens por status no jobs.sqlite
 
 npm run build     # compila para dist/
 npm run start -- <comando>   # roda o build compilado
 ```
+
+### CLI global (`career`)
+
+```powershell
+npm link            # uma vez — registra 'career' e 'career-facilitator' no PATH
+career              # shell interativo de qualquer pasta
+career status       # comando único
+```
+
+Instalado globalmente, os dados vão para **`~/.careerfacilator/`** (ou `CAREER_HOME=<dir>`): `jobs.sqlite`, `profile_inbox/`, `profile.master.*` e o `.env` global. Tudo configurável pelo próprio comando:
+
+```powershell
+career config init                        # cria ~/.careerfacilator + .env template
+career config path                        # mostra home e arquivo de config
+career config set AI_SMART_PROVIDER groq  # grava no .env global
+career config set GROQ_API_KEY gsk_...    # chaves ficam fora do código
+career config get AI_LOCAL_MODEL
+career config unset AI_LOCAL_MODEL
+```
+
+Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH`.
+
+> **Dev no repo:** o `.env` local tem `CAREER_HOME=.`, então os dados continuam em `storage/` e `src/config/` como antes.
 
 ### Ingestão do seu perfil (currículo)
 

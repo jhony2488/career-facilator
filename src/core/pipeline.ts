@@ -18,6 +18,7 @@ import {
 } from '../email_application/emailDispatcher';
 import { resolveLocale } from '../geo/localeAdapter';
 import type { JobRepository, JobStatus } from '../db/repository';
+import { resolveHome } from '../config/paths';
 import type { CareerOpsConfig } from '../config/careerOps.config';
 import type { MasterProfileLike } from './types';
 import { computeLexicalFit, profileFitTerms } from './lexicalMatch';
@@ -396,7 +397,7 @@ async function applyViaEmail(
     profile,
     skills,
     resumePath,
-    baseResumePath: 'storage/master_resume.pdf',
+    baseResumePath: resolveHome('storage/master_resume.pdf'),
     locale: resolveLocale('INTERNATIONAL', config),
   });
 

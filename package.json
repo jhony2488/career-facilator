@@ -4,6 +4,15 @@
   "private": true,
   "description": "CareerFacilator AI — autonomous job prospecting, semantic triage, resume tailoring and assisted application with inference optimization",
   "type": "commonjs",
+  "bin": {
+    "career-facilitator": "bin/career.cjs",
+    "career": "bin/career.cjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    ".env.example"
+  ],
   "scripts": {
     "test": "jest",
     "test:unit": "jest --selectProjects unit",
@@ -16,6 +25,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "cli": "tsx src/cli/index.ts",
+    "dev": "tsx watch src/cli/index.ts",
     "build": "tsc",
     "start": "node dist/src/cli/index.js"
   },
@@ -30,7 +40,6 @@
     "jest": "^29.7.0",
     "prettier": "^3.10.1",
     "ts-jest": "^29.2.5",
-    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.73.0"
   },
@@ -41,6 +50,7 @@
     "node-html-parser": "^9.0.7",
     "playwright": "^1.49.0",
     "playwright-extra": "^4.3.6",
+    "tsx": "^4.23.15",
     "turndown": "^7.2.0",
     "zod": "^3.24.0"
   }
