@@ -7,6 +7,8 @@ import {
   type ExecutionMode,
   type ModelRouting,
   type WhatsappMode,
+  type WorkModel,
+  type SearchEngine,
 } from './careerOps.config';
 import { careerHome } from './paths';
 
@@ -182,6 +184,43 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
     discovery: {
       targetTitles:
         titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
+      sources: env.DISCOVERY_SOURCES
+        ? env.DISCOVERY_SOURCES.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        : defaultCareerOpsConfig.discovery.sources,
+      excludeSources: env.DISCOVERY_EXCLUDE_SOURCES
+        ? env.DISCOVERY_EXCLUDE_SOURCES.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        : defaultCareerOpsConfig.discovery.excludeSources,
+      regions: env.DISCOVERY_REGIONS
+        ? env.DISCOVERY_REGIONS.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        : defaultCareerOpsConfig.discovery.regions,
+      workModels: env.DISCOVERY_WORK_MODELS
+        ? env.DISCOVERY_WORK_MODELS.split(/[,;]/).map((s) => s.trim().toUpperCase() as WorkModel).filter(Boolean)
+        : defaultCareerOpsConfig.discovery.workModels,
+      maxJobsPerSource: env.DISCOVERY_MAX_JOBS_PER_SOURCE
+        ? Number(env.DISCOVERY_MAX_JOBS_PER_SOURCE)
+        : defaultCareerOpsConfig.discovery.maxJobsPerSource,
+      concurrency: env.DISCOVERY_CONCURRENCY
+        ? Number(env.DISCOVERY_CONCURRENCY)
+        : defaultCareerOpsConfig.discovery.concurrency,
+      perDomainDelayMs: env.DISCOVERY_PER_DOMAIN_DELAY_MS
+        ? Number(env.DISCOVERY_PER_DOMAIN_DELAY_MS)
+        : defaultCareerOpsConfig.discovery.perDomainDelayMs,
+      searchEngine: (env.DISCOVERY_SEARCH_ENGINE as SearchEngine | undefined)
+        ?? defaultCareerOpsConfig.discovery.searchEngine,
+      searchResultLimit: env.DISCOVERY_SEARCH_RESULT_LIMIT
+        ? Number(env.DISCOVERY_SEARCH_RESULT_LIMIT)
+        : defaultCareerOpsConfig.discovery.searchResultLimit,
+      useGenericHtmlFallback: env.DISCOVERY_USE_GENERIC_FALLBACK !== undefined
+        ? env.DISCOVERY_USE_GENERIC_FALLBACK === 'true' || env.DISCOVERY_USE_GENERIC_FALLBACK === '1'
+        : defaultCareerOpsConfig.discovery.useGenericHtmlFallback,
+      genericExtractionModel:
+        env.DISCOVERY_GENERIC_MODEL ?? defaultCareerOpsConfig.discovery.genericExtractionModel,
+      browserProfileDir: env.DISCOVERY_BROWSER_PROFILE_DIR
+        ? homePath(env.DISCOVERY_BROWSER_PROFILE_DIR)
+        : defaultCareerOpsConfig.discovery.browserProfileDir,
+      respectRobotsTxt: env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
+        ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'
+        : defaultCareerOpsConfig.discovery.respectRobotsTxt,
     },
     salary: (() => {
       const d = defaultCareerOpsConfig.salary;

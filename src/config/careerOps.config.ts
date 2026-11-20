@@ -3,6 +3,8 @@ export type MarketScope = 'NATIONAL' | 'INTERNATIONAL' | 'BOTH';
 export type WorkModel = 'REMOTE' | 'HYBRID' | 'ONSITE';
 export type ContractType = 'CLT' | 'PJ';
 export type IntlRegion = 'WORLDWIDE' | 'LATAM' | 'AMERICAS_TIMEZONE';
+export type DiscoveryAdapter = 'api' | 'rss' | 'ats' | 'html' | 'search' | 'linkedin';
+export type SearchEngine = 'duckduckgo' | 'bing' | 'none';
 export type EmailDispatchMode = 'REQUIRE_REVIEW' | 'HYBRID_BY_SCORE' | 'AUTO_SEND_HIGH_FIT';
 export type WhatsappMode = 'MANUAL_QUEUE' | 'EVOLUTION_API';
 
@@ -39,6 +41,32 @@ export interface CareerOpsConfig {
   discovery: {
     /** Títulos de cargo a procurar (JOB_TITLES env — sobrescreve). */
     targetTitles: string[];
+    /** Allowlist de IDs do registry. Vazio/null = todas ativas (menos risky). */
+    sources?: string[];
+    /** Blocklist de IDs do registry. */
+    excludeSources?: string[];
+    /** Filtro de região (BR, LATAM, PT, EU, US, GLOBAL, ASIA, OCEANIA). */
+    regions?: string[];
+    /** Filtro de modelo de trabalho. */
+    workModels?: WorkModel[];
+    /** Máximo de vagas por fonte em uma execução. */
+    maxJobsPerSource: number;
+    /** Requisições simultâneas globais. */
+    concurrency: number;
+    /** Delay mínimo entre requisições ao mesmo domínio (ms). */
+    perDomainDelayMs: number;
+    /** Motor de busca orgânica fallback (nenhum por padrão). */
+    searchEngine: SearchEngine;
+    /** Quantidade de resultados de busca a considerar. */
+    searchResultLimit: number;
+    /** Usar HTML genérico + LLM quando nenhum adapter específico atender. */
+    useGenericHtmlFallback: boolean;
+    /** Modelo Ollama para extração genérica de HTML. */
+    genericExtractionModel: string;
+    /** Diretório de perfil persistente do navegador (LinkedIn etc.). */
+    browserProfileDir?: string;
+    /** Verificar e respeitar robots.txt das fontes. */
+    respectRobotsTxt: boolean;
   };
   ai: {
     local: ModelRouting; // Camada 1 — triagem barata (Ollama/ONNX)
@@ -145,6 +173,18 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
       'Backend Developer',
       'Node.js Developer',
     ],
+    sources: [],
+    excludeSources: [],
+    regions: [],
+    workModels: ['REMOTE', 'HYBRID'],
+    maxJobsPerSource: 20,
+    concurrency: 4,
+    perDomainDelayMs: 1500,
+    searchEngine: 'none',
+    searchResultLimit: 30,
+    useGenericHtmlFallback: true,
+    genericExtractionModel: 'qwen2.5:7b',
+    respectRobotsTxt: true,
   },
   ai: {
     local: { provider: 'ollama', modelId: 'qwen2.5:7b' },

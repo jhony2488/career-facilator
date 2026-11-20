@@ -38,6 +38,8 @@ import type { ModelRouting } from '../config/careerOps.config';
 import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
 import { createSemanticTitleMatcher } from '../core/titleMatcher';
+import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
+import { getActiveSources, listSources } from '../discovery/sourceRegistry';
 import { FileCredentialVault } from '../email_application/credentialVault';
 import { createSmtpTransport } from '../email_application/smtpTransport';
 import {
@@ -67,7 +69,9 @@ const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', ef
 
 const USAGE =
   'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
-  'run --jobs-file <json> [--dry-run] [--verbose] | review | approve | status | ' +
+  'run [--jobs-file <json>] [--max-jobs N] [--sources id1,id2] [--dry-run] [--verbose] | ' +
+  'discover [--sources id1,id2] [--max-jobs N] [--export <json>] | ' +
+  'scan <source-id> [--max-jobs N] | review | approve | status | ' +
   'vault [list|set|remove <ref>] | whatsapp [setup|status] | ' +
   'config [path|init|get|set|unset|check] | exit';
 
@@ -97,8 +101,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 class CliError extends Error {}
 
 /** Rejeição de AbortSignal — Ctrl+C ou timeout. */
-const isAbortError = (err: unknown): boolean =>
-  err instanceof Error && err.name === 'AbortError';
+const isAbortError = (err: unknown): boolean => err instanceof Error && err.name === 'AbortError';
 
 const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
 
@@ -107,10 +110,16 @@ const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'Abo
  * explícito pra Ctrl+C/exit realmente encerrar tudo.
  */
 const cleanups = new Set<() => void>();
-const registerCleanup = (cb: () => void): void => { cleanups.add(cb); };
+const registerCleanup = (cb: () => void): void => {
+  cleanups.add(cb);
+};
 const runCleanups = (): void => {
   for (const cb of cleanups) {
-    try { cb(); } catch { /* best-effort */ }
+    try {
+      cb();
+    } catch {
+      /* best-effort */
+    }
   }
   cleanups.clear();
 };
@@ -159,9 +168,13 @@ function printCheck(r: ProviderCheckResult): void {
   if (r.status === 'ok') {
     console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — OK${ms}${adapter}`);
   } else if (r.status === 'skipped') {
-    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — pulado (${r.detail ?? ''})`);
+    console.log(
+      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — pulado (${r.detail ?? ''})`,
+    );
   } else {
-    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — FALHOU — ${r.detail ?? r.status}`);
+    console.log(
+      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — FALHOU — ${r.detail ?? r.status}`,
+    );
   }
 }
 
@@ -360,7 +373,10 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
         if (signal?.aborted) return;
         clearTimeout(debounce);
         debounce = setTimeout(
-          () => void sweep().catch((e) => { if (!isAbortError(e)) console.error(e); }),
+          () =>
+            void sweep().catch((e) => {
+              if (!isAbortError(e)) console.error(e);
+            }),
           500,
         );
       });
@@ -399,15 +415,25 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
 async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   const { signal } = ctx;
   const fileIdx = args.indexOf('--jobs-file');
-  const jobsPath =
-    fileIdx === -1 ? args.find((a) => !a.startsWith('-')) : args[fileIdx + 1];
+  const positional = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    const prev = args[i - 1];
+    return prev !== '--jobs-file' && prev !== '--sources' && prev !== '--max-jobs';
+  });
+  const jobsPath = fileIdx === -1 ? positional[0] : args[fileIdx + 1];
   const dryRun = args.includes('--dry-run');
 
-  if (!jobsPath) {
-    console.log('Uso: run --jobs-file <caminho.json> [--dry-run]  (ou: run <caminho.json>)');
-    console.log('Formato do arquivo: [{"url": "https://…/vaga", "html": "<html da página>"}, …]');
-    return;
-  }
+  const maxJobsIdx = args.indexOf('--max-jobs');
+  const parsedMaxJobs = maxJobsIdx === -1 ? NaN : Number(args[maxJobsIdx + 1]);
+  const maxJobs = Number.isFinite(parsedMaxJobs) ? parsedMaxJobs : undefined;
+  const sourcesIdx = args.indexOf('--sources');
+  const sourceIds =
+    sourcesIdx === -1
+      ? undefined
+      : args[sourcesIdx + 1]
+          ?.split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
 
   const pendingInbox = await listPendingPdfs(config.profile.inboxDir);
   if (pendingInbox.length) {
@@ -417,11 +443,31 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     );
   }
 
-  const rawJobs = JSON.parse(readFileSync(resolve(jobsPath), 'utf8')) as {
-    url: string;
-    html: string;
-  }[];
   const profile = loadMasterProfile();
+  let rawJobs: { url: string; html: string }[];
+  if (jobsPath) {
+    rawJobs = JSON.parse(readFileSync(resolve(jobsPath), 'utf8')) as {
+      url: string;
+      html: string;
+    }[];
+  } else {
+    console.log('Nenhum --jobs-file informado — iniciando descoberta de vagas…');
+    const discovery = await discoverJobs({ config, signal, maxJobs, sourceIds });
+    if (discovery.errors.length) {
+      for (const e of discovery.errors) {
+        console.log(`  [${e.sourceId}] ${e.message}`);
+      }
+    }
+    console.log(
+      `Fontes: ${discovery.meta.sourcesSucceeded}/${discovery.meta.sourcesTried} | ` +
+        `vagas descobertas: ${discovery.jobs.length}`,
+    );
+    if (discovery.jobs.length === 0) {
+      console.log('Nenhuma vaga descoberta. Verifique DISCOVERY_SOURCES ou --sources.');
+      return;
+    }
+    rawJobs = toRawJobInputs(discovery.jobs);
+  }
 
   const overrides = await requireAiReady(['local', 'smart'], ctx);
 
@@ -511,11 +557,97 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
 
   console.log(`\n${result.processed} vaga(s) processada(s):`);
   for (const a of result.applications) {
-    console.log(`  ${a.status.padEnd(20)} ${a.fitScore ?? '—'} ${a.url}${a.reason ? ` (${a.reason})` : ''}`);
+    console.log(
+      `  ${a.status.padEnd(20)} ${a.fitScore ?? '—'} ${a.url}${a.reason ? ` (${a.reason})` : ''}`,
+    );
   }
   console.log(
     `Chamadas de modelo: triagem=${result.tokenReport.triageCalls} smart=${result.tokenReport.smartTierCalls}`,
   );
+}
+
+async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
+  const sourcesIdx = args.indexOf('--sources');
+  const sourceIds =
+    sourcesIdx === -1
+      ? undefined
+      : args[sourcesIdx + 1]
+          ?.split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+  const maxJobsIdx = args.indexOf('--max-jobs');
+  const parsedMaxJobs = maxJobsIdx === -1 ? 10 : Number(args[maxJobsIdx + 1]);
+  const maxJobs = Number.isFinite(parsedMaxJobs) ? parsedMaxJobs : 10;
+  const exportIdx = args.indexOf('--export');
+  const exportPath = exportIdx === -1 ? undefined : args[exportIdx + 1];
+  const dryRun = args.includes('--dry-run');
+
+  if (dryRun) {
+    const active = getActiveSources(config, {
+      sourceIds,
+      includeRisky: Boolean(sourceIds?.length),
+      includeAuth: Boolean(sourceIds?.length),
+    });
+    console.log(`Fontes ativas (${active.length}):`);
+    for (const s of active) {
+      console.log(`  ${s.id.padEnd(24)} ${s.name} (${s.adapter})`);
+    }
+    return;
+  }
+
+  console.log('Descobrindo vagas…');
+  const discovery = await discoverJobs({ config, signal: ctx.signal, maxJobs, sourceIds });
+  for (const e of discovery.errors) {
+    console.log(`  [${e.sourceId}] ${e.message}`);
+  }
+  console.log(
+    `Fontes: ${discovery.meta.sourcesSucceeded}/${discovery.meta.sourcesTried} | ` +
+      `brutas: ${discovery.meta.totalRaw} | únicas: ${discovery.meta.afterDedup} | ` +
+      `retornadas: ${discovery.jobs.length} | tempo: ${discovery.meta.durationMs}ms`,
+  );
+  for (const j of discovery.jobs) {
+    console.log(`  ${j.sourceId.padEnd(20)} ${j.raw.url}`);
+  }
+  if (exportPath) {
+    writeFileSync(resolve(exportPath), JSON.stringify(toRawJobInputs(discovery.jobs), null, 2), 'utf8');
+    console.log(`Exportado → ${exportPath}`);
+  }
+}
+
+async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
+  const positional = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    const prev = args[i - 1];
+    return prev !== '--sources' && prev !== '--max-jobs';
+  });
+  const sourceId = positional[0];
+  if (!sourceId) {
+    console.log('Uso: scan <source-id> [--max-jobs N]');
+    return;
+  }
+  const maxJobsIdx = args.indexOf('--max-jobs');
+  const parsedMaxJobs = maxJobsIdx === -1 ? 10 : Number(args[maxJobsIdx + 1]);
+  const maxJobs = Number.isFinite(parsedMaxJobs) ? parsedMaxJobs : 10;
+
+  console.log(`Escaneando ${sourceId}…`);
+  const discovery = await discoverJobs({
+    config,
+    signal: ctx.signal,
+    maxJobs,
+    sourceIds: [sourceId],
+  });
+  for (const e of discovery.errors) {
+    console.log(`  [${e.sourceId}] ${e.message}`);
+  }
+  console.log(`Vagas encontradas: ${discovery.jobs.length} (${discovery.meta.durationMs}ms)`);
+  for (const j of discovery.jobs) {
+    const snippet = j.raw.html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .slice(0, 120);
+    console.log(`  ${j.raw.url}`);
+    console.log(`    ${snippet}…`);
+  }
 }
 
 /** Aprova o rascunho pendente: promove a perfil-mestre e invalida derivados (doc 13). */
@@ -559,7 +691,13 @@ async function cmdReview(): Promise<void> {
     console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
     for (const q of whatsappQueue) {
       console.log(`  [${q.jobId}] wa.me/${q.recipient}`);
-      if (q.subject) console.log(`    Mensagem:\n${q.subject.split('\n').map((l) => `      ${l}`).join('\n')}`);
+      if (q.subject)
+        console.log(
+          `    Mensagem:\n${q.subject
+            .split('\n')
+            .map((l) => `      ${l}`)
+            .join('\n')}`,
+        );
       if (q.attachmentPath) console.log(`    Anexar: ${q.attachmentPath}`);
     }
   }
@@ -615,7 +753,9 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
         console.log(`${envFile} já existe — use 'config init --force' para sobrescrever.`);
       }
       console.log(`Diretório de dados pronto em ${HOME}`);
-      console.log(`Próximo passo: solte o CV em ${config.profile.inboxDir} e rode 'import --inbox'.`);
+      console.log(
+        `Próximo passo: solte o CV em ${config.profile.inboxDir} e rode 'import --inbox'.`,
+      );
       return;
     }
     case 'get': {
@@ -652,7 +792,9 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
     case undefined:
       break;
     default:
-      throw new CliError(`Subcomando desconhecido: config ${sub}. Use path|init|get|set|unset|check.`);
+      throw new CliError(
+        `Subcomando desconhecido: config ${sub}. Use path|init|get|set|unset|check.`,
+      );
   }
 
   const { ai } = config;
@@ -669,6 +811,10 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
     console.log(`  EMBED  ollama/${ai.embeddings.modelId} (RAG semântico ativo)`);
   }
   console.log(`  Modo de execução: ${config.execution.mode}`);
+  console.log('Descoberta:');
+  console.log(`  Fontes registradas: ${listSources(config).length}`);
+  console.log(`  Ativas (após filtros): ${getActiveSources(config).length}`);
+  console.log(`  JOB_TITLES: ${config.discovery.targetTitles.join(', ') || '—'}`);
   console.log('Canais de candidatura:');
   console.log(
     `  EMAIL    ${config.email.enabled ? config.email.dispatchMode : 'desligado'}` +
@@ -698,7 +844,11 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
   switch (sub) {
     case 'list': {
       const refs = await vault.list();
-      console.log(refs.length ? `Refs no cofre:\n${refs.map((r) => `  ${r}`).join('\n')}` : 'Cofre vazio — nenhuma credencial gravada.');
+      console.log(
+        refs.length
+          ? `Refs no cofre:\n${refs.map((r) => `  ${r}`).join('\n')}`
+          : 'Cofre vazio — nenhuma credencial gravada.',
+      );
       return;
     }
     case 'set': {
@@ -722,7 +872,9 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
         pass,
       };
       await vault.setCredential(ref, JSON.stringify(cred));
-      console.log(`Credencial '${ref}' gravada criptografada em ${resolveHome('vault', effEnv.env)}.`);
+      console.log(
+        `Credencial '${ref}' gravada criptografada em ${resolveHome('vault', effEnv.env)}.`,
+      );
       return;
     }
     case 'remove': {
@@ -786,9 +938,7 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
     }
     case 'status': {
       const state = await setup.getConnectionState(config.whatsapp.apiInstance);
-      console.log(
-        `Instância '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`,
-      );
+      console.log(`Instância '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`);
       return;
     }
     default:
@@ -804,6 +954,12 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'run':
       await cmdRun(args, ctx);
+      return true;
+    case 'discover':
+      await cmdDiscover(args, ctx);
+      return true;
+    case 'scan':
+      await cmdScan(args, ctx);
       return true;
     case 'review':
       await cmdReview();
@@ -849,7 +1005,10 @@ async function repl(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: 'career> ' });
   let closed = false;
   let current: AbortController | null = null;
-  rl.on('close', () => { closed = true; runCleanups(); });
+  rl.on('close', () => {
+    closed = true;
+    runCleanups();
+  });
   // Ctrl+C: com comando em curso → aborta (fetch, watch, pipeline); ocioso → sai do shell.
   rl.on('SIGINT', () => {
     if (current && !current.signal.aborted) {
@@ -913,11 +1072,7 @@ async function main(): Promise<void> {
     }
   } catch (err) {
     printError(err);
-    process.exitCode = isAbortError(err)
-      ? 130
-      : err instanceof ProviderNotImplementedError
-        ? 2
-        : 1;
+    process.exitCode = isAbortError(err) ? 130 : err instanceof ProviderNotImplementedError ? 2 : 1;
   }
 }
 
