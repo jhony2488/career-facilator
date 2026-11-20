@@ -95,6 +95,22 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 > **Dev no repo:** o `.env` local tem `CAREER_HOME=.`, então os dados continuam em `storage/` e `src/config/` como antes.
 
+### Executável standalone (GitHub Releases)
+
+Baixe o binário da aba [Releases](../../releases) — **não precisa de Node.js**:
+
+| Arquivo | Primeiro uso |
+|---------|--------------|
+| `career-windows-x64.exe` | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim" |
+| `career-macos-arm64` | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper) |
+| `career-linux-x64` | `chmod +x` |
+
+O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele. Para a biblioteca de skills no exe, copie `src/skills/library/` para `skills/` na mesma pasta.
+
+> **Diferença do exe:** extração de PDF cai no modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam normalmente. `career --version` mostra a tag do release.
+
+Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS/Linux (Node SEA single-file) → artefatos anexados ao release.
+
 ### Ingestão do seu perfil (currículo)
 
 1. Jogue o PDF em `storage/profile_inbox/` (dev) ou no inbox do `CAREER_HOME` (global — ver `career config path`) **e** rode `import --inbox` — ou direto: `import --pdf seu-cv.pdf`
@@ -154,7 +170,7 @@ CareerFacilator/
 
 ## Stack
 
-Node.js v22+ · TypeScript strict · Jest + ts-jest · better-sqlite3 (+ Drizzle planejado) · node-html-parser + turndown · Zod · Playwright (a conectar) · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
+Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, sem dep nativa → exe single-file) · node-html-parser + turndown · Zod · Playwright (a conectar) · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
 
 ## Limitações atuais
 

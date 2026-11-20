@@ -45,7 +45,7 @@
 - **AI Providers (Hybrid Routing):**
   - *Local / Triage:* Ollama (`qwen2.5:7b` / `llama3.2`) and/or `@huggingface/transformers` (local embeddings)
   - *Optimized Cloud:* Groq / Gemini Flash / Claude Haiku (with `cacheControl` enabled)
-- **Local-First Database:** SQLite via `better-sqlite3` + Drizzle ORM (state control, job history, spent token logs)
+- **Local-First Database:** SQLite via `node:sqlite` builtin on Node 22+ (no native dep — enables single-file exe; state control, job history, spent token logs)
 - **PDF Resume Generation:** `puppeteer` or `@react-pdf/renderer` (clean HTML/CSS templates optimized for parsing by ATS systems)
 
 ## 4. Project Directory Structure
@@ -131,3 +131,4 @@ career-facilitator-ts/
 ---
 
 « [Previous: Overview](01-overview.md) | [Index](README.md) | [Next: AI Optimization →](03-ai-optimization.md)
+
