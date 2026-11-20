@@ -61,7 +61,7 @@ export interface CareerOpsConfig {
     searchResultLimit: number;
     /** Usar HTML genérico + LLM quando nenhum adapter específico atender. */
     useGenericHtmlFallback: boolean;
-    /** Modelo Ollama para extração genérica de HTML. */
+    /** Modelo para extração genérica de HTML; vazio = herda AI_LOCAL_MODEL. */
     genericExtractionModel: string;
     /** Diretório de perfil persistente do navegador (LinkedIn etc.). */
     browserProfileDir?: string;
@@ -183,7 +183,7 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     searchEngine: 'none',
     searchResultLimit: 30,
     useGenericHtmlFallback: true,
-    genericExtractionModel: 'qwen2.5:7b',
+    genericExtractionModel: '',
     respectRobotsTxt: true,
   },
   ai: {
