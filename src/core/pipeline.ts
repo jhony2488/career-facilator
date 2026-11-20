@@ -22,7 +22,7 @@ import { resolveHome } from '../config/paths';
 import type { CareerOpsConfig } from '../config/careerOps.config';
 import type { MasterProfileLike } from './types';
 import { computeLexicalFit, profileFitTerms } from './lexicalMatch';
-import { matchTargetTitle } from './titleMatcher';
+import { matchTargetTitle, type TitleMatch } from './titleMatcher';
 import {
   chunkProfile,
   retrieveRelevant,
@@ -68,6 +68,12 @@ export interface PipelineDeps {
    * devolve os trechos relevantes. Default: retrieveRelevant (léxico, 0 deps).
    */
   retriever?: (chunks: ProfileChunk[], keywords: string[], jobText: string) => Promise<ProfileChunk[]>;
+  /**
+   * Matcher de título da vaga contra discovery.targetTitles — default: camada
+   * determinística (matchTargetTitle). Com embeddings ativos, injetar
+   * createSemanticTitleMatcher p/ fallback probabilístico.
+   */
+  titleMatcher?: (jobTitle: string) => Promise<TitleMatch | null> | TitleMatch | null;
 }
 
 export interface ApplicationResult {
@@ -188,10 +194,9 @@ export async function runApplicationPipeline(
 
     // 5. Triagem IA — Camada 1
     tokenReport.triageCalls++;
-    const titleMatch = matchTargetTitle(
-      clean.title ?? '',
-      config.discovery.targetTitles,
-    );
+    const titleMatch = deps.titleMatcher
+      ? await deps.titleMatcher(clean.title ?? '')
+      : matchTargetTitle(clean.title ?? '', config.discovery.targetTitles);
     const triage: JobTriageResult = await triageJob(
       {
         jobText: markdown,

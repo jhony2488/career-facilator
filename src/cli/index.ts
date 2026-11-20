@@ -37,9 +37,13 @@ import { createOllamaClient } from '../ai/ollamaClient';
 import type { ModelRouting } from '../config/careerOps.config';
 import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
+import { createSemanticTitleMatcher } from '../core/titleMatcher';
 import { FileCredentialVault } from '../email_application/credentialVault';
 import { createSmtpTransport } from '../email_application/smtpTransport';
-import { createEvolutionClient } from '../whatsapp_application/evolutionClient';
+import {
+  createEvolutionClient,
+  createEvolutionSetup,
+} from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
@@ -54,7 +58,8 @@ const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', ef
 const USAGE =
   'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
   'run --jobs-file <json> [--dry-run] [--verbose] | review | approve | status | ' +
-  'vault [list|set|remove <ref>] | config [path|init|get|set|unset|check] | exit';
+  'vault [list|set|remove <ref>] | whatsapp [setup|status] | ' +
+  'config [path|init|get|set|unset|check] | exit';
 
 /** Contexto de execução de um comando — cancelamento + perguntas interativas. */
 interface CmdCtx {
@@ -416,6 +421,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     effEnv.env,
   );
   const embedder = createEmbedder(config);
+  // Título da vaga vs JOB_TITLES: determinístico primeiro; embeddings
+  // (nomic-embed-text) como fallback quando não casa por léxico.
+  const titleMatcher = createSemanticTitleMatcher(config.discovery.targetTitles, embedder);
   const skills = await loadSkillRegistry(join(packageRoot, 'src/skills/library')).catch(() => []);
   const repo = openRepo();
 
@@ -442,6 +450,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     skills,
     retriever: (chunks, keywords, jobText) =>
       retrieveHybrid(chunks, { keywords, jobText }, embedder),
+    titleMatcher,
   };
 
   if (config.email.enabled) {
@@ -711,6 +720,66 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
   }
 }
 
+/** Setup e estado da instância Evolution API (doc 15 §15.3) — QR no terminal. */
+async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
+  const [sub, name] = args;
+  const apiUrl = effEnv.env[config.whatsapp.apiUrlEnv];
+  const apiKey = effEnv.env[config.whatsapp.apiKeyEnv];
+  if (!apiUrl || !apiKey) {
+    throw new CliError(
+      `Evolution API não configurada — defina ${config.whatsapp.apiUrlEnv} e ` +
+        `${config.whatsapp.apiKeyEnv} ('config set').`,
+    );
+  }
+  const setup = createEvolutionSetup({ apiUrl, apiKey });
+
+  switch (sub) {
+    case 'setup': {
+      const instanceName = name ?? config.whatsapp.apiInstance;
+      console.log(`Criando instância '${instanceName}' em ${apiUrl}…`);
+      await setup.createInstance(instanceName);
+
+      const qr = await setup.getConnectionQr(instanceName);
+      if (qr.code) {
+        console.log('\nEscaneie o QR abaixo com o WhatsApp (Aparelhos conectados):');
+        const qrcode = (await import('qrcode-terminal')).default;
+        qrcode.generate(qr.code, { small: true });
+      } else if (qr.pairingCode) {
+        console.log(`Código de pareamento: ${qr.pairingCode}`);
+      } else {
+        console.log('Instância criada — verifique o QR no painel da Evolution API.');
+      }
+
+      console.log('Aguardando conexão (Ctrl+C para cancelar)…');
+      const deadline = Date.now() + 150_000;
+      while (Date.now() < deadline) {
+        if (ctx.signal?.aborted) throw abortError();
+        await new Promise((r) => setTimeout(r, 4000));
+        const state = await setup.getConnectionState(instanceName);
+        if (state === 'open') {
+          setEnvKey(effEnv.homeEnvFile, 'EVOLUTION_INSTANCE', instanceName);
+          console.log(
+            `\n✓ Conectado! Instância '${instanceName}' salva em EVOLUTION_INSTANCE.\n` +
+              `  Ative o envio automático com: config set WHATSAPP_MODE EVOLUTION_API`,
+          );
+          return;
+        }
+      }
+      console.log('Tempo esgotado aguardando a conexão — tente whatsapp setup de novo.');
+      return;
+    }
+    case 'status': {
+      const state = await setup.getConnectionState(config.whatsapp.apiInstance);
+      console.log(
+        `Instância '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`,
+      );
+      return;
+    }
+    default:
+      throw new CliError('Uso: whatsapp setup [nome] | whatsapp status');
+  }
+}
+
 /** Despacha um comando. Retorna false se o comando não existe. */
 async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Promise<boolean> {
   switch (command) {
@@ -734,6 +803,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'vault':
       await cmdVault(args, ctx);
+      return true;
+    case 'whatsapp':
+      await cmdWhatsapp(args, ctx);
       return true;
     default:
       return false;

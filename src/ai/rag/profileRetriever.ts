@@ -148,7 +148,7 @@ export function retrieveRelevant(
   return [...required, ...selected];
 }
 
-function cosine(a: number[], b: number[]): number {
+export function cosine(a: number[], b: number[]): number {
   let dot = 0;
   let na = 0;
   let nb = 0;

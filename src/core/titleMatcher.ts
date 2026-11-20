@@ -1,3 +1,5 @@
+import { cosine } from '../ai/rag/profileRetriever';
+
 /**
  * Match aproximado de títulos de vaga (JOB_TITLES): títulos reais variam —
  * "Full Stack", "fullstack", "Full-Stack", "fullmstack" (typo), "Fullstack Dev",
@@ -100,7 +102,9 @@ export interface TitleMatch {
   /** Título-alvo (de JOB_TITLES) que casou. */
   target: string;
   /** Nível de confiança do match, do mais ao menos forte. */
-  strength: 'exact' | 'squashed' | 'containment' | 'levenshtein';
+  strength: 'exact' | 'squashed' | 'containment' | 'levenshtein' | 'semantic';
+  /** Cosine similarity — só presente em matches 'semantic'. */
+  score?: number;
 }
 
 const MIN_LEVENSHTEIN_LEN = 6;
@@ -148,4 +152,57 @@ export function matchTargetTitle(
     }
   }
   return null;
+}
+
+/**
+ * Camada probabilística (AI_EMBEDDINGS_ENABLED): cosine similarity entre o
+ * título da vaga e cada alvo via embeddings (ex.: nomic-embed-text).
+ * Resolve o que aliases não cobrem — "JS Developer", "React Frontend Dev",
+ * "Programador Web" — sem hardcoding de sinônimos.
+ *
+ * Vetores dos alvos são cacheados na primeira chamada: N vagas = N+1 embeds,
+ * não N×(1+|alvos|). Falha do embedder → null (o determinístico já rodou).
+ */
+export const SEMANTIC_THRESHOLD = 0.72;
+
+export interface TitleEmbedder {
+  embed(texts: string[]): Promise<number[][]>;
+}
+
+export function createSemanticTitleMatcher(
+  targetTitles: string[],
+  embedder: TitleEmbedder | undefined,
+  opts: { threshold?: number } = {},
+): (jobTitle: string) => Promise<TitleMatch | null> {
+  const threshold = opts.threshold ?? SEMANTIC_THRESHOLD;
+  let targetVecs: number[][] | null = null;
+
+  return async (jobTitle: string): Promise<TitleMatch | null> => {
+    const det = matchTargetTitle(jobTitle, targetTitles);
+    // Determinístico forte decide sozinho — embedder nem é chamado.
+    if (det && (det.strength === 'exact' || det.strength === 'squashed')) return det;
+    if (!embedder || !jobTitle.trim()) return det;
+
+    try {
+      targetVecs ??= await embedder.embed(targetTitles);
+      const [jobVec] = await embedder.embed([jobTitle]);
+      if (!jobVec || !targetVecs.length) return det;
+
+      let best = -1;
+      let bestIdx = -1;
+      for (let i = 0; i < targetTitles.length; i++) {
+        const s = cosine(jobVec, targetVecs[i] ?? []);
+        if (s > best) {
+          best = s;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0 && best >= threshold) {
+        return { target: targetTitles[bestIdx]!, strength: 'semantic', score: best };
+      }
+      return det; // sem match semântico — vale o que o determinístico achou
+    } catch {
+      return det;
+    }
+  };
 }
