@@ -1,6 +1,6 @@
 /**
- * Esquema relacional local (doc 02). Implementado sobre better-sqlite3 com SQL
- * direto
+ * Esquema relacional local (doc 02). Implementado sobre node:sqlite (builtin
+ * do Node 22+) com SQL direto — zero dependência nativa, permite exe single-file.
  */
 
 export const SCHEMA_SQL = `

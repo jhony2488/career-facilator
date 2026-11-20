@@ -4,6 +4,9 @@ coverage/
 storage/*
 tmp/
 *.local
+career.exe
+career
+career-*-x64*
 .env
 .env.*
 !.env.example

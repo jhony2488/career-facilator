@@ -49,6 +49,15 @@ import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
 
+// No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) —
+// stderr limpo p/ usuário do binário. Em dev (tsx) os warnings continuam.
+try {
+  const sea = require('node:sea') as { isSea?: () => boolean };
+  if (sea.isSea?.()) process.removeAllListeners('warning');
+} catch {
+  /* node:sea indisponível — execução normal */
+}
+
 const argv = process.argv.slice(2);
 const config = loadCareerOpsConfig();
 const effEnv = loadEffectiveEnv();
@@ -424,7 +433,13 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   // Título da vaga vs JOB_TITLES: determinístico primeiro; embeddings
   // (nomic-embed-text) como fallback quando não casa por léxico.
   const titleMatcher = createSemanticTitleMatcher(config.discovery.targetTitles, embedder);
-  const skills = await loadSkillRegistry(join(packageRoot, 'src/skills/library')).catch(() => []);
+  // No exe (SEA) o packageRoot é virtual — fallback p/ pasta "skills" ao lado
+  // do executável; usuário pode copiá-la para manter a biblioteca de skills.
+  const exeSkillsDir = join(dirname(process.execPath), 'skills');
+  const skillsDir = existsSync(join(packageRoot, 'src/skills/library'))
+    ? join(packageRoot, 'src/skills/library')
+    : exeSkillsDir;
+  const skills = await loadSkillRegistry(skillsDir).catch(() => []);
   const repo = openRepo();
 
   const emptyPage = (url: string): PageStateLike => ({
@@ -807,6 +822,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
     case 'whatsapp':
       await cmdWhatsapp(args, ctx);
       return true;
+    case 'version':
+      console.log(process.env.CAREER_VERSION ?? 'dev');
+      return true;
     default:
       return false;
   }
@@ -877,6 +895,11 @@ async function repl(): Promise<void> {
 async function main(): Promise<void> {
   if (!argv.length) {
     await repl();
+    return;
+  }
+  if (argv[0] === '--version' || argv[0] === '-v') {
+    // CAREER_VERSION é embutida pelo build do exe (tag do release).
+    console.log(process.env.CAREER_VERSION ?? 'dev');
     return;
   }
   const ctrl = new AbortController();
