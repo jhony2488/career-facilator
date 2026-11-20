@@ -85,6 +85,6 @@ Select-String -Path feature\*.feature -Pattern '^# language: pt'
 ## Regras para agentes
 
 1. **Antes de implementar qualquer módulo**, ler o doc correspondente em `docs/en/` e o `.feature` correspondente — e verificar `feature/DECISOES.md` por decisões pendentes daquele módulo.
-2. **Não implementar código** a menos que explicitamente pedido — o projeto está em fase de especificação.
+2. **Não implementar código** a menos que explicitamente pedido — o projeto está em fase de implementação; siga os contratos em `__tests__/helpers/contracts.ts`.
 3. **Human-in-the-loop é requisito, não opção:** nenhum fluxo pode enviar candidatura sem respeitar o modo de execução configurado.
 4. **Nunca commitar segredos** — credenciais SMTP/sessões vivem no cofre criptografado (ver `docs/pt-BR/10-confiabilidade.md`).

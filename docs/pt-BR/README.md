@@ -13,7 +13,7 @@ English version available in [`../en/`](../en/README.md).
 | 03 | [Otimização de IA](03-otimizacao-de-ia.md) | Limpeza de DOM, schemas Zod, prompt caching e preenchimento híbrido |
 | 04 | [Fluxo e Segurança](04-fluxo-e-seguranca.md) | Máquina de estados no SQLite e Human-in-the-Loop |
 | 05 | [Skills Dinâmicas](05-skills-dinamicas.md) | Módulo `src/skills/`: registry, selector, injector e formato SKILL.md |
-| 06 | [Discovery e Deduplicação](06-discovery-e-deduplicacao.md) | Fontes de vagas, Google Dorks e deduplicação em 3 níveis |
+| 06 | [Discovery e Deduplicação](06-discovery-e-deduplicacao.md) | Fontes de vagas (APIs/RSS/fallback LLM), registry e deduplicação em 3 níveis |
 | 07 | [Modos de Candidatura](07-modos-de-candidatura.md) | FULL_AUTO, SEMI_AUTO, HYBRID_THRESHOLD e régua de Fit Score |
 | 08 | [Escopo Geográfico](08-escopo-geografico.md) | Módulo `src/geo/`: mercado nacional, internacional ou híbrido |
 | 09 | [Configuração](09-configuracao.md) | `careerOps.config.ts` completo e fluxo de execução atualizado |

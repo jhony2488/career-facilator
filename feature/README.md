@@ -6,7 +6,7 @@ Cenários comportamentais em Gherkin (`# language: pt`) cobrindo todos os módul
 
 | # | Arquivo | Módulo / Capacidade |
 |---|---------|---------------------|
-| 01 | [01-discovery.feature](01-discovery.feature) | Descoberta de vagas (portais ATS, Google Dorks, LinkedIn) |
+| 01 | [01-discovery.feature](01-discovery.feature) | Descoberta de vagas (APIs/RSS, portais ATS, fallback assistido, busca, LinkedIn) |
 | 02 | [02-deduplicacao.feature](02-deduplicacao.feature) | Deduplicação em 3 níveis antes de qualquer chamada de IA |
 | 03 | [03-triagem-fit-score.feature](03-triagem-fit-score.feature) | Funil de triagem, Fit Score ponderado e dealbreakers |
 | 04 | [04-skills-dinamicas.feature](04-skills-dinamicas.feature) | Seleção e injeção de skills sob demanda |

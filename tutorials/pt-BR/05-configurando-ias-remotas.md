@@ -58,6 +58,8 @@ AI_SMART_FALLBACK=ollama:qwen2.5:14b
 
 Se o tier `SMART` falhar, o sistema tenta o modelo `qwen2.5:14b` no Ollama.
 
+> **Nota (discovery):** o fallback genérico de extração de HTML (`DISCOVERY_USE_GENERIC_FALLBACK`) só roda no provider `ollama` hoje — se `AI_LOCAL_PROVIDER` for remoto, o extrator fica desativado até haver adapter para esse provider.
+
 ## Quando usar cada provedor
 
 - **Groq**: latência baixa e preço competitivo. Modelos Llama/Mistral disponíveis. Ótimo para `FAST` e `SMART`.
