@@ -2,6 +2,7 @@ import {
   createModelClients,
   createEmbedder,
   ProviderNotImplementedError,
+  type ModelCallStats,
 } from '../../../src/ai/modelFactory';
 import { loadCareerOpsConfig } from '../../../src/config/loadConfig';
 
@@ -90,6 +91,38 @@ describe('createModelClients — provider ollama', () => {
       ((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body) as string,
     );
     expect(body.stream).toBe(true);
+  });
+
+  it('onStage receives normalized metrics (tok/s computed)', async () => {
+    const ndjson =
+      JSON.stringify({ message: { content: triageJson } }) +
+      '\n' +
+      JSON.stringify({
+        done: true,
+        total_duration: 3e9,
+        eval_count: 100,
+        eval_duration: 4e9,
+      }) +
+      '\n';
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      new Response(ndjson),
+    );
+    const stages: ModelCallStats[] = [];
+    const clients = createModelClients(ollamaConfig(), {
+      onToken: () => {},
+      onStage: (s) => stages.push(s),
+      ollama: { fetchImpl },
+    });
+    await clients.triageModel.generate('x');
+    expect(stages).toHaveLength(1);
+    expect(stages[0]).toMatchObject({
+      stage: 'triage',
+      provider: 'ollama',
+      modelId: 'hermes3:latest',
+      outputTokens: 100,
+      tokensPerSecond: 25,
+      durationMs: 3000,
+    });
   });
 });
 
