@@ -94,6 +94,28 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
 };
 ```
 
+## 11.1. Diretório de dados e CLI global
+
+Os caminhos relativos de `profile` e `storage/` (incluindo `jobs.sqlite`) resolvem sob o **diretório de dados**:
+
+- `CAREER_HOME` — override explícito do diretório;
+- `~/.careerfacilator` — default quando a CLI roda instalada globalmente (`npm link`/`npm i -g`, binário `career`/`career-facilitator` via `bin/career.cjs`);
+- Em dev no repo, o `.env` local fixa `CAREER_HOME=.`, mantendo os dados na pasta do projeto.
+
+**Precedência de configuração:** `defaults` < `<home>/.env` < `./.env` (projeto) < variáveis de ambiente. A leitura é feita por `src/config/loadConfig.ts` e a resolução de caminhos por `src/config/paths.ts`.
+
+**Overrides individuais de path (env):** `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH` — relativos também resolvem sob `<home>`.
+
+**Configuração pela própria CLI** — sem editar arquivos na mão:
+
+```powershell
+career config init                        # cria <home>/, subpastas e .env template
+career config path                        # mostra home e arquivo de config
+career config set AI_SMART_PROVIDER groq  # grava no <home>/.env
+career config get AI_LOCAL_MODEL          # valor efetivo (avisa se .env local sombreia)
+career config unset AI_LOCAL_MODEL
+```
+
 ## 12. Fluxo Completo Atualizado
 
 ```text

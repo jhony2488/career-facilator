@@ -94,6 +94,28 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
 };
 ```
 
+## 11.1. Data directory and global CLI
+
+Relative paths in `profile` and `storage/` (including `jobs.sqlite`) resolve under the **data directory**:
+
+- `CAREER_HOME` — explicit directory override;
+- `~/.careerfacilator` — default when the CLI runs globally installed (`npm link`/`npm i -g`, `career`/`career-facilitator` binary via `bin/career.cjs`);
+- In repo development, the local `.env` pins `CAREER_HOME=.`, keeping data inside the project folder.
+
+**Configuration precedence:** `defaults` < `<home>/.env` < `./.env` (project) < environment variables. Reading is handled by `src/config/loadConfig.ts` and path resolution by `src/config/paths.ts`.
+
+**Individual path overrides (env):** `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH` — relative values also resolve under `<home>`.
+
+**Configuration through the CLI itself** — no manual file editing:
+
+```powershell
+career config init                        # creates <home>/, subfolders and .env template
+career config path                        # shows home and the config file
+career config set AI_SMART_PROVIDER groq  # writes to <home>/.env
+career config get AI_LOCAL_MODEL          # effective value (warns if local .env shadows it)
+career config unset AI_LOCAL_MODEL
+```
+
 ## 12. Updated Full Flow
 
 ```text

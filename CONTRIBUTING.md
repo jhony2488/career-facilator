@@ -15,7 +15,7 @@ Obrigado por contribuir! Este documento define as regras de fluxo, estilo e qual
 npm run lint        # ESLint
 npm run format:check# Prettier
 npx tsc --noEmit    # Typecheck
-npm run test        # 34 suites Jest
+npm run test        # 36 suites Jest
 ```
 
 ## Regras de PR
@@ -78,6 +78,7 @@ Regras adicionais:
 - **Injeção de dependências:** módulos nunca importam Playwright, SMTP ou SDKs de LLM diretamente em código testável — recebem por `deps`.
 - **Anti-fabricação (doc 13):** nenhum dado do perfil do usuário pode ser inferido/inventado — campos ausentes ficam `NÃO_INFORMADO`/`null`.
 - **Human-in-the-loop:** nenhum fluxo pode enviar candidatura sem respeitar o modo de execução configurado.
+- **Descrições de teste em inglês:** `describe`/`it` e comentários dentro de `__tests__/` sempre em inglês (os cenários `.feature` de origem seguem em PT).
 
 ## Estrutura
 

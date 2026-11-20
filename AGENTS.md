@@ -4,7 +4,7 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação inicial de `src/` — todos os módulos testados existem e as 27 suites passam (145 testes). Deps externas reais (LLM providers, Playwright, SMTP) seguem injetáveis/stub.
+**Estado atual:** especificação + implementação de `src/` — **36 suites passam** (169 unit + 34 integration + e2e). Deps externas reais (Playwright, SMTP) seguem injetáveis/stub; Ollama funciona de verdade via `import`/`run`.
 
 ## Onde encontrar as coisas
 
@@ -42,13 +42,19 @@
 - **Skills dinâmicas:** `SKILL.md` + `keywords.json`, seleção determinística (máx. 2 por vaga)
 - **Perfil-mestre:** `profile.master.md` editável é a fonte da verdade; `profile.master.json` é o artefato compilado usado no cache de prompt. Ingestão via `src/intake/` (ver `docs/pt-BR/13-ingestao-de-perfil.md`) — anti-fabricação: nada entra no perfil sem vir de documento do usuário ou de edição manual
 
+### CLI e dados do usuário
+- `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
+- Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1
+- Precedência de env: `<home>/.env` < `./.env` < `process.env`; `career config set|get|unset|init|path` manipula o `.env` do home via `src/config/envFile.ts`
+
 ## Stack planejada (quando implementar)
 
 Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod · Drizzle + better-sqlite3 · Ollama (triagem local) + Groq/Gemini/Claude Haiku (nuvem com cache)
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **34 suites** derivadas dos `.feature` + contratos de infra, todas verdes
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **36 suites** derivadas dos `.feature` + contratos de infra, todas verdes
+- Descrições de `describe`/`it` e comentários nos testes sempre em **inglês**
 - **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes
 - Comandos: `npm run test:unit|test:integration|test:e2e` · `npx tsc --noEmit` deve ficar limpo
