@@ -64,6 +64,28 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
     Então apenas até o limite configurado é coletado
     E as vagas excedentes ficam para a próxima execução
 
+  Cenário: Extrair vagas de fonte sem listagem estruturada quando o fallback assistido está habilitado
+    Dado que uma fonte cadastrada não possui listagem pública estruturada
+    E que o fallback assistido de extração está habilitado
+    Quando a execução de descoberta consulta essa fonte
+    Então apenas vagas visíveis na página são extraídas, com dados realmente presentes
+    E vagas sem link direto de candidatura são descartadas
+
+  Cenário: Fonte sem listagem estruturada com fallback desabilitado é ignorada
+    Dado que uma fonte cadastrada não possui listagem pública estruturada
+    E que o fallback assistido de extração está desabilitado
+    Quando a execução de descoberta consulta as fontes
+    Então essa fonte é ignorada com aviso e as demais continuam sendo processadas
+
+  Cenário: Extrator assistido herda a configuração geral de IA sem modelo dedicado
+    Dado que o fallback assistido está habilitado sem modelo dedicado configurado
+    Quando a extração assistida é acionada
+    Então o modelo leve já configurado no sistema é utilizado
+
 # Decisão: falha de todas as fontes aborta o ciclo com alerta, sem consumir IA.
 # Decisão: o volume máximo de vagas coletadas por execução é configurável
 # (maxJobsPerRun, default 100).
+# Decisão: fontes sem listagem estruturada usam o fallback assistido quando
+# habilitado; desabilitado, são ignoradas com aviso — nunca quebram o ciclo.
+# Decisão: o modelo do extrator é o dedicado configurado ou, vazio, o tier leve
+# já configurado (AI_LOCAL_*); campos ausentes ficam vazios — nada é inventado.
