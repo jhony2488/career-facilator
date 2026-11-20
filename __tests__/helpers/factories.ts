@@ -23,6 +23,18 @@ export function makeConfig(overrides: Partial<CareerOpsConfig> = {}): CareerOpsC
     },
     discovery: {
       targetTitles: ['Senior Engineer'],
+      sources: [],
+      excludeSources: [],
+      regions: [],
+      workModels: ['REMOTE', 'HYBRID'],
+      maxJobsPerSource: 20,
+      concurrency: 4,
+      perDomainDelayMs: 1500,
+      searchEngine: 'none',
+      searchResultLimit: 30,
+      useGenericHtmlFallback: true,
+      genericExtractionModel: 'qwen2.5:7b',
+      respectRobotsTxt: true,
     },
     ai: {
       local: { provider: 'ollama', modelId: 'qwen2.5:7b' },

@@ -238,6 +238,19 @@ export interface CareerOpsConfig {
   };
   discovery: {
     targetTitles: string[];
+    sources?: string[];
+    excludeSources?: string[];
+    regions?: string[];
+    workModels?: ('REMOTE' | 'HYBRID' | 'ONSITE')[];
+    maxJobsPerSource: number;
+    concurrency: number;
+    perDomainDelayMs: number;
+    searchEngine: 'duckduckgo' | 'bing' | 'none';
+    searchResultLimit: number;
+    useGenericHtmlFallback: boolean;
+    genericExtractionModel: string;
+    browserProfileDir?: string;
+    respectRobotsTxt: boolean;
   };
   ai: {
     local: { provider: string; modelId: string };

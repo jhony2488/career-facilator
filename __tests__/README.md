@@ -13,9 +13,9 @@ __tests__/
 │   ├── factories.ts    # Builders: makeJob, makeMasterProfile, makeTriageResult, makeConfig...
 │   ├── mocks.ts        # Mocks of external deps: LLM, page state, SMTP, vault, repo
 │   └── fixtures.ts     # Job HTML, SKILL.md, sample blocking texts
-├── unit/               # Pure logic and decision boundaries (17 suites)
-├── integration/        # Pipelines with mocked external deps (7 suites)
-└── e2e/                # Full end-to-end flow with everything mocked (3 suites)
+├── unit/               # Pure logic and decision boundaries
+├── integration/        # Pipelines with mocked external deps
+└── e2e/                # Full end-to-end flow with everything mocked
 ```
 
 ## Conventions
