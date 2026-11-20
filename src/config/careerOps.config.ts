@@ -11,6 +11,12 @@ export interface ModelRouting {
   baseUrl?: string;
   /** Nome da env var que contém a API key do provider (ex.: GROQ_API_KEY). Ollama: sem chave. */
   apiKeyEnv?: string;
+  /**
+   * Roteamento de fallback p/ quando o preflight falha neste tier (doc 03):
+   * ModelRouting = usar esse provider/modelo; 'off' = sem fallback.
+   * Default da spec: local→fast, smart→fast, fast→off. AI_<TIER>_FALLBACK sobrescreve.
+   */
+  fallback?: ModelRouting | 'off';
 }
 
 export interface CareerOpsConfig {

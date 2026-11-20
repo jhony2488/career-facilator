@@ -1,28 +1,79 @@
 import { promises as fs } from 'node:fs';
+import { createRequire } from 'node:module';
+import { inflateSync } from 'node:zlib';
 import type { PdfReader } from './pdfExtractor';
 
 /**
  * Implementação real do PdfReader: lê operadores de texto (Tj/TJ) direto do
- * arquivo — sem OCR. PDFs complexos/comprimidos devem trocar a estratégia
- * interna por `pdf-parse`/`pdfjs-dist`; o contrato do reader não muda.
+ * arquivo — sem OCR. Streams FlateDecode são infladas antes do scan (a
+ * maioria dos PDFs reais comprime o conteúdo). PDFs com fontes CID/toUnicode
+ * ou OCR ainda precisam de `pdf-parse`/`pdfjs-dist`; o contrato não muda.
  */
 export function createNodePdfReader(): PdfReader {
   return {
     async extract({ path, buffer }) {
-      let raw: string;
+      let rawBuffer: Buffer | undefined;
+      let raw = '';
       if (buffer) {
-        raw = Buffer.from(buffer).toString('latin1');
+        rawBuffer = Buffer.from(buffer);
       } else if (path) {
-        raw = await fs.readFile(path, 'latin1' as BufferEncoding);
-      } else {
-        return { text: '', pages: 0 };
+        rawBuffer = await fs.readFile(path);
       }
+      if (rawBuffer) raw = rawBuffer.toString('latin1');
+      if (!rawBuffer) return { text: '', pages: 0 };
+
+      // Fontes CID/ToUnicode (PDFs modernos) exigem mapeamento real — usa
+      // pdf-parse quando disponível; senão cai no scan de operadores.
+      const parsed = await tryPdfParse(rawBuffer);
+      if (parsed) return parsed;
 
       const pages = (raw.match(/\/Type\s*\/Page[^s]/g) ?? []).length;
       const text = extractTextOperators(raw);
-      return { text, pages: pages || (text ? 1 : 0) };
+      const parts = text ? [text] : [];
+      for (const stream of inflateStreams(raw, rawBuffer)) {
+        const t = extractTextOperators(stream);
+        if (t) parts.push(t);
+      }
+      return { text: parts.join('\n'), pages: pages || (parts.length ? 1 : 0) };
     },
   };
+}
+
+/**
+ * pdf-parse (opcional) — resolve ToUnicode/CID; ausente → fallback regex.
+ * Importa lib/pdf-parse.js direto: o index.js do pacote roda um harness de
+ * debug que quebra ao ser importado como entry point.
+ */
+async function tryPdfParse(buf: Buffer): Promise<{ text: string; pages: number } | null> {
+  try {
+    const req = createRequire(__filename);
+    const pdfParse = req('pdf-parse/lib/pdf-parse.js') as (
+      b: Buffer,
+    ) => Promise<{ text: string; numpages: number }>;
+    const res = await pdfParse(buf);
+    const text = res.text?.trim() ?? '';
+    return text ? { text, pages: res.numpages } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Varre blocos `stream ... endstream` e infla os FlateDecode. */
+function* inflateStreams(raw: string, buf: Buffer): Generator<string> {
+  const re = /stream\r?\n/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    const start = m.index + m[0].length;
+    const end = raw.indexOf('endstream', start);
+    if (end === -1) break;
+    const stream = buf.subarray(start, end);
+    try {
+      yield inflateSync(stream).toString('latin1');
+    } catch {
+      // stream não-flate (imagem, binário) — ignora
+    }
+    re.lastIndex = end + 'endstream'.length;
+  }
 }
 
 function extractTextOperators(raw: string): string {
@@ -32,7 +83,11 @@ function extractTextOperators(raw: string): string {
   while ((m = literal.exec(raw)) !== null) {
     parts.push(unescapePdf(m[0].slice(1, m[0].lastIndexOf(')'))));
   }
-  const arrayOp = /\[((?:\((?:\\.|[^\\()])*\)|\s|-?\d+\.?\d*)+)\]\s*TJ/g;
+  // Item TJ = paren-string | número; itens separados por \s+ obrigatório.
+  // Sem o separador, uma sequência longa de dígitos tem decomposições
+  // exponenciais em (x)+ — backtracking infinito em PDFs reais.
+  const item = String.raw`\((?:\\.|[^\\()])*\)|-?\d+(?:\.\d+)?`;
+  const arrayOp = new RegExp(`\\[((?:${item})(?:\\s+${item})*)\\]\\s*TJ`, 'g');
   while ((m = arrayOp.exec(raw)) !== null) {
     const inner = m[1].match(/\((?:\\.|[^\\()])*\)/g) ?? [];
     parts.push(inner.map((s) => unescapePdf(s.slice(1, -1))).join(''));
