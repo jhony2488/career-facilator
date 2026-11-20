@@ -4,7 +4,7 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação de `src/` — suites Jest passam (unit + integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`. Discovery roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + registry de 145 fontes; adapters ATS/HTML/LinkedIn/dorks seguem stub.
+**Estado atual:** especificação + implementação de `src/` — suites Jest passam (unit + integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`. Discovery roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + registry de 145 fontes; fontes `html` usam fallback genérico HTML+LLM (`DISCOVERY_USE_GENERIC_FALLBACK`, modelo via `DISCOVERY_GENERIC_MODEL` ou herança do tier `AI_LOCAL_*`); adapters ATS/LinkedIn/dorks seguem stub.
 
 ## Onde encontrar as coisas
 
