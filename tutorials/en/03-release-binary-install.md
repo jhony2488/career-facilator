@@ -4,7 +4,7 @@ Download a single executable. No Node.js or npm is required.
 
 ## Download
 
-Open the **Releases** tab in the GitHub repository and pick the file for your system:
+Open the **[Releases](https://github.com/jhony2488/career-facilitator/releases)** tab in the GitHub repository and pick the file for your system:
 
 | System                | File                     |
 | --------------------- | ------------------------ |
