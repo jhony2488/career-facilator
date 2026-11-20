@@ -65,6 +65,8 @@ npm run cli -- status               # contagens por status no jobs.sqlite
 npm run cli -- config check         # testa endpoint+modelo dos 3 tiers (preflight)
 npm run cli -- vault set smtp-main  # grava credencial SMTP cifrada (interativo no shell)
 npm run cli -- vault list           # refs gravadas no cofre (sem expor segredos)
+npm run cli -- whatsapp setup       # cria instância Evolution API + QR no terminal p/ parear
+npm run cli -- whatsapp status      # estado da conexão WhatsApp
 
 npm run build     # compila para dist/
 npm run start -- <comando>   # roda o build compilado

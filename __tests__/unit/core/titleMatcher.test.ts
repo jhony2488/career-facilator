@@ -1,5 +1,6 @@
 import {
   matchTargetTitle,
+  createSemanticTitleMatcher,
   normalizeTitle,
   levenshtein,
 } from '../../../src/core/titleMatcher';
@@ -103,5 +104,78 @@ describe('levenshtein', () => {
 
   it('bails early on large length differences', () => {
     expect(levenshtein('dev', 'seniorsoftwareengineer')).toBe(99);
+  });
+});
+
+describe('createSemanticTitleMatcher', () => {
+  const vec = (v: number[]): number[] => v;
+  const embedder = (map: Record<string, number[]>) => ({
+    embed: jest.fn(async (texts: string[]) => texts.map((t) => map[t] ?? [0])),
+  });
+
+  it('returns deterministic match without calling the embedder', async () => {
+    const e = embedder({});
+    const match = createSemanticTitleMatcher(TARGETS, e);
+    expect(await match('Fullstack Developer')).toEqual({
+      target: 'Full Stack Developer',
+      strength: 'squashed',
+    });
+    expect(e.embed).not.toHaveBeenCalled();
+  });
+
+  it('falls back to semantic when deterministic finds nothing', async () => {
+    // 'JS Developer' is orthogonal to all targets lexically
+    const e = embedder({
+      'JS Developer': vec([1, 0]),
+      'Node.js Developer': vec([0.95, 0.31]),
+      'Desenvolvedor Full Stack': vec([0, 1]),
+      'Full Stack Developer': vec([0, 1]),
+      'Backend Developer': vec([0.5, 0.5]),
+    });
+    const match = createSemanticTitleMatcher(TARGETS, e);
+    const m = await match('JS Developer');
+    expect(m?.target).toBe('Node.js Developer');
+    expect(m?.strength).toBe('semantic');
+    expect(m?.score).toBeGreaterThanOrEqual(0.72);
+  });
+
+  it('returns deterministic result when cosine stays below threshold', async () => {
+    const e = embedder({
+      'Product Owner': vec([1, 0]),
+      'Backend Developer': vec([0.1, 0.99]),
+      'Desenvolvedor Full Stack': vec([0, 1]),
+      'Full Stack Developer': vec([0, 1]),
+      'Node.js Developer': vec([0.2, 0.98]),
+    });
+    const match = createSemanticTitleMatcher(TARGETS, e);
+    expect(await match('Product Owner')).toBeNull();
+  });
+
+  it('caches target embeddings across calls', async () => {
+    const e = embedder({
+      'Unknown A': vec([0, 0]),
+      'Unknown B': vec([0, 0]),
+      'Backend Developer': vec([1, 0]),
+    });
+    const match = createSemanticTitleMatcher(['Backend Developer'], e);
+    await match('Unknown A');
+    await match('Unknown B');
+    // 1 call for targets + 1 per job title � targets are not re-embedded
+    expect(e.embed).toHaveBeenCalledTimes(3);
+  });
+
+  it('degrades to deterministic when the embedder throws', async () => {
+    const failing = { embed: jest.fn(async () => { throw new Error('offline'); }) };
+    const match = createSemanticTitleMatcher(TARGETS, failing);
+    expect(await match('Backned Developer')).toEqual({
+      target: 'Backend Developer',
+      strength: 'levenshtein',
+    });
+  });
+
+  it('works without an embedder (deterministic only)', async () => {
+    const match = createSemanticTitleMatcher(TARGETS, undefined);
+    expect(await match('Backend Dev')).not.toBeNull();
+    expect(await match('Product Manager')).toBeNull();
   });
 });

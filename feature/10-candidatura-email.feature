@@ -74,6 +74,13 @@ Funcionalidade: Candidatura por e-mail quando não há formulário web
     Quando uma nova mensagem fica pronta para envio
     Então o disparo é adiado para o próximo ciclo disponível
 
+  Cenário: O corpo do e-mail usa o modelo preferido do usuário
+    Dado que o usuário mantém um modelo de corpo preferido configurado
+    Quando a composição da mensagem é executada
+    Então o corpo segue o modelo com saudação, links do perfil e assinatura
+    E a pretensão salarial aparece quando configurada para o escopo da vaga
+    E dados ausentes no perfil não são inventados na mensagem
+
   Cenário: Tentar novamente após falha temporária de envio
     Dado que o envio do e-mail falhou por indisponibilidade temporária
     Quando a fila de envio processa a mensagem
@@ -89,3 +96,5 @@ Funcionalidade: Candidatura por e-mail quando não há formulário web
 # Decisão: máx. 3 tentativas de envio com backoff; esgotadas → NEEDS_HUMAN_INPUT.
 # Decisão: respostas do recrutador no mesmo thread estão fora de escopo — o
 # módulo cobre apenas o envio inicial e o monitoramento.
+# Decisão: teto diário de e-mails default 45, configurável (EMAIL_MAX_DAILY).
+# Decisão: corpo via template editável (email_template.md); ausente → built-in PT/EN.
