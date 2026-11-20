@@ -10,11 +10,11 @@ English version of the README. [Portuguese version (README.md)](README.md).
 
 CareerFacilator AI automates the end-to-end cycle of searching and applying to jobs (LinkedIn, Greenhouse, Lever, Gupy, Workday and custom portals) under a **3-layer Inference Optimization Funnel**:
 
-| Layer | Function | Cost |
-| ----- | -------- | ---- |
-| **0 — Deterministic** | DOM cleaning, deduplication, lexical filters, TF-IDF/BM25 fit | Zero / 0ms |
-| **1 — Light models** | Fit Score + structured requirements (local Ollama / Groq / Flash-Lite) | Low / fast |
-| **2 — Reasoning + cache** | Tailored resume and Q&A only for jobs ≥ 75% (prompt caching) | High / precise |
+| Layer                     | Function                                                               | Cost           |
+| ------------------------- | ---------------------------------------------------------------------- | -------------- |
+| **0 — Deterministic**     | DOM cleaning, deduplication, lexical filters, TF-IDF/BM25 fit          | Zero / 0ms     |
+| **1 — Light models**      | Fit Score + structured requirements (local Ollama / Groq / Flash-Lite) | Low / fast     |
+| **2 — Reasoning + cache** | Tailored resume and Q&A only for jobs ≥ 75% (prompt caching)           | High / precise |
 
 ## How to run
 
@@ -104,11 +104,11 @@ Individual paths override via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `P
 
 Download the binary from the [Releases](https://github.com/jhony2488/career-facilitator/releases) tab — **no Node.js required**:
 
-| File | First use |
-| ---- | --------- |
-| `career-windows-x64.exe` | SmartScreen may warn (unsigned binary): "More info → Run anyway" |
-| `career-macos-arm64` | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper) |
-| `career-linux-x64` | `chmod +x` |
+| File                     | First use                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `career-windows-x64.exe` | SmartScreen may warn (unsigned binary): "More info → Run anyway"             |
+| `career-macos-arm64`     | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper) |
+| `career-linux-x64`       | `chmod +x`                                                                   |
 
 The executable uses the **same configuration** as the other modes: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it, and a `.env` with `CAREER_HOME=.` next to the exe keeps data portable. For the skill library in binary mode, copy `src/skills/library/` to a `skills/` folder next to the executable.
 
