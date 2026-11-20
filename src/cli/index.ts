@@ -13,7 +13,12 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { importResume, processInbox, type InboxItemResult } from '../intake/intakeCore';
+import {
+  importResume,
+  processInbox,
+  approveProfileDraft,
+  type InboxItemResult,
+} from '../intake/intakeCore';
 import { createNodePdfReader } from '../intake/pdfReaderNode';
 import { listPendingPdfs, moveToProcessed } from '../intake/inboxScanner';
 import { MasterProfileStore } from '../intake/masterProfileStore';
@@ -38,7 +43,7 @@ const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', ef
 
 const USAGE =
   'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
-  'run --jobs-file <json> [--dry-run] [--verbose] | review | status | ' +
+  'run --jobs-file <json> [--dry-run] [--verbose] | review | approve | status | ' +
   'config [path|init|get|set|unset] | exit';
 
 /** Template mínimo gravado por `config init` — sem chaves reais. */
@@ -244,6 +249,25 @@ async function cmdRun(args: string[]): Promise<void> {
   );
 }
 
+/** Aprova o rascunho pendente: promove a perfil-mestre e invalida derivados (doc 13). */
+async function cmdApprove(): Promise<void> {
+  const cfg = config.profile;
+  if (!existsSync(cfg.draftPath)) {
+    throw new CliError(`Nenhum rascunho pendente em ${cfg.draftPath}.`);
+  }
+  const store = new MasterProfileStore(
+    { draftPath: cfg.draftPath, masterPath: cfg.masterPath, historyDir: cfg.historyDir },
+    { fs: createNodeFileStore() },
+  );
+  const result = await approveProfileDraft({ store });
+  console.log(`Rascunho aprovado → ${cfg.masterPath}`);
+  console.log(`Snapshot da versão anterior em ${cfg.historyDir}`);
+  if (result.cacheInvalidated) console.log('Cache de prompt invalidado.');
+  if (result.scoresToRecalculate) {
+    console.log('Fit Scores pendentes serão recalculados na próxima execução.');
+  }
+}
+
 async function cmdReview(): Promise<void> {
   const repo = openRepo();
   const pending = [
@@ -369,6 +393,9 @@ async function dispatch(command: string, args: string[]): Promise<boolean> {
       return true;
     case 'review':
       await cmdReview();
+      return true;
+    case 'approve':
+      await cmdApprove();
       return true;
     case 'status':
       await cmdStatus();

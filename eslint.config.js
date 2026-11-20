@@ -13,6 +13,7 @@ module.exports = tseslint.config(
       'jest.config.js',
       'eslint.config.js',
       'scripts/**',
+      'bin/**',
     ],
   },
   js.configs.recommended,
