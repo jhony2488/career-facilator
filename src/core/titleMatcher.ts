@@ -1,14 +1,59 @@
 /**
  * Match aproximado de títulos de vaga (JOB_TITLES): títulos reais variam —
- * "Full Stack", "fullstack", "Full-Stack", "fullmstack" (typo), "Fullstack Dev".
- * Estratégia determinística, em ordem de custo:
- *   1. normalização + igualdade exata
- *   2. 'squashed' (sem espaços/pontuação) — substring em qualquer direção
- *   3. Jaccard de tokens ≥ 0.6 (ordem/ruído tolerados)
- *   4. Levenshtein ≤ 2 na forma squashed (typos de 1-2 chars)
+ * "Full Stack", "fullstack", "Full-Stack", "fullmstack" (typo), "Fullstack Dev",
+ * "Software Engineer" (≈ "Desenvolvedor"), "Dev Backend".
+ * Estratégia determinística, em ordem de confiança:
+ *   1. 'squashed' (sem espaços/pontuação/acento) — substring em qualquer direção
+ *   2. canonical + exact (aliases PT↔EN: dev/engenheiro/engineer → 'dev'…)
+ *   3. containment de tokens DISTINTIVOS — genéricos (dev, senior, junior…) não
+ *      contam; exige que todo token específico do alvo esteja na vaga
+ *      ("Backend Developer" ≠ "Frontend Developer" porque 'backend' falta)
+ *   4. Levenshtein proporcional na forma squashed — desligado p/ títulos
+ *      curtos (<6 chars) onde ≤2 de distância casaria demais
  */
 
-/** Minúsculas, sem acento, sem pontuação, espaços colapsados. */
+/** Tokens sem sinal semântico próprio — não decidem match sozinhos. */
+const GENERIC_TOKENS = new Set([
+  'dev',
+  'senior',
+  'junior',
+  'mid',
+  'lead',
+  'staff',
+  'principal',
+  'software',
+  'de',
+  'da',
+  'do',
+  'e',
+  'of',
+  'the',
+  'for',
+]);
+
+/** Aliases PT↔EN/abreviações → token canônico (remove falso-negativo por sinônimo). */
+const ALIASES: Record<string, string> = {
+  dev: 'dev',
+  developer: 'dev',
+  desenvolvedor: 'dev',
+  engineer: 'dev',
+  engenheiro: 'dev',
+  eng: 'dev',
+  senior: 'senior',
+  sr: 'senior',
+  pleno: 'mid',
+  mid: 'mid',
+  junior: 'junior',
+  jr: 'junior',
+  backend: 'backend',
+  'back-end': 'backend',
+  frontend: 'frontend',
+  'front-end': 'frontend',
+  fullstack: 'fullstack',
+  'full-stack': 'fullstack',
+};
+
+/** Minúsculas, sem acento, sem pontuação, espaços colapsados, tokens canonizados. */
 export function normalizeTitle(s: string): string {
   return s
     .normalize('NFD')
@@ -20,17 +65,19 @@ export function normalizeTitle(s: string): string {
     .trim();
 }
 
-const squash = (s: string): string => normalizeTitle(s).replace(/\s+/g, '');
-const tokens = (s: string): Set<string> => new Set(normalizeTitle(s).split(' ').filter(Boolean));
-
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (!a.size || !b.size) return 0;
-  let inter = 0;
-  for (const t of a) if (b.has(t)) inter++;
-  return inter / (a.size + b.size - inter);
+function canonTokens(s: string): string[] {
+  return normalizeTitle(s)
+    .split(' ')
+    .filter(Boolean)
+    .map((t) => ALIASES[t] ?? t);
 }
 
-/** Levenshtein clássico — barato o suficiente p/ strings < 30 chars. */
+const squash = (s: string): string => canonTokens(s).join('');
+const canonical = (s: string): string => canonTokens(s).join(' ');
+const distinctiveTokens = (s: string): Set<string> =>
+  new Set(canonTokens(s).filter((t) => !GENERIC_TOKENS.has(t)));
+
+/** Levenshtein clássico com corte antecipado por diferença de tamanho. */
 export function levenshtein(a: string, b: string): number {
   if (Math.abs(a.length - b.length) > 3) return 99;
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -52,39 +99,53 @@ export function levenshtein(a: string, b: string): number {
 export interface TitleMatch {
   /** Título-alvo (de JOB_TITLES) que casou. */
   target: string;
-  /** Nível de confiança do match. */
-  strength: 'exact' | 'squashed' | 'jaccard' | 'levenshtein';
+  /** Nível de confiança do match, do mais ao menos forte. */
+  strength: 'exact' | 'squashed' | 'containment' | 'levenshtein';
 }
 
-/** Retorna o melhor match contra a lista de alvos, ou null. */
+const MIN_LEVENSHTEIN_LEN = 6;
+/** Distância máxima proporcional ao tamanho do alvo (~1 typo a cada 5 chars). */
+const maxDistance = (len: number) => Math.max(1, Math.floor(len / 5));
+
+/**
+ * Retorna o melhor match contra a lista de alvos, ou null.
+ * Containment exige ≥1 token distintivo no alvo — alvo todo-genérico
+ * ("Software Engineer") cai para Levenshtein/squashed.
+ */
 export function matchTargetTitle(
   jobTitle: string,
   targetTitles: string[],
 ): TitleMatch | null {
   if (!jobTitle.trim() || !targetTitles.length) return null;
   const nj = normalizeTitle(jobTitle);
+  const cj = canonical(jobTitle);
   const sj = squash(jobTitle);
-  const tj = tokens(jobTitle);
+  const dj = distinctiveTokens(jobTitle);
 
   for (const target of targetTitles) {
-    if (normalizeTitle(target) === nj) return { target, strength: 'exact' };
+    if (normalizeTitle(target) === nj || canonical(target) === cj) {
+      return { target, strength: 'exact' };
+    }
   }
   for (const target of targetTitles) {
     const st = squash(target);
-    if (st.length >= 4 && (sj.includes(st) || st.includes(sj))) {
+    // vaga ⊇ alvo: ruído de sufixo/prefixo é seguro a partir de 4 chars;
+    // vaga ⊆ alvo: exige título mínimo senão "Dev" casaria com "DevOps".
+    if (st.length >= 4 && (sj.includes(st) || (sj.length >= 6 && st.includes(sj)))) {
       return { target, strength: 'squashed' };
     }
   }
-  let best: TitleMatch | null = null;
   for (const target of targetTitles) {
-    if (jaccard(tj, tokens(target)) >= 0.6) {
-      best = { target, strength: 'jaccard' };
-      break;
-    }
-    if (levenshtein(sj, squash(target)) <= 2) {
-      best = { target, strength: 'levenshtein' };
-      break;
+    const dt = distinctiveTokens(target);
+    if (dt.size && [...dt].every((t) => dj.has(t))) {
+      return { target, strength: 'containment' };
     }
   }
-  return best;
+  for (const target of targetTitles) {
+    const st = squash(target);
+    if (st.length >= MIN_LEVENSHTEIN_LEN && levenshtein(sj, st) <= maxDistance(st.length)) {
+      return { target, strength: 'levenshtein' };
+    }
+  }
+  return null;
 }
