@@ -6,6 +6,8 @@ export type ModelTier = 'LOCAL' | 'FAST' | 'SMART';
 export interface ResolvedModel {
   provider: string;
   modelId: string;
+  baseUrl?: string;
+  apiKeyEnv?: string;
 }
 
 const TIER_KEY: Record<ModelTier, 'local' | 'fast' | 'smart'> = {
@@ -21,5 +23,5 @@ const TIER_KEY: Record<ModelTier, 'local' | 'fast' | 'smart'> = {
 export function resolveModel(tier: ModelTier, config: CareerOpsConfig): ResolvedModel {
   const routing: ModelRouting =
     config.ai?.[TIER_KEY[tier]] ?? defaultCareerOpsConfig.ai[TIER_KEY[tier]];
-  return { provider: routing.provider, modelId: routing.modelId };
+  return { ...routing };
 }
