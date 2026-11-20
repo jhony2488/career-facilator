@@ -24,11 +24,15 @@ export interface CareerOpsConfig {
     reviewExpirationDays: number;
     escalationTimeoutMinutes: number;
     maxEscalationsPerPlatformPerDay: number;
+    /** Termos do perfil que devem aparecer na vaga p/ não pular (filtro Camada 0). Default 1. */
+    lexicalMinTerms?: number;
   };
   ai: {
     local: ModelRouting; // Camada 1 — triagem barata (Ollama/ONNX)
     fast: ModelRouting; // Fallback rápido em nuvem (Groq/Flash-Lite)
     smart: ModelRouting; // Camada 2 — raciocínio + prompt cache
+    /** Embeddings p/ RAG semântico (opcional — léxico é o default). */
+    embeddings?: { enabled: boolean; modelId: string };
   };
   autofill: {
     questionSimilarityThreshold: number;
@@ -74,6 +78,7 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     reviewExpirationDays: 7,
     escalationTimeoutMinutes: 15,
     maxEscalationsPerPlatformPerDay: 3,
+    lexicalMinTerms: 1,
   },
   ai: {
     local: { provider: 'ollama', modelId: 'qwen2.5:7b' },

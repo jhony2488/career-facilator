@@ -5,6 +5,11 @@ export interface TailorInput {
   triage: JobTriageResult | Record<string, never>;
   skillsBlock: string;
   profile: unknown;
+  /**
+   * Contexto do perfil já filtrado por relevância (RAG). Quando presente,
+   * substitui o dump JSON completo — essencial para modelos pequenos (3B).
+   */
+  profileContext?: string;
 }
 
 export interface TailoredAssets {
@@ -45,7 +50,9 @@ export async function tailorResume(input: TailorInput, deps: TailorDeps): Promis
     'NEVER invent skills, experiences or metrics absent from the master profile.',
     'Only reorder, rephrase and emphasize what exists.',
     '',
-    profileCacheBlock(input.profile),
+    input.profileContext
+      ? `<master_profile_relevant>\n${input.profileContext}\n</master_profile_relevant>`
+      : profileCacheBlock(input.profile),
     '',
     input.skillsBlock || '',
     '',
