@@ -55,3 +55,70 @@ export function createEvolutionClient(deps: EvolutionClientDeps): EvolutionTrans
       }),
   };
 }
+
+/** Resposta de /instance/connect: `code` é o payload do QR (vai pro terminal). */
+export interface EvolutionQr {
+  code?: string;
+  pairingCode?: string;
+}
+
+/**
+ * Setup da instância Evolution API (doc 15 §15.3): criar instância, obter QR
+ * de pareamento e consultar o estado da conexão.
+ */
+export interface EvolutionSetup {
+  createInstance(name: string): Promise<{ instanceName: string }>;
+  getConnectionQr(name: string): Promise<EvolutionQr>;
+  getConnectionState(name: string): Promise<string>;
+}
+
+export interface EvolutionSetupDeps {
+  apiUrl: string;
+  apiKey: string;
+  /** Injetável p/ testes — default é o fetch global. */
+  fetchImpl?: typeof fetch;
+}
+
+export function createEvolutionSetup(deps: EvolutionSetupDeps): EvolutionSetup {
+  const call = deps.fetchImpl ?? fetch;
+  const base = deps.apiUrl.replace(/\/+$/, '');
+  const headers = { 'Content-Type': 'application/json', apikey: deps.apiKey };
+
+  async function request(method: string, path: string, body?: Record<string, unknown>) {
+    const res = await call(`${base}${path}`, {
+      method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!res.ok) {
+      throw new Error(`Evolution API ${path}: HTTP ${res.status}`);
+    }
+    return res.json() as Promise<Record<string, unknown>>;
+  }
+
+  return {
+    createInstance: async (name) => {
+      const data = await request('POST', '/instance/create', {
+        instanceName: name,
+        qrcode: true,
+        integration: 'WHATSAPP-BAILEYS',
+      });
+      const instance = (data.instance ?? {}) as { instanceName?: string };
+      return { instanceName: instance.instanceName ?? name };
+    },
+
+    getConnectionQr: async (name) => {
+      const data = await request('GET', `/instance/connect/${name}`);
+      return {
+        code: data.code as string | undefined,
+        pairingCode: data.pairingCode as string | undefined,
+      };
+    },
+
+    getConnectionState: async (name) => {
+      const data = await request('GET', `/instance/connectionState/${name}`);
+      const instance = (data.instance ?? {}) as { state?: string };
+      return instance.state ?? 'unknown';
+    },
+  };
+}
