@@ -5,9 +5,9 @@ import {
 } from '../../src/core/escalationHandler';
 import { fakePageState, mockVault } from '../helpers/mocks';
 
-describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', () => {
-  it('detecta CAPTCHA e escala sem inventar dados', async () => {
-    // feature/09: Escalonar ao detectar verificação anti-robô
+describe('Human escalation: detection → NEEDS_HUMAN_INPUT → resumption', () => {
+  it('detects CAPTCHA and escalates without inventing data', async () => {
+    // feature/09: Escalate upon detecting anti-bot verification
     const page = fakePageState({ hasCaptcha: true });
     const signal = detectBlockingSignal(page);
 
@@ -18,8 +18,8 @@ describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', 
     expect(outcome.progressPreserved).toBe(true);
   });
 
-  it('detecta etapa de OTP por e-mail e preserva estado para retomada', async () => {
-    // feature/09: Escalonar ao detectar código de verificação por e-mail
+  it('detects an email OTP step and preserves state for resumption', async () => {
+    // feature/09: Escalate upon detecting an email verification code
     const page = fakePageState({ requiresEmailOtp: true });
     const signal = detectBlockingSignal(page);
 
@@ -30,8 +30,8 @@ describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', 
     expect(outcome.savedPageState).toBeDefined();
   });
 
-  it('escala quando encontra campo obrigatório desconhecido', async () => {
-    // feature/09: nenhum dado é inventado para campo desconhecido
+  it('escalates when it encounters an unknown required field', async () => {
+    // feature/09: no data is invented for an unknown field
     const page = fakePageState({
       fields: [{ kind: 'input', label: 'Codename XQ-42', required: true }],
     });
@@ -40,8 +40,8 @@ describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', 
     expect(signal?.kind).toBe('UNKNOWN_REQUIRED_FIELD');
   });
 
-  it('detecta sessão expirada e escala para novo login', async () => {
-    // feature/11: Solicitar novo login quando a sessão expirou
+  it('detects an expired session and escalates for a new login', async () => {
+    // feature/11: Request a new login when the session has expired
     const page = fakePageState({ url: 'https://linkedin.com/login' });
     const vault = mockVault();
     vault.getSessionState.mockResolvedValue(null);
@@ -50,8 +50,8 @@ describe('Escalonamento humano: detecção → NEEDS_HUMAN_INPUT → retomada', 
     expect(signal?.kind).toBe('SESSION_EXPIRED');
   });
 
-  it('retoma o fluxo do ponto de parada após resolução humana', async () => {
-    // feature/09: Retomar o fluxo após resolução humana
+  it('resumes the flow from the stopping point after human resolution', async () => {
+    // feature/09: Resume the flow after human resolution
     const page = fakePageState({ hasCaptcha: true, currentStep: 2, totalSteps: 4 });
     const signal = detectBlockingSignal(page)!;
     const outcome = await escalate(page, signal);

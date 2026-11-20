@@ -3,11 +3,11 @@ import { makeConfig } from '../../helpers/factories';
 
 const baseSignals = { hasCaptcha: false, hasLowConfidenceAnswers: false };
 
-describe('decideApplicationRoute — matriz modo × score', () => {
+describe('decideApplicationRoute — mode × score matrix', () => {
   const config = makeConfig();
 
   it.each([
-    // feature/07: Roteamento por modo e score
+    // feature/07: Routing by mode and score
     ['HYBRID_THRESHOLD', 90, 'AUTO_SEND'],
     ['HYBRID_THRESHOLD', 88, 'AUTO_SEND'],
     ['HYBRID_THRESHOLD', 87, 'REVIEW'],
@@ -16,7 +16,7 @@ describe('decideApplicationRoute — matriz modo × score', () => {
     ['SEMI_AUTO', 75, 'REVIEW'],
     ['FULL_AUTO', 90, 'AUTO_SEND'],
     ['FULL_AUTO', 88, 'AUTO_SEND'],
-  ] as const)('modo %s com score %i → %s', (mode, fitScore, expected) => {
+  ] as const)('mode %s with score %i → %s', (mode, fitScore, expected) => {
     const route = decideApplicationRoute({
       fitScore,
       mode,
@@ -28,7 +28,7 @@ describe('decideApplicationRoute — matriz modo × score', () => {
     expect(route).toBe(expected);
   });
 
-  it('FULL_AUTO abaixo do limiar não envia sozinho', () => {
+  it('FULL_AUTO below the threshold does not send on its own', () => {
     const route = decideApplicationRoute({
       fitScore: 80,
       mode: 'FULL_AUTO',
@@ -40,8 +40,8 @@ describe('decideApplicationRoute — matriz modo × score', () => {
     expect(route).not.toBe('AUTO_SEND');
   });
 
-  it('CAPTCHA bloqueia envio automático mesmo com score alto', () => {
-    // feature/07: CAPTCHA bloqueia o envio automático mesmo com score alto
+  it('CAPTCHA blocks auto-send even with a high score', () => {
+    // feature/07: CAPTCHA blocks auto-send even with a high score
     const route = decideApplicationRoute({
       fitScore: 95,
       mode: 'FULL_AUTO',
@@ -53,8 +53,8 @@ describe('decideApplicationRoute — matriz modo × score', () => {
     expect(route).toBe('ESCALATE');
   });
 
-  it('resposta com confiança baixa bloqueia o envio automático', () => {
-    // feature/07: Pergunta com confiança baixa bloqueia o envio automático
+  it('a low-confidence answer blocks auto-send', () => {
+    // feature/07: A low-confidence question blocks auto-send
     const route = decideApplicationRoute({
       fitScore: 95,
       mode: 'HYBRID_THRESHOLD',
@@ -66,8 +66,8 @@ describe('decideApplicationRoute — matriz modo × score', () => {
     expect(route).toBe('REVIEW');
   });
 
-  it('limite diário atingido adia o envio', () => {
-    // feature/07: Respeitar o limite diário de candidaturas
+  it('reaching the daily limit defers sending', () => {
+    // feature/07: Respect the daily application limit
     const route = decideApplicationRoute({
       fitScore: 95,
       mode: 'FULL_AUTO',

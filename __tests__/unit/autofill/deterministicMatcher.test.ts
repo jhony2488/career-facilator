@@ -2,11 +2,11 @@ import { matchFields } from '../../../src/autofill/deterministicMatcher';
 import type { FieldMatch } from '../../helpers/contracts';
 import { makeField, makeMasterProfile } from '../../helpers/factories';
 
-describe('matchFields — preenchimento determinístico', () => {
+describe('matchFields — deterministic filling', () => {
   const profile = makeMasterProfile();
 
-  it('preenche campos padronizados com dados do perfil sem IA', () => {
-    // feature/06: Preencher campos padronizados sem chamar IA
+  it('fills standardized fields with profile data without AI', () => {
+    // feature/06: Fill standardized fields without calling AI
     const fields = [
       makeField({ label: 'Full Name' }),
       makeField({ label: 'Email' }),
@@ -37,16 +37,16 @@ describe('matchFields — preenchimento determinístico', () => {
     ['LinkedIn URL', 'linkedin'],
     ['Portfolio Website', 'portfolio'],
     ['GitHub Profile', 'github'],
-  ])('reconhece variação de rótulo: "%s"', (label, _key) => {
-    // feature/06: Reconhecer campos padronizados por variações de rótulo
+  ])('recognizes label variation: "%s"', (label, _key) => {
+    // feature/06: Recognize standardized fields by label variations
     const { matched } = matchFields([makeField({ label })], profile);
 
     expect(matched).toHaveLength(1);
     expect(matched[0].value.length).toBeGreaterThan(0);
   });
 
-  it('retorna campos desconhecidos como unmatched para decisão posterior', () => {
-    // feature/06/09: campo obrigatório desconhecido não é inventado
+  it('returns unknown fields as unmatched for later decision', () => {
+    // feature/06/09: unknown required field is not made up
     const fields = [makeField({ kind: 'textarea', label: 'Describe a challenge you solved' })];
 
     const { matched, unmatched } = matchFields(fields, profile);
@@ -55,8 +55,8 @@ describe('matchFields — preenchimento determinístico', () => {
     expect(unmatched).toHaveLength(1);
   });
 
-  it('usa respostas padrão do perfil para perguntas conhecidas', () => {
-    // doc 03 (5.4): respostas padrão em cache para perguntas recorrentes
+  it('uses profile standard answers for known questions', () => {
+    // doc 03 (5.4): cached standard answers for recurring questions
     const fields = [makeField({ kind: 'textarea', label: 'When are you available to start?' })];
 
     const { matched } = matchFields(fields, profile);

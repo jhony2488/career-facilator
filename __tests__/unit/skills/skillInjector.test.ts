@@ -21,13 +21,13 @@ describe('buildSkillsContextBlock', () => {
     await fs.rm(plainSkillPath, { force: true });
   });
 
-  it('retorna string vazia quando nenhuma skill foi selecionada', () => {
-    // feature/04: nenhum bloco de skills é injetado sem skills ativas
+  it('returns an empty string when no skill was selected', () => {
+    // feature/04: no skills block is injected without active skills
     return expect(buildSkillsContextBlock([])).resolves.toBe('');
   });
 
-  it('inclui apenas o corpo das skills selecionadas no bloco', async () => {
-    // feature/04: Injetar apenas o corpo das skills ativadas no contexto
+  it('includes only the body of the selected skills in the block', async () => {
+    // feature/04: Inject only the body of the activated skills into the context
     const block = await buildSkillsContextBlock([makeSkill({ filePath: skillPath })]);
 
     expect(block).toContain('<active_skills>');
@@ -36,8 +36,8 @@ describe('buildSkillsContextBlock', () => {
     expect(block).toContain('Resume Tailoring Guidelines');
   });
 
-  it('remove o frontmatter YAML para não desperdiçar tokens', async () => {
-    // feature/04: metadados internos de configuração não são enviados ao modelo
+  it('strips the YAML frontmatter to avoid wasting tokens', async () => {
+    // feature/04: internal configuration metadata is not sent to the model
     const block = await buildSkillsContextBlock([makeSkill({ filePath: skillPath })]);
 
     expect(block).not.toContain('triggers:');
@@ -45,13 +45,13 @@ describe('buildSkillsContextBlock', () => {
     expect(block).not.toMatch(/^---/m);
   });
 
-  it('funciona com skills sem frontmatter', async () => {
+  it('works with skills without frontmatter', async () => {
     const block = await buildSkillsContextBlock([makeSkill({ filePath: plainSkillPath })]);
 
     expect(block).toContain('Plain Instructions');
   });
 
-  it('concatena múltiplas skills no mesmo bloco', async () => {
+  it('concatenates multiple skills into the same block', async () => {
     const block = await buildSkillsContextBlock([
       makeSkill({ id: 'a', name: 'Skill A', filePath: skillPath }),
       makeSkill({ id: 'b', name: 'Skill B', filePath: plainSkillPath }),

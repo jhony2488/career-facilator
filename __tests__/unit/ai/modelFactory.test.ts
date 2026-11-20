@@ -31,7 +31,7 @@ const triageJson = JSON.stringify({
 });
 
 describe('createModelClients — provider ollama', () => {
-  it('triageModel: POST format:json → JobTriageResult validado', async () => {
+  it('triageModel: POST format:json → validated JobTriageResult', async () => {
     const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(jsonResponse(triageJson));
     const clients = createModelClients(ollamaConfig(), { ollama: { fetchImpl } });
 
@@ -46,7 +46,7 @@ describe('createModelClients — provider ollama', () => {
     expect(body.format).toBe('json');
   });
 
-  it('structurerModel: devolve perfil validado pelo MasterProfileSchema', async () => {
+  it('structurerModel: returns profile validated by MasterProfileSchema', async () => {
     const profileJson = JSON.stringify({
       fullName: 'Ana', email: 'a@b.c', phone: 'n', linkedin: 'n', github: 'n',
       portfolio: 'n', summary: 'n', coreStack: ['ts'], seniorityYears: 5,
@@ -62,7 +62,7 @@ describe('createModelClients — provider ollama', () => {
     expect(out.salaryExpectationBRL).toBeNull();
   });
 
-  it('tailorModel: resumeMarkdown + answers via JSON guiado', async () => {
+  it('tailorModel: resumeMarkdown + answers via guided JSON', async () => {
     const tailorJson = JSON.stringify({ resumeMarkdown: '# CV', answers: {} });
     const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(jsonResponse(tailorJson));
     const clients = createModelClients(ollamaConfig(), { ollama: { fetchImpl } });
@@ -75,7 +75,7 @@ describe('createModelClients — provider ollama', () => {
     expect(prompt).toContain('resumeMarkdown');
   });
 
-  it('onToken é propagado → modo streaming NDJSON', async () => {
+  it('onToken is propagated → NDJSON streaming mode', async () => {
     const ndjson = JSON.stringify({ message: { content: triageJson } }) + '\n';
     const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(new Response(ndjson));
     const tokens: string[] = [];
@@ -93,8 +93,8 @@ describe('createModelClients — provider ollama', () => {
   });
 });
 
-describe('createModelClients — provider não-ollama', () => {
-  it('adapter rejeita com ProviderNotImplementedError claro', async () => {
+describe('createModelClients — non-ollama provider', () => {
+  it('adapter rejects with clear ProviderNotImplementedError', async () => {
     const config = loadCareerOpsConfig({
       env: { AI_LOCAL_PROVIDER: 'groq', AI_SMART_PROVIDER: 'kimi' },
       envFile: '',
@@ -106,11 +106,11 @@ describe('createModelClients — provider não-ollama', () => {
 });
 
 describe('createEmbedder', () => {
-  it('embeddings desabilitados → undefined', () => {
+  it('embeddings disabled → undefined', () => {
     expect(createEmbedder(ollamaConfig())).toBeUndefined();
   });
 
-  it('habilitados → retorna embedder funcional', () => {
+  it('enabled → returns a functional embedder', () => {
     const cfg = ollamaConfig({ AI_EMBEDDINGS_ENABLED: 'true', OLLAMA_EMBED_MODEL: 'nomic-embed-text' });
     expect(cfg.ai.embeddings?.enabled).toBe(true);
     expect(cfg.ai.embeddings?.modelId).toBe('nomic-embed-text');

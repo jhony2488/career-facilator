@@ -1,19 +1,19 @@
 /**
- * CONTRATOS PROVISÓRIOS — CareerFacilator AI
+ * PROVISIONAL CONTRACTS — CareerFacilator AI
  *
- * Este arquivo centraliza os tipos de domínio e as assinaturas esperadas dos
- * módulos de `src/`, derivados de docs/pt-BR/ e feature/*.feature.
+ * This file centralizes the domain types and expected signatures of the
+ * `src/` modules, derived from docs/pt-BR/ and feature/*.feature.
  *
- * Os testes importam TIPOS daqui e FUNÇÕES de `../src/`. Enquanto `src/` não
- * existir, os testes não compilam — comportamento intencional (TDD/red-first).
- * Quando a implementação começar, ela deve satisfazer estas assinaturas;
- * divergências devem ser discutidas aqui antes de mudar os testes.
+ * Tests import TYPES from here and FUNCTIONS from `../src/`. While `src/`
+ * does not exist, the tests do not compile — intentional behavior (TDD/red-first).
+ * When implementation begins, it must satisfy these signatures;
+ * divergences must be discussed here before changing the tests.
  *
- * Rastreabilidade: cada `it()` nos testes referencia o cenário .feature de
- * origem via comentário `// feature/NN: <nome do cenário>`.
+ * Traceability: each `it()` in the tests references the source .feature
+ * scenario via a `// feature/NN: <scenario name>` comment.
  */
 
-// ─── Enums / unions de domínio ──────────────────────────────────────────────
+// ─── Domain enums / unions ──────────────────────────────────────────────────
 
 export type JobStatus =
   | 'DISCOVERED'
@@ -46,10 +46,10 @@ export type ProfileImportSource = 'INBOX' | 'CLI';
 export type ProfileImportMode = 'MERGE' | 'REPLACE';
 export type IntakeOutcome = 'DRAFT_PENDING_REVIEW' | 'UNREADABLE_DOCUMENT';
 
-/** Sentinela para campos ausentes no documento — nunca inferidos (docs/pt-BR/13). */
+/** Sentinel for fields absent from the document — never inferred (docs/pt-BR/13). */
 export const NOT_INFORMED = 'NÃO_INFORMADO';
 
-// ─── Entidades ──────────────────────────────────────────────────────────────
+// ─── Entities ───────────────────────────────────────────────────────────────
 
 export interface JobPosting {
   id: string;
@@ -101,9 +101,9 @@ export interface MasterProfile {
 }
 
 /**
- * Resultado da estruturação de um documento (feature/13).
- * Campos de texto ausentes vêm como NOT_INFORMED; numéricos ausentes como null —
- * o sistema nunca infere valores que não constam no documento.
+ * Result of structuring a document (feature/13).
+ * Missing text fields come as NOT_INFORMED; missing numeric fields as null —
+ * the system never infers values that are not in the document.
  */
 export type ExtractedProfile = Omit<
   MasterProfile,
@@ -116,7 +116,7 @@ export type ExtractedProfile = Omit<
 
 export interface PdfExtractionResult {
   text: string;
-  hasTextLayer: boolean; // false → PDF digitalizado/corrompido, sinalizar sem inventar
+  hasTextLayer: boolean; // false → scanned/corrupted PDF, flag it without inventing
   pageCount: number;
 }
 
@@ -128,7 +128,7 @@ export interface ProfileConflict {
 
 export interface CompileResult {
   profile: MasterProfile;
-  warnings: string[]; // seções fora do padrão são sinalizadas, nunca "corrigidas" com invenção
+  warnings: string[]; // non-standard sections are flagged, never "fixed" by invention
 }
 
 export interface ProfileInvalidation {
@@ -136,7 +136,7 @@ export interface ProfileInvalidation {
   scoresToRecalculate: boolean;
 }
 
-/** Adaptador de filesystem injetável — permite store real ou in-memory nos testes. */
+/** Injectable filesystem adapter — allows a real or in-memory store in tests. */
 export interface FileStore {
   readFile(path: string): Promise<string | null>;
   writeFile(path: string, content: string): Promise<void>;
@@ -144,7 +144,7 @@ export interface FileStore {
   archiveFile(srcPath: string, destDir: string): Promise<string>;
 }
 
-/** Leitor de PDF injetável — a implementação real usará a lib de parsing escolhida. */
+/** Injectable PDF reader — the real implementation will use the chosen parsing lib. */
 export interface PdfReader {
   extract(input: { path?: string; buffer?: Uint8Array }): Promise<{ text: string; pages: number }>;
 }
@@ -156,8 +156,8 @@ export interface StructurerModel {
 export interface JobTriageResult {
   fitScore: number; // 0–100
   isDealbreaker: boolean;
-  missingSkills: string[]; // máx 5
-  matchedKeywords: string[]; // máx 10
+  missingSkills: string[]; // max 5
+  matchedKeywords: string[]; // max 10
   atsTitleSuggestion: string;
 }
 
@@ -177,7 +177,7 @@ export interface DedupVerdict {
 export interface EligibilityResult {
   eligible: boolean;
   reason?: string;
-  needsReview?: boolean; // ex: vaga sem região declarada no escopo internacional
+  needsReview?: boolean; // e.g.: job with no declared region in international scope
 }
 
 export interface LocaleDecision {
@@ -209,7 +209,7 @@ export interface EmailDraft {
   to: string;
   subject: string;
   body: string;
-  attachments: string[]; // caminhos de arquivo
+  attachments: string[]; // file paths
   language: 'pt-BR' | 'en-US';
 }
 
@@ -263,7 +263,7 @@ export interface CareerOpsConfig {
   };
 }
 
-// ─── Assinaturas esperadas de src/ (documentação de contrato) ───────────────
+// ─── Expected src/ signatures (contract documentation) ──────────────────────
 //
 // src/scraper/domCleaner.ts
 //   cleanJobHtml(html: string): { markdown: string; title?: string; company?: string }
@@ -288,8 +288,8 @@ export interface CareerOpsConfig {
 // src/ai/tokenTracker.ts
 //   record(usage: {tier, inputTokens, outputTokens, cachedTokens}) · totals() · savingsEstimate()
 //
-// src/skills/core/skillSelector.ts      → selectRelevantSkills(...)   (ver doc 05)
-// src/skills/core/skillInjector.ts      → buildSkillsContextBlock(...) (ver doc 05)
+// src/skills/core/skillSelector.ts      → selectRelevantSkills(...)   (see doc 05)
+// src/skills/core/skillInjector.ts      → buildSkillsContextBlock(...) (see doc 05)
 //
 // src/geo/dorkBuilder.ts     buildSearchQueries(config): Array<{engine, query, source}>
 // src/geo/eligibilityGuard.ts checkEligibility(job, config): EligibilityResult
@@ -350,3 +350,5 @@ export interface CareerOpsConfig {
 //     deps: {reader: PdfReader; model: StructurerModel; store: MasterProfileStore}):
 //     Promise<{outcome: IntakeOutcome; draftPath?: string; alert?: string; conflicts?: ProfileConflict[]}>
 //   approveProfileDraft(deps: {store: MasterProfileStore}): Promise<{activated: true} & ProfileInvalidation>
+//   processInbox(input: {inboxDir; mode}, deps: ImportResumeDeps & {scanner: InboxScanner}):
+//     Promise<{scanned: number; results: Array<ImportResumeResult & {path; archivedTo?}>}>

@@ -2,27 +2,27 @@ import { classifyOutcome } from '../../../src/tracker/outcomeMonitor';
 
 const APPLIED_SENDERS = ['techcorp.io', 'acme.com'];
 
-describe('classifyOutcome — classificação de retornos', () => {
+describe('classifyOutcome — reply classification', () => {
   it.each([
-    // feature/12: Classificação de respostas das empresas
+    // feature/12: Classification of company replies
     [
-      'rejeição educada',
+      'polite rejection',
       'Thank you for applying. Unfortunately we will not move forward.',
       'REJECTED',
     ],
     [
-      'rejeição PT',
+      'PT rejection',
       'Agradecemos seu interesse, mas optamos por seguir com outro candidato.',
       'REJECTED',
     ],
     [
-      'convite para teste',
+      'assessment invite',
       'Please complete the following technical assessment.',
       'ASSESSMENT_INVITED',
     ],
-    ['convite para entrevista', 'We would like to invite you to an interview.', 'INTERVIEW'],
-    ['convite entrevista PT', 'Gostaríamos de agendar uma entrevista com você.', 'INTERVIEW'],
-  ] as const)('classifica %s → %s', (_label, body, expected) => {
+    ['interview invite', 'We would like to invite you to an interview.', 'INTERVIEW'],
+    ['PT interview invite', 'Gostaríamos de agendar uma entrevista com você.', 'INTERVIEW'],
+  ] as const)('classifies %s → %s', (_label, body, expected) => {
     const outcome = classifyOutcome(
       { from: 'recruiter@techcorp.io', subject: 'Your application', body },
       APPLIED_SENDERS,
@@ -31,8 +31,8 @@ describe('classifyOutcome — classificação de retornos', () => {
     expect(outcome).toBe(expected);
   });
 
-  it('ignora mensagens de remetentes sem candidatura registrada', () => {
-    // feature/12: Ignorar mensagens que não pertencem a empresas aplicadas
+  it('ignores messages from senders with no registered application', () => {
+    // feature/12: Ignore messages that do not belong to applied companies
     const outcome = classifyOutcome(
       {
         from: 'spam@random.net',
@@ -45,7 +45,7 @@ describe('classifyOutcome — classificação de retornos', () => {
     expect(outcome).toBeNull();
   });
 
-  it('ignora respostas automáticas sem desfecho identificável', () => {
+  it('ignores auto-replies with no identifiable outcome', () => {
     const outcome = classifyOutcome(
       {
         from: 'noreply@techcorp.io',

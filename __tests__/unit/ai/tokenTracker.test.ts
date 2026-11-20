@@ -1,8 +1,8 @@
 import { TokenTracker } from '../../../src/ai/tokenTracker';
 
-describe('TokenTracker — telemetria de custo', () => {
-  it('acumula tokens de entrada e saída por execução', () => {
-    // doc 03: logs de tokens gastos por execução
+describe('TokenTracker — cost telemetry', () => {
+  it('accumulates input and output tokens per run', () => {
+    // doc 03: logs of tokens spent per run
     const tracker = new TokenTracker();
     tracker.record({ tier: 'LOCAL', inputTokens: 900, outputTokens: 120, cachedTokens: 0 });
     tracker.record({ tier: 'SMART', inputTokens: 5000, outputTokens: 800, cachedTokens: 4000 });
@@ -12,8 +12,8 @@ describe('TokenTracker — telemetria de custo', () => {
     expect(totals.outputTokens).toBe(920);
   });
 
-  it('estima a economia de tokens por prompt caching', () => {
-    // doc 03: desconto de 75-90% nos tokens de entrada das vagas seguintes
+  it('estimates token savings from prompt caching', () => {
+    // doc 03: 75-90% discount on input tokens for subsequent jobs
     const tracker = new TokenTracker();
     tracker.record({ tier: 'SMART', inputTokens: 5000, outputTokens: 800, cachedTokens: 0 });
     tracker.record({ tier: 'SMART', inputTokens: 5000, outputTokens: 800, cachedTokens: 4500 });
@@ -23,7 +23,7 @@ describe('TokenTracker — telemetria de custo', () => {
     expect(savings.savedRatio).toBeGreaterThan(0.4);
   });
 
-  it('zera os acumuladores por execução nova', () => {
+  it('resets the accumulators for a new run', () => {
     const tracker = new TokenTracker();
     tracker.record({ tier: 'LOCAL', inputTokens: 100, outputTokens: 10, cachedTokens: 0 });
     tracker.reset();

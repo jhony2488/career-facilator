@@ -1,16 +1,16 @@
 import { evaluateStepResult } from '../../src/autofill/wizardNavigator';
 import { fakePageState } from '../helpers/mocks';
 
-describe('wizardNavigator — formulários multi-etapas', () => {
-  it('avalia etapa preenchida sem erros como ADVANCE', () => {
-    // feature/06: Avançar etapas de um formulário multi-etapas
+describe('wizardNavigator — multi-step forms', () => {
+  it('evaluates a step filled without errors as ADVANCE', () => {
+    // feature/06: Advance the steps of a multi-step form
     const step = fakePageState({ currentStep: 1, totalSteps: 4, validationErrors: [] });
 
     expect(evaluateStepResult(step)).toBe('ADVANCE');
   });
 
-  it('avalia etapa com erro de validação como ESCALATE', () => {
-    // feature/06: Interromper o avanço quando uma etapa apresenta erro
+  it('evaluates a step with a validation error as ESCALATE', () => {
+    // feature/06: Stop advancing when a step shows an error
     const step = fakePageState({
       currentStep: 2,
       totalSteps: 4,
@@ -20,15 +20,15 @@ describe('wizardNavigator — formulários multi-etapas', () => {
     expect(evaluateStepResult(step)).toBe('ESCALATE');
   });
 
-  it('avalia a última etapa como READY (tela final de revisão)', () => {
-    // feature/06: repete até chegar na tela final de revisão
+  it('evaluates the last step as READY (final review screen)', () => {
+    // feature/06: repeat until reaching the final review screen
     const step = fakePageState({ currentStep: 4, totalSteps: 4, validationErrors: [] });
 
     expect(evaluateStepResult(step)).toBe('READY');
   });
 
-  it('trata campos em Shadow DOM como preenchíveis', () => {
-    // feature/06: campos dentro de estruturas encapsuladas são identificados
+  it('treats fields in Shadow DOM as fillable', () => {
+    // feature/06: fields inside encapsulated structures are identified
     const step = fakePageState({ isShadowDom: true, currentStep: 1, totalSteps: 2 });
 
     expect(evaluateStepResult(step)).toBe('ADVANCE');

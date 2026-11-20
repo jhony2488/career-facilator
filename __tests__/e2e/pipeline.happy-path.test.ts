@@ -5,11 +5,11 @@ import { SAMPLE_JOB_HTML } from '../helpers/fixtures';
 
 /**
  * E2E: discovery → dedup → eligibility → triage → skills → tailor → autofill →
- * revisão humana → APPLIED. Todas as dependências externas são mockadas.
+ * human review → APPLIED. All external dependencies are mocked.
  */
-describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)', () => {
-  it('processa uma vaga de ponta a ponta até APPLIED', async () => {
-    // features 01–07: ciclo completo de candidatura
+describe('Full pipeline — happy path (SEMI_AUTO with human approval)', () => {
+  it('processes a job end to end until APPLIED', async () => {
+    // features 01–07: full application cycle
     const repo = mockRepo();
     const config = makeConfig();
     config.execution.mode = 'SEMI_AUTO';
@@ -30,7 +30,7 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
         triageModel: mockTriageModel({ fitScore: 80, matchedKeywords: ['TypeScript', 'Next.js'] }),
         tailorModel: mockTailorModel(),
         pageFactory: () => fakePageState(),
-        humanApproval: () => true, // usuário aprova na revisão
+        humanApproval: () => true, // user approves in the review
       },
     );
 
@@ -43,8 +43,8 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
     expect(app.resumePath).toBeTruthy();
   });
 
-  it('descarta vaga duplicada sem consumir nenhum token de IA', async () => {
-    // feature/02: Bloqueio por URL Canônica — descarta em 0ms/0 tokens
+  it('discards a duplicate job without consuming any AI tokens', async () => {
+    // feature/02: Canonical URL block — discarded in 0ms/0 tokens
     const repo = mockRepo();
     repo.dedupCheck.mockResolvedValue({ duplicate: true, reason: 'CANONICAL_URL' });
     const triageModel = mockTriageModel();
@@ -64,8 +64,8 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
     expect(tailorModel.tailor).not.toHaveBeenCalled();
   });
 
-  it('marca SKIPPED sem gerar currículo quando Fit Score < mínimo', async () => {
-    // feature/03: score 74 → SKIPPED na fronteira
+  it('marks SKIPPED without generating a resume when Fit Score < minimum', async () => {
+    // feature/03: score 74 → SKIPPED at the boundary
     const repo = mockRepo();
     const tailorModel = mockTailorModel();
 
@@ -87,8 +87,8 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
     expect(tailorModel.tailor).not.toHaveBeenCalled();
   });
 
-  it('mantém o orçamento: camada cara só roda para vagas aprovadas', async () => {
-    // doc 01: apenas top ~15% das vagas chega à Camada 2
+  it('keeps the budget: the expensive tier only runs for approved jobs', async () => {
+    // doc 01: only the top ~15% of jobs reach Tier 2
     const repo = mockRepo();
     const tailorModel = mockTailorModel();
     const triageModel = mockTriageModel();
@@ -98,7 +98,7 @@ describe('Pipeline completo — caminho feliz (SEMI_AUTO com aprovação humana)
       { html: SAMPLE_JOB_HTML, url: 'https://a.co/2' },
       { html: SAMPLE_JOB_HTML, url: 'https://a.co/3' },
     ];
-    // 1 aprovada (80), 2 reprovadas (50)
+    // 1 approved (80), 2 rejected (50)
     triageModel.generate
       .mockResolvedValueOnce({
         fitScore: 80,

@@ -1,7 +1,7 @@
 import { JobRepository } from '../../src/db/repository';
 import { makeJob } from '../helpers/factories';
 
-describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
+describe('JobRepository — 3-level deduplication (real SQLite)', () => {
   let repo: JobRepository;
 
   beforeEach(() => {
@@ -12,8 +12,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     repo.close();
   });
 
-  it('detecta duplicata por URL canônica ignorando parâmetros de rastreamento', async () => {
-    // feature/02: Bloqueio por URL Canônica + normalização de tracking params
+  it('detects duplicates by canonical URL ignoring tracking parameters', async () => {
+    // feature/02: Canonical URL block + tracking params normalization
     await repo.recordJob(makeJob({ url: 'https://boards.greenhouse.io/techcorp/jobs/123' }));
 
     const verdict = await repo.dedupCheck({
@@ -27,8 +27,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     expect(verdict.reason).toBe('CANONICAL_URL');
   });
 
-  it('detecta a mesma vaga em plataformas diferentes pelo hash de conteúdo', async () => {
-    // feature/02: Bloqueio por Hash de Conteúdo (cross-platform)
+  it('detects the same job on different platforms via content hash', async () => {
+    // feature/02: Content Hash block (cross-platform)
     const job = makeJob();
     await repo.recordJob(job);
 
@@ -43,8 +43,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     expect(verdict.reason).toBe('CONTENT_HASH');
   });
 
-  it('não trata como duplicata vaga da mesma empresa com conteúdo diferente', async () => {
-    // feature/02: Permitir vaga com título igual mas conteúdo diferente
+  it('does not treat a job from the same company with different content as a duplicate', async () => {
+    // feature/02: Allow a job with the same title but different content
     await repo.recordJob(makeJob({ title: 'Backend Engineer' }));
 
     const verdict = await repo.dedupCheck({
@@ -57,8 +57,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     expect(verdict.duplicate).toBe(false);
   });
 
-  it('bloqueia por cooldown quando já houve candidatura recente na empresa', async () => {
-    // feature/02: Bloquear nova candidatura dentro do cooldown por empresa
+  it('blocks via cooldown when there was already a recent application at the company', async () => {
+    // feature/02: Block a new application within the per-company cooldown
     await repo.recordJob(makeJob({ status: 'APPLIED' }));
 
     const verdict = await repo.dedupCheck(
@@ -75,8 +75,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     expect(verdict.reason).toBe('COMPANY_COOLDOWN');
   });
 
-  it('não conta candidaturas SKIPPED no cooldown por empresa', async () => {
-    // DECISOES.md sugestão #3: cooldown conta apenas envios efetivos
+  it('does not count SKIPPED applications toward the per-company cooldown', async () => {
+    // DECISOES.md suggestion #3: cooldown only counts actual submissions
     await repo.recordJob(makeJob({ status: 'SKIPPED' }));
 
     const verdict = await repo.dedupCheck(
@@ -92,8 +92,8 @@ describe('JobRepository — deduplicação em 3 níveis (SQLite real)', () => {
     expect(verdict.duplicate).toBe(false);
   });
 
-  it('persiste a transição de estados da máquina de candidatura', async () => {
-    // feature/04: máquina de estados DISCOVERED → ... → APPLIED
+  it('persists the application state-machine transitions', async () => {
+    // feature/04: state machine DISCOVERED → ... → APPLIED
     const job = makeJob();
     await repo.recordJob(job);
 
