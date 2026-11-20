@@ -177,6 +177,20 @@ export class JobRepository {
     return row ? this.mapRow(row) : undefined;
   }
 
+  async listByStatus(status: JobStatus): Promise<JobRecord[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM jobs WHERE status = ? ORDER BY discovered_at DESC')
+      .all(status) as Record<string, unknown>[];
+    return rows.map((r) => this.mapRow(r));
+  }
+
+  async countByStatus(): Promise<Record<string, number>> {
+    const rows = this.db
+      .prepare('SELECT status, COUNT(*) AS n FROM jobs GROUP BY status')
+      .all() as { status: string; n: number }[];
+    return Object.fromEntries(rows.map((r) => [r.status, r.n]));
+  }
+
   async hasEmailSentTo(email: string, cooldownDays: number): Promise<boolean> {
     const row = this.db
       .prepare(

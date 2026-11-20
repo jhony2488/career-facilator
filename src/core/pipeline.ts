@@ -20,6 +20,13 @@ import { resolveLocale } from '../geo/localeAdapter';
 import type { JobRepository, JobStatus } from '../db/repository';
 import type { CareerOpsConfig } from '../config/careerOps.config';
 import type { MasterProfileLike } from './types';
+import { computeLexicalFit, profileFitTerms } from './lexicalMatch';
+import {
+  chunkProfile,
+  retrieveRelevant,
+  buildProfileContext,
+  type ProfileChunk,
+} from '../ai/rag/profileRetriever';
 
 export interface RawJobInput {
   html: string;
@@ -42,6 +49,11 @@ export interface PipelineDeps {
   humanApproval?: (context: { job: RawJobInput; fitScore: number }) => boolean;
   emailTransport?: SmtpTransport;
   vault?: CredentialVault;
+  /**
+   * Retriever de contexto do perfil (RAG). Recebe chunks + query da vaga e
+   * devolve os trechos relevantes. Default: retrieveRelevant (léxico, 0 deps).
+   */
+  retriever?: (chunks: ProfileChunk[], keywords: string[], jobText: string) => Promise<ProfileChunk[]>;
 }
 
 export interface ApplicationResult {
@@ -124,6 +136,19 @@ export async function runApplicationPipeline(
       continue;
     }
 
+    // 3b. Filtro léxico — aderência Camada 0 (0 tokens): corta vagas sem
+    // overlap de stack antes de gastar inferência de modelo.
+    const minLex = config.execution.lexicalMinTerms ?? 1;
+    if (minLex > 0) {
+      const fit = computeLexicalFit(markdown, profileFitTerms(profile));
+      if (fit.matchedTerms.length < minLex) {
+        stages.push('SKIPPED');
+        Object.assign(app, { status: 'SKIPPED', reason: 'LOW_LEXICAL_FIT' });
+        applications.push(app);
+        continue;
+      }
+    }
+
     // 4. Elegibilidade geográfica/contratual
     const scope = detectScope(markdown);
     const eligibility = checkEligibility({ scope, descriptionMarkdown: markdown }, config);
@@ -171,8 +196,17 @@ export async function runApplicationPipeline(
     app.skillsActivated = skills.map((s) => s.id);
     const skillsBlock = await buildSkillsContextBlock(skills);
 
-    // 7. Geração de ativos — Camada 2 (prompt caching)
+    // 7. Geração de ativos — Camada 2 (prompt caching + RAG do perfil)
     tokenReport.smartTierCalls++;
+    const retrieve =
+      deps.retriever ??
+      ((chunks: ProfileChunk[], keywords: string[], jobText: string) =>
+        Promise.resolve(retrieveRelevant(chunks, { keywords, jobText })));
+    const relevantChunks = await retrieve(
+      chunkProfile(profile),
+      triage.matchedKeywords,
+      markdown,
+    );
     const assets = await tailorResume(
       {
         job: {
@@ -184,6 +218,7 @@ export async function runApplicationPipeline(
         triage,
         skillsBlock,
         profile,
+        profileContext: buildProfileContext(relevantChunks),
       },
       { model: deps.tailorModel },
     );

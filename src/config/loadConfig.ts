@@ -87,15 +87,30 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
   const env: EnvMap = { ...fileEnv, ...(opts.env ?? process.env) };
 
   const mode = env.EXECUTION_MODE as ExecutionMode | undefined;
+  const lexicalMinTerms = env.LEXICAL_MIN_TERMS
+    ? Number(env.LEXICAL_MIN_TERMS)
+    : defaultCareerOpsConfig.execution.lexicalMinTerms;
+  const embeddingsEnabled =
+    env.AI_EMBEDDINGS_ENABLED === 'true' || env.AI_EMBEDDINGS_ENABLED === '1';
   return {
     ...defaultCareerOpsConfig,
-    execution: mode
-      ? { ...defaultCareerOpsConfig.execution, mode }
-      : defaultCareerOpsConfig.execution,
+    execution: {
+      ...defaultCareerOpsConfig.execution,
+      ...(mode ? { mode } : {}),
+      lexicalMinTerms,
+    },
     ai: {
       local: resolveTier('local', env),
       fast: resolveTier('fast', env),
       smart: resolveTier('smart', env),
+      ...(embeddingsEnabled
+        ? {
+            embeddings: {
+              enabled: true,
+              modelId: env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text',
+            },
+          }
+        : {}),
     },
   };
 }

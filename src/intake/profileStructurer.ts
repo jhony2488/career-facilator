@@ -117,14 +117,33 @@ const ANTI_FABRICATION_RULE =
   `For any absent text field return "${NOT_INFORMED}"; for absent numeric fields return null; ` +
   'for absent lists return []. Never infer, guess or complete missing information.';
 
+/** Esqueleto do schema declarado no prompt — modelos pequenos precisam da forma. */
+const PROFILE_JSON_SKELETON = [
+  'Return a single JSON object with exactly these keys:',
+  'fullName, email, phone, linkedin, github, portfolio, summary (strings);',
+  'coreStack, languages, certifications, blockedKeywords (string arrays);',
+  'seniorityYears, salaryExpectationBRL, salaryExpectationUSD (number or null);',
+  'experiences: [{role, company, period, highlights: [string]}];',
+  'projects: [{name, summary, metrics: [string]}];',
+  'openSourceProjects: [{name, repo, summary, metrics: [string]}];',
+  'education: [{course, institution, period}];',
+  'standardAnswers: {} (string->string map).',
+].join('\n');
+
 /** Estrutura o texto do documento via LLM leve + Zod — só o que consta no doc. */
 export async function structureProfile(
   input: { documentText: string },
   deps: { model: StructurerModel },
 ): Promise<ExtractedProfile> {
-  const prompt = [ANTI_FABRICATION_RULE, '', '<document>', input.documentText, '</document>'].join(
-    '\n',
-  );
+  const prompt = [
+    ANTI_FABRICATION_RULE,
+    '',
+    PROFILE_JSON_SKELETON,
+    '',
+    '<document>',
+    input.documentText,
+    '</document>',
+  ].join('\n');
 
   const raw = await deps.model.generate(prompt);
   return MasterProfileSchema.parse(raw);
