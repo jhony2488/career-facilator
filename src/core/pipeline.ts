@@ -9,13 +9,13 @@ import { decideApplicationRoute } from './autonomyEngine';
 import { matchFields, type InspectedField } from '../autofill/deterministicMatcher';
 import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
 import { detectBlockingSignal, escalate } from './escalationHandler';
-import { resolveRecipient } from '../email_application/recipientResolver';
-import { composeEmail } from '../email_application/emailComposer';
-import {
-  dispatchEmail,
-  type SmtpTransport,
-  type CredentialVault,
+import { applyViaEmail } from '../email_application/emailAppCore';
+import type {
+  SmtpTransport,
+  CredentialVault,
 } from '../email_application/emailDispatcher';
+import { applyViaWhatsapp } from '../whatsapp_application/whatsappAppCore';
+import type { EvolutionTransport } from '../whatsapp_application/evolutionClient';
 import { resolveLocale } from '../geo/localeAdapter';
 import type { JobRepository, JobStatus } from '../db/repository';
 import { resolveHome } from '../config/paths';
@@ -42,7 +42,17 @@ export interface PipelineInput {
 }
 
 export interface PipelineDeps {
-  repo: Pick<JobRepository, 'dedupCheck' | 'recordJob' | 'updateStatus' | 'hasEmailSentTo'>;
+  repo: Pick<
+    JobRepository,
+    | 'dedupCheck'
+    | 'recordJob'
+    | 'updateStatus'
+    | 'hasEmailSentTo'
+    | 'recordEmailApplication'
+    | 'countEmailsSentToday'
+    | 'hasWhatsappSentTo'
+    | 'recordWhatsappApplication'
+  >;
   triageModel: TriageModel;
   tailorModel: TailorModel;
   pageFactory: () => PageStateLike;
@@ -50,6 +60,8 @@ export interface PipelineDeps {
   humanApproval?: (context: { job: RawJobInput; fitScore: number }) => boolean;
   emailTransport?: SmtpTransport;
   vault?: CredentialVault;
+  /** Transporte da Evolution API — só necessário em WHATSAPP_MODE=EVOLUTION_API. */
+  evolutionTransport?: EvolutionTransport;
   /**
    * Retriever de contexto do perfil (RAG). Recebe chunks + query da vaga e
    * devolve os trechos relevantes. Default: retrieveRelevant (léxico, 0 deps).
@@ -176,7 +188,11 @@ export async function runApplicationPipeline(
     // 5. Triagem IA — Camada 1
     tokenReport.triageCalls++;
     const triage: JobTriageResult = await triageJob(
-      { jobText: markdown, profile },
+      {
+        jobText: markdown,
+        profile,
+        targetTitles: config.discovery.targetTitles,
+      },
       { model: deps.triageModel },
     );
     app.fitScore = triage.fitScore;
@@ -278,7 +294,7 @@ export async function runApplicationPipeline(
     const hasWebForm = page.fields.length > 0;
 
     if (!hasWebForm) {
-      await applyViaEmail(
+      await applyViaMessageChannel(
         raw,
         clean.company ?? '',
         clean.title ?? '',
@@ -287,13 +303,17 @@ export async function runApplicationPipeline(
         skills,
         profile,
         config,
+        triage.fitScore,
         app,
         stages,
         deps,
         dryRun,
       );
+      await deps.repo.updateStatus(raw.url, app.status);
       applications.push(app);
-      if (app.status === 'APPLIED_VIA_EMAIL') dailySent++;
+      if (app.status === 'APPLIED_VIA_EMAIL' || app.status === 'APPLIED_VIA_WHATSAPP') {
+        dailySent++;
+      }
       continue;
     }
 
@@ -370,7 +390,12 @@ function detectScope(markdown: string): 'NATIONAL' | 'INTERNATIONAL' {
     : 'INTERNATIONAL';
 }
 
-async function applyViaEmail(
+/**
+ * Canal de mensagem para vagas sem formulário web (docs 11/15): e-mail primeiro
+ * (respeitando o teto diário), depois WhatsApp — qualquer NO_CHANNEL cai para a
+ * próxima opção; sem nenhum canal → NEEDS_HUMAN_INPUT.
+ */
+async function applyViaMessageChannel(
   raw: RawJobInput,
   company: string,
   title: string,
@@ -379,44 +404,79 @@ async function applyViaEmail(
   skills: SkillMetadata[],
   profile: MasterProfileLike,
   config: CareerOpsConfig,
+  fitScore: number,
   app: ApplicationResult,
   stages: JobStatus[],
   deps: PipelineDeps,
   dryRun: boolean,
 ): Promise<void> {
-  const recipient = await resolveRecipient({ descriptionMarkdown: markdown }, { repo: deps.repo });
-  if (!recipient || !deps.emailTransport || !deps.vault) {
-    stages.push('NEEDS_HUMAN_INPUT');
-    Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'NO_CHANNEL' });
-    return;
+  const locale = resolveLocale('INTERNATIONAL', config);
+  const jobId = title || raw.url;
+
+  if (config.email.enabled) {
+    const emailsSentToday = await deps.repo.countEmailsSentToday();
+    if (emailsSentToday >= config.email.maxDailyEmails) {
+      stages.push('DEFERRED');
+      Object.assign(app, { status: 'DEFERRED', reason: 'DAILY_EMAIL_LIMIT' });
+      return;
+    }
+
+    const emailResult = await applyViaEmail(
+      {
+        jobId,
+        descriptionMarkdown: markdown,
+        job: { title, company },
+        profile,
+        skills,
+        resumePath,
+        baseResumePath: resolveHome('storage/master_resume.pdf'),
+        locale,
+        fitScore,
+        dryRun,
+      },
+      {
+        repo: deps.repo,
+        transport: deps.emailTransport,
+        vault: deps.vault,
+        config: config.email,
+      },
+    );
+
+    if (emailResult.reason !== 'NO_CHANNEL') {
+      stages.push(emailResult.status);
+      Object.assign(app, { status: emailResult.status });
+      return;
+    }
+    // NO_CHANNEL → tenta WhatsApp antes de escalar ao humano
   }
 
-  const draft = await composeEmail({
-    job: { title, company },
-    recipient,
-    profile,
-    skills,
-    resumePath,
-    baseResumePath: resolveHome('storage/master_resume.pdf'),
-    locale: resolveLocale('INTERNATIONAL', config),
-  });
+  if (config.whatsapp.enabled) {
+    const waResult = await applyViaWhatsapp(
+      {
+        jobId,
+        descriptionMarkdown: markdown,
+        job: { title, company },
+        profile,
+        skills,
+        resumePath,
+        baseResumePath: resolveHome('storage/master_resume.pdf'),
+        locale,
+        dryRun,
+      },
+      {
+        repo: deps.repo,
+        transport: deps.evolutionTransport,
+        config: config.whatsapp,
+      },
+    );
 
-  if (dryRun) {
-    Object.assign(app, { status: 'DRY_RUN' });
-    return;
+    if (waResult.reason !== 'NO_CHANNEL') {
+      stages.push(waResult.status);
+      Object.assign(app, { status: waResult.status, reason: waResult.reason });
+      return;
+    }
   }
 
-  const dispatched = await dispatchEmail(draft, {
-    transport: deps.emailTransport,
-    vault: deps.vault,
-    config: { dispatchMode: 'AUTO_SEND_HIGH_FIT', smtpCredentialRef: 'smtp-main' },
-  });
-
-  if (dispatched.sent) {
-    stages.push('APPLIED_VIA_EMAIL');
-    Object.assign(app, { status: 'APPLIED_VIA_EMAIL' });
-  } else {
-    stages.push(dispatched.status ?? 'FAILED');
-    Object.assign(app, { status: dispatched.status ?? 'FAILED' });
-  }
+  stages.push('NEEDS_HUMAN_INPUT');
+  Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'NO_CHANNEL' });
 }

@@ -10,6 +10,7 @@ export type JobStatus =
   | 'READY_TO_REVIEW'
   | 'APPLIED'
   | 'APPLIED_VIA_EMAIL'
+  | 'APPLIED_VIA_WHATSAPP'
   | 'NEEDS_HUMAN_INPUT'
   | 'REJECTED'
   | 'ASSESSMENT_INVITED'
@@ -54,7 +55,7 @@ export interface DedupOptions {
 }
 
 const TRACKING_PARAMS = /^(utm_|fbclid|gclid|ref$|ref_|tracking|source$|mc_)/i;
-const APPLIED_STATUSES: JobStatus[] = ['APPLIED', 'APPLIED_VIA_EMAIL'];
+const APPLIED_STATUSES: JobStatus[] = ['APPLIED', 'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP'];
 
 /** Remove parâmetros de rastreamento e normaliza a URL para comparação exata. */
 export function canonicalizeUrl(rawUrl: string): string {
@@ -222,6 +223,78 @@ export class JobRepository {
         input.subject,
         input.attachmentPath ?? null,
         new Date().toISOString(),
+      );
+  }
+
+  /** E-mails efetivamente enviados hoje — base do teto diário (doc 11 §5). */
+  async countEmailsSentToday(): Promise<number> {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM applications
+         WHERE channel = 'EMAIL' AND status = 'APPLIED_VIA_EMAIL'
+           AND date(sent_at) = date('now')`,
+      )
+      .get() as { n: number };
+    return row.n;
+  }
+
+  /** Fila manual de WhatsApp (doc 15): número + mensagem + PDF p/ envio na mão. */
+  async listWhatsappQueue(): Promise<
+    Array<{ jobId: string; recipient: string; subject: string | null; attachmentPath: string | null }>
+  > {
+    const rows = this.db
+      .prepare(
+        `SELECT job_id, recipient, subject, attachment_path FROM applications
+         WHERE channel = 'WHATSAPP' AND status = 'NEEDS_HUMAN_INPUT'
+         ORDER BY created_at ASC`,
+      )
+      .all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      jobId: r.job_id as string,
+      recipient: r.recipient as string,
+      subject: (r.subject as string | null) ?? null,
+      attachmentPath: (r.attachment_path as string | null) ?? null,
+    }));
+  }
+
+  /** Cooldown anti-duplicidade por número de WhatsApp (doc 15). */
+  async hasWhatsappSentTo(number: string, cooldownDays: number): Promise<boolean> {
+    const row = this.db
+      .prepare(
+        `SELECT sent_at FROM applications
+         WHERE recipient = ? AND status = 'APPLIED_VIA_WHATSAPP'
+         ORDER BY sent_at DESC LIMIT 1`,
+      )
+      .get(number) as { sent_at: string } | undefined;
+
+    if (!row?.sent_at) return false;
+    const elapsedMs = Date.now() - new Date(row.sent_at).getTime();
+    return elapsedMs < cooldownDays * 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Registra candidatura via WhatsApp: sent=true após envio pela API;
+   * sent=false marca a fila manual (NEEDS_HUMAN_INPUT) com número + mensagem.
+   */
+  async recordWhatsappApplication(input: {
+    jobId: string;
+    recipient: string;
+    sent: boolean;
+    subject?: string; // mensagem renderizada — guardada para a fila manual
+    attachmentPath?: string;
+  }): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO applications (job_id, status, channel, recipient, subject, attachment_path, sent_at)
+         VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?)`,
+      )
+      .run(
+        input.jobId,
+        input.sent ? 'APPLIED_VIA_WHATSAPP' : 'NEEDS_HUMAN_INPUT',
+        input.recipient,
+        input.subject ?? null,
+        input.attachmentPath ?? null,
+        input.sent ? new Date().toISOString() : null,
       );
   }
 

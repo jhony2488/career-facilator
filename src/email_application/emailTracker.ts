@@ -1,12 +1,20 @@
-import type { JobRepository } from '../db/repository';
 import type { EmailDraft } from './emailComposer';
 
+export interface EmailTrackingRepo {
+  recordEmailApplication(input: {
+    jobId: string;
+    recipient: string;
+    subject: string;
+    attachmentPath?: string;
+  }): Promise<void>;
+}
+
 /**
- * Rastreador de envio e retorno (doc e-mail §3.4): registra destinatário,
+ * Rastreador de envio e retorno (doc 11 §3.4): registra destinatário,
  * assunto, anexo e timestamp no banco local com status APPLIED_VIA_EMAIL.
  */
 export async function trackSentEmail(
-  repo: JobRepository,
+  repo: EmailTrackingRepo,
   jobId: string,
   draft: EmailDraft,
 ): Promise<void> {
