@@ -4,7 +4,7 @@ Sistema autônomo de prospecção, triagem semântica, adaptação de currículo
 
 Versão em português do README. [English version (README-en.md)](README-en.md).
 
-> **Status:** especificação completa + implementação inicial — **44 suites Jest verdes** e client Ollama real funcionando (streaming + JSON estruturado). Automação de browser (Playwright) e SMTP reais ainda não conectados (ver [Limitações atuais](#limitações-atuais)).
+> **Status:** especificação completa + implementação — suites Jest verdes e client Ollama real funcionando (streaming + JSON estruturado). Discovery roda com APIs/RSS públicas; SMTP via nodemailer e WhatsApp via Evolution API conectados; Playwright ainda não conectado (ver [Limitações atuais](#limitações-atuais)).
 
 ## O que é
 
@@ -61,6 +61,10 @@ npm run cli -- import --pdf cv.pdf  # estrutura seu CV via Ollama → profile.dr
 npm run cli -- import --inbox       # processa PDFs pendentes na área de entrada
 npm run cli -- import --inbox --watch  # monitora a pasta: solte um PDF e ele é processado
 npm run cli -- run --jobs-file jobs.json --dry-run   # funil completo (jobs.json = [{url, html}])
+npm run cli -- run                  # sem --jobs-file, executa descoberta nas fontes ativas
+npm run cli -- discover             # lista vagas descobertas (dry-run lista fontes ativas)
+npm run cli -- discover --max-jobs 10 --sources remoteok,remotive  # descoberta filtrada
+npm run cli -- scan remoteok        # testa uma única fonte e imprime amostras
 npm run cli -- approve              # promove o rascunho de perfil a profile.master.md
 npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW + fila WhatsApp
 npm run cli -- status               # contagens por status no jobs.sqlite
@@ -146,6 +150,7 @@ CareerFacilator/
 ├── src/
 │   ├── intake/      # Ingestão de perfil: PDF → estruturação → master.md (doc 13)
 │   ├── ai/          # Router de tiers, triage, tailorer (prompt cache), token tracker
+│   ├── discovery/   # registry, sourceRegistry, adapters, engine (APIs/RSS públicos)
 │   ├── scraper/     # domCleaner, sessionVault (AES-256-GCM)
 │   ├── geo/         # dorkBuilder, eligibilityGuard, localeAdapter
 │   ├── skills/      # core (registry/selector/injector) + library/ (SKILL.md + keywords.json)
@@ -158,9 +163,9 @@ CareerFacilator/
 │   ├── tracker/     # outcomeMonitor
 │   ├── generator/   # resumeBuilder
 │   ├── config/      # careerOps.config + loadConfig + paths/envFile (.env, CAREER_HOME)
-│   └── cli/         # entrypoint — shell interativo + comandos (import/run/review/status/config)
+│   └── cli/         # entrypoint — shell interativo + comandos (import/run/discover/scan/review/status/config)
 ├── bin/career.cjs   # wrapper p/ CLI global (npm link → career)
-├── __tests__/       # 44 suites Jest (contratos em helpers/contracts.ts)
+├── __tests__/       # suites Jest (contratos em helpers/contracts.ts)
 ├── CONTRIBUTING.md  # Guia de contribuição (PT-BR) — CONTRIBUTING.en.md (EN)
 └── AGENTS.md        # Guia para agentes de IA neste repo
 ```
@@ -181,10 +186,10 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, s
 ## Limitações atuais
 
 - **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
-- **Discovery/browser**: `run` consome `jobs.json` (`[{url, html}]`); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
+- **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão e ainda aceita `jobs.json` (`[{url, html}]`) via `--jobs-file`; scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
 - **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
 
 ## Próximos passos
 
-Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — próxima etapa: adapter de nuvem (Groq/Anthropic), discovery com Playwright e nodemailer real.
+Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`); próximas etapas: adapters ATS/HTML/LinkedIn autenticado e busca orgânica.

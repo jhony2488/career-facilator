@@ -37,6 +37,15 @@ Before spending a single AI token, the repository (`src/db/repository.ts`) block
 - **History Recording:** As soon as the application is sent (or skipped due to low Fit Score), SQLite records the date, URL, hash, exact version of the submitted PDF, activated skills and status (`APPLIED`, `SKIPPED`, `INTERVIEW`, `REJECTED`).
 - **Visual Detection on the Page:** In addition to the local database, if the scraper opens a job on LinkedIn or Gupy and detects native platform elements such as "application submitted 2 days ago", it automatically syncs the status to `APPLIED` in the database and aborts the flow.
 
+## 4. Implemented sources and commands
+
+- **Public JSON APIs (enabled):** `remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, plus `weworkremotely` (RSS). They run through `src/discovery/adapters/apiAdapter.ts`/`rssAdapter.ts` and produce `RawJobInput` (`{url, html}`) for the pipeline.
+- **Source registry:** `src/discovery/registry.ts` records 100+ sources/ATS/job boards; `getActiveSources` in `src/discovery/sourceRegistry.ts` applies `DISCOVERY_*` env filters (allowlist, exclusion, regions, work models, risky/auth).
+- **CLI:** `career run` (no `--jobs-file`) executes discovery; `career discover [--sources id1,id2] [--max-jobs N] [--export out.json]` lists or exports jobs; `career scan <source-id> [--max-jobs N]` tests one source. `--dry-run` on `discover` lists active sources without fetching.
+- **Error isolation:** a failing source returns a `DiscoveryError` and the engine continues with the others; if all fail it alerts and stops without touching the AI tiers.
+- **Limits/rate:** `DISCOVERY_MAX_JOBS_PER_SOURCE`, `DISCOVERY_CONCURRENCY`, `DISCOVERY_PER_DOMAIN_DELAY_MS`, `MAX_JOBS_PER_RUN` (global).
+- **Not implemented yet:** ATS company boards (Greenhouse/Lever/Gupy slugs), generic HTML scrapers, LinkedIn/authenticated session, and search-engine dorks are registered but return a `not implemented` error until adapters are added.
+
 ---
 
 « [Previous: Dynamic Skills](05-dynamic-skills.md) | [Index](README.md) | [Next: Application Modes →](07-application-modes.md)
