@@ -118,30 +118,42 @@ export function createModelClients(
     const messages: OllamaMessage[] = [{ role: 'user', content: prompt }];
     const call = callOptions(env, extra.numPredict);
     const t0 = Date.now();
-    const content = await client.chat(modelId, messages, {
-      format: extra.format,
-      options: call.options,
-      timeoutMs: call.timeoutMs,
-      signal: opts.signal,
-      think: env.AI_THINK_ENABLED === 'true' || opts.onThought !== undefined,
-      onToken: opts.onToken,
-      onThought: opts.onThought,
-      onDone: (s) => {
-        const durationMs = s.totalDurationMs ?? Date.now() - t0;
-        const evalMs = s.evalDurationMs;
-        opts.onStage?.({
-          stage: stage ?? 'triage',
-          provider,
-          modelId,
-          durationMs,
-          loadDurationMs: s.loadDurationMs,
-          promptTokens: s.promptTokens,
-          outputTokens: s.outputTokens,
-          tokensPerSecond:
-            evalMs && s.outputTokens ? Math.round(s.outputTokens / (evalMs / 1000)) : undefined,
-        });
-      },
-    });
+    // think só se o modelo suportar (capabilities do /api/show); capacidade
+    // desconhecida (lista vazia) → tenta otimista e faz retry sem think no
+    // 400 "does not support thinking" que o Ollama devolve.
+    const wantThink = env.AI_THINK_ENABLED === 'true' || opts.onThought !== undefined;
+    const caps = wantThink ? await client.capabilities(modelId) : [];
+    const think = wantThink && (caps.length === 0 || caps.includes('thinking'));
+    const doChat = (useThink: boolean) =>
+      client.chat(modelId, messages, {
+        format: extra.format,
+        options: call.options,
+        timeoutMs: call.timeoutMs,
+        signal: opts.signal,
+        think: useThink,
+        onToken: opts.onToken,
+        onThought: useThink ? opts.onThought : undefined,
+        onDone: (s) => {
+          const durationMs = s.totalDurationMs ?? Date.now() - t0;
+          const evalMs = s.evalDurationMs;
+          opts.onStage?.({
+            stage: stage ?? 'triage',
+            provider,
+            modelId,
+            durationMs,
+            loadDurationMs: s.loadDurationMs,
+            promptTokens: s.promptTokens,
+            outputTokens: s.outputTokens,
+            tokensPerSecond:
+              evalMs && s.outputTokens ? Math.round(s.outputTokens / (evalMs / 1000)) : undefined,
+          });
+        },
+      });
+    const content = await doChat(think).catch((err) =>
+      think && err instanceof Error && err.message.includes('does not support thinking')
+        ? doChat(false)
+        : Promise.reject(err),
+    );
     return content;
   };
 

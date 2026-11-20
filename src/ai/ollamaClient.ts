@@ -48,6 +48,11 @@ export interface OllamaClient {
   listModels(): Promise<string[]>;
   /** Nomes dos modelos atualmente carregados em RAM/VRAM (GET /api/ps). */
   listLoadedModels(): Promise<string[]>;
+  /**
+   * Capacidades do modelo (POST /api/show) — 'thinking', 'tools', 'vision'…
+   * Array vazio = não foi possível consultar (versão antiga/offline).
+   */
+  capabilities(model: string): Promise<string[]>;
 }
 
 export interface OllamaClientDeps {
@@ -152,12 +157,36 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
   }
 
+  const capsCache = new Map<string, string[]>();
+  async function capabilities(model: string): Promise<string[]> {
+    const cached = capsCache.get(model);
+    if (cached) return cached;
+    let caps: string[] = [];
+    try {
+      const res = await fetchImpl(`${baseUrl}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { capabilities?: string[] };
+        caps = data.capabilities ?? [];
+      }
+    } catch {
+      // desconhecido — o consumidor decide entre otimista ou conservador
+    }
+    capsCache.set(model, caps);
+    return caps;
+  }
+
   return {
     chat,
     embed,
     isReachable,
     listModels: () => modelNames('/api/tags'),
     listLoadedModels: () => modelNames('/api/ps'),
+    capabilities,
   };
 }
 
