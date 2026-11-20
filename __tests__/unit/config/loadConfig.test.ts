@@ -1,6 +1,6 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import {
   loadCareerOpsConfig,
   parseEnvFile,
@@ -60,6 +60,37 @@ describe('loadCareerOpsConfig — resolução de modelos via env', () => {
   it('EXECUTION_MODE sobrescreve o modo padrão', () => {
     const cfg = loadCareerOpsConfig({ env: { EXECUTION_MODE: 'FULL_AUTO' }, envFile: '' });
     expect(cfg.execution.mode).toBe('FULL_AUTO');
+  });
+});
+
+describe('loadCareerOpsConfig — diretório de dados (CLI global)', () => {
+  const home = resolve('/cfhome'); // absoluto nesta máquina
+
+  it('CAREER_HOME direciona os paths de perfil/storage', () => {
+    const cfg = loadCareerOpsConfig({ env: { CAREER_HOME: home }, envFile: '' });
+    expect(cfg.profile.inboxDir).toBe(join(home, 'storage/profile_inbox/'));
+    expect(cfg.profile.masterPath).toBe(join(home, 'src/config/profile.master.md'));
+  });
+
+  it('PROFILE_*_PATH sobrescreve paths individuais', () => {
+    const masterAbs = resolve('/fora/master.md');
+    const cfg = loadCareerOpsConfig({
+      env: { CAREER_HOME: home, PROFILE_MASTER_PATH: masterAbs },
+      envFile: '',
+    });
+    expect(cfg.profile.masterPath).toBe(masterAbs);
+    expect(cfg.profile.inboxDir).toBe(join(home, 'storage/profile_inbox/'));
+  });
+
+  it('.env do home é lido e o arquivo local sobrepõe', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cf-home-'));
+    writeFileSync(join(dir, '.env'), 'AI_LOCAL_MODEL=modelo-do-home\n');
+    const local = join(dir, 'local.env');
+    writeFileSync(local, 'AI_FAST_MODEL=modelo-do-local\n');
+    const cfg = loadCareerOpsConfig({ env: { CAREER_HOME: dir }, envFile: local });
+    expect(cfg.ai.local.modelId).toBe('modelo-do-home');
+    expect(cfg.ai.fast.modelId).toBe('modelo-do-local');
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 
