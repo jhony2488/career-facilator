@@ -305,6 +305,15 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
       model: clients.structurerModel,
       store,
       scanner: { listPendingPdfs, moveToProcessed },
+      // auditoria: o texto extraído que a IA de fato viu (anti-hallucination aid)
+      onExtracted: (text: string, sourcePath?: string) => {
+        if (!sourcePath) return;
+        const dir = join(dirname(cfg.inboxDir), 'profile_extracts');
+        const out = join(dir, `${basename(sourcePath).replace(/\.pdf$/i, '')}.txt`);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(out, text, 'utf-8');
+        console.log(`  texto extraído → ${out}`);
+      },
       onFile: (p: string) => {
         if (signal?.aborted) throw abortError();
         console.log(`Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId}…`);

@@ -58,6 +58,7 @@ export function compileMasterProfile(markdown: string): CompileResult {
     linkedin: clean(personal['linkedin']),
     github: clean(personal['github']),
     portfolio: clean(personal['portfólio'] ?? personal['portfolio']),
+    location: clean(personal['localização'] ?? personal['location'] ?? personal['cidade']),
     summary: clean(section(markdown, /## Resumo\b/i).split('\n')[0]),
     seniorityYears: parseNumber(
       skillsBullets['anos de experiência'] ?? skillsBullets['anos de experiencia'],

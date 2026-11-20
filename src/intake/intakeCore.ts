@@ -19,6 +19,8 @@ export interface ImportResumeDeps {
   reader: PdfReader;
   model: StructurerModel;
   store: MasterProfileStore;
+  /** Opcional: recebe o texto extraído (auditoria/depuração — o que a IA viu). */
+  onExtracted?: (text: string, sourcePath?: string) => void;
 }
 
 export interface ImportResumeResult {
@@ -60,6 +62,7 @@ export async function importResume(
   deps: ImportResumeDeps,
 ): Promise<ImportResumeResult> {
   const extraction = await extractPdfText(input.file, { reader: deps.reader });
+  deps.onExtracted?.(extraction.text, input.file.path);
 
   if (!extraction.hasTextLayer) {
     return {

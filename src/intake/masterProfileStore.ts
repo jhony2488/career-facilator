@@ -21,7 +21,9 @@ export interface PromoteResult {
 
 type AnyProfile = ExtractedProfile | MasterProfile;
 
-type ScalarField = 'fullName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio' | 'summary';
+type ScalarField =
+  | 'fullName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio'
+  | 'location' | 'summary';
 type NumericField = 'seniorityYears' | 'salaryExpectationBRL' | 'salaryExpectationUSD';
 
 /**
@@ -111,6 +113,7 @@ export function mergeProfiles(
     linkedin: scalar('linkedin'),
     github: scalar('github'),
     portfolio: scalar('portfolio'),
+    location: scalar('location'),
     summary: scalar('summary'),
     seniorityYears: numeric('seniorityYears'),
     salaryExpectationBRL: numeric('salaryExpectationBRL'),
@@ -189,6 +192,7 @@ export function profileToMarkdown(profile: AnyProfile): string {
     `- LinkedIn: ${fmt(profile.linkedin)}`,
     `- GitHub: ${fmt(profile.github)}`,
     `- Portfólio: ${fmt(profile.portfolio)}`,
+    `- Localização: ${fmt(profile.location)}`,
     `- Pretensão salarial: ${salary}`,
     '',
     '## Resumo',

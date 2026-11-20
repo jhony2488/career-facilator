@@ -44,13 +44,14 @@ describe('createModelClients — provider ollama', () => {
       ((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body) as string,
     );
     expect(body.model).toBe('hermes3:latest');
-    expect(body.format).toBe('json');
+    // structured output: o JSON Schema do JobTriageSchema vai em format
+    expect(body.format.properties.fitScore).toMatchObject({ type: 'number' });
   });
 
   it('structurerModel: returns profile validated by MasterProfileSchema', async () => {
     const profileJson = JSON.stringify({
       fullName: 'Ana', email: 'a@b.c', phone: 'n', linkedin: 'n', github: 'n',
-      portfolio: 'n', summary: 'n', coreStack: ['ts'], seniorityYears: 5,
+      portfolio: 'n', location: 'n', summary: 'n', coreStack: ['ts'], seniorityYears: 5,
       experiences: [], projects: [], openSourceProjects: [], education: [],
       languages: ['pt'], certifications: [], blockedKeywords: [],
       standardAnswers: {}, salaryExpectationBRL: null, salaryExpectationUSD: null,
