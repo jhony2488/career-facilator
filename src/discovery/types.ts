@@ -34,6 +34,21 @@ export interface JobSource {
   notes?: string;
 }
 
+export interface ExtractedJob {
+  title: string;
+  url: string;
+  company?: string;
+  location?: string;
+  description?: string;
+}
+
+/** Extrator genérico (LLM) de páginas de listagem sem API/RSS. */
+export type GenericExtractor = (
+  html: string,
+  pageUrl: string,
+  maxJobs: number,
+) => Promise<ExtractedJob[]>;
+
 export interface DiscoveryOptions {
   config: CareerOpsConfig;
   /** IDs específicos para executar. Se vazio, sourceRegistry aplica filtros de config. */
@@ -42,6 +57,8 @@ export interface DiscoveryOptions {
   maxJobs?: number;
   /** Sinal para cancelamento. */
   signal?: AbortSignal;
+  /** Extrator LLM para fontes html sem adapter específico (fallback genérico). */
+  extract?: GenericExtractor;
 }
 
 export interface DiscoveryJob {
@@ -78,6 +95,8 @@ export interface SourceAdapterContext {
   signal?: AbortSignal;
   /** Número máximo de vagas a coletar desta fonte. */
   maxJobs: number;
+  /** Extrator LLM disponível quando o fallback genérico está habilitado. */
+  extract?: GenericExtractor;
 }
 
 export interface SourceAdapter {

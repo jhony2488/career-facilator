@@ -39,6 +39,7 @@ import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
 import { createSemanticTitleMatcher } from '../core/titleMatcher';
 import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
+import { createGenericExtractor } from '../discovery/genericExtractor';
 import { getActiveSources, listSources } from '../discovery/sourceRegistry';
 import { FileCredentialVault } from '../email_application/credentialVault';
 import { createSmtpTransport } from '../email_application/smtpTransport';
@@ -452,7 +453,13 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     }[];
   } else {
     console.log('Nenhum --jobs-file informado — iniciando descoberta de vagas…');
-    const discovery = await discoverJobs({ config, signal, maxJobs, sourceIds });
+    const discovery = await discoverJobs({
+      config,
+      signal,
+      maxJobs,
+      sourceIds,
+      extract: buildDiscoveryExtractor(signal),
+    });
     if (discovery.errors.length) {
       for (const e of discovery.errors) {
         console.log(`  [${e.sourceId}] ${e.message}`);
@@ -566,6 +573,27 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   );
 }
 
+/**
+ * Fallback genérico por LLM: cria o extrator só quando habilitado
+ * (DISCOVERY_USE_GENERIC_FALLBACK) e loga qual modelo foi resolvido —
+ * DISCOVERY_GENERIC_MODEL explícito ou herança do tier LOCAL (AI_LOCAL_*).
+ */
+function buildDiscoveryExtractor(signal?: AbortSignal) {
+  if (!config.discovery.useGenericHtmlFallback) return undefined;
+  const res = createGenericExtractor(config, { env: effEnv.env, signal });
+  if (!res) return undefined;
+  if ('error' in res) {
+    console.log(`⚠ Fallback genérico desativado — ${res.error}`);
+    return undefined;
+  }
+  const inherited = !config.discovery.genericExtractionModel?.trim();
+  console.log(
+    `Fallback genérico (HTML+LLM): ollama/${res.modelId}` +
+      (inherited ? ' — herdado de AI_LOCAL_*' : ' — DISCOVERY_GENERIC_MODEL'),
+  );
+  return res.extract;
+}
+
 async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
   const sourcesIdx = args.indexOf('--sources');
   const sourceIds =
@@ -596,7 +624,13 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
   }
 
   console.log('Descobrindo vagas…');
-  const discovery = await discoverJobs({ config, signal: ctx.signal, maxJobs, sourceIds });
+  const discovery = await discoverJobs({
+    config,
+    signal: ctx.signal,
+    maxJobs,
+    sourceIds,
+    extract: buildDiscoveryExtractor(ctx.signal),
+  });
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
   }
@@ -609,7 +643,11 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
     console.log(`  ${j.sourceId.padEnd(20)} ${j.raw.url}`);
   }
   if (exportPath) {
-    writeFileSync(resolve(exportPath), JSON.stringify(toRawJobInputs(discovery.jobs), null, 2), 'utf8');
+    writeFileSync(
+      resolve(exportPath),
+      JSON.stringify(toRawJobInputs(discovery.jobs), null, 2),
+      'utf8',
+    );
     console.log(`Exportado → ${exportPath}`);
   }
 }
@@ -635,6 +673,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
     signal: ctx.signal,
     maxJobs,
     sourceIds: [sourceId],
+    extract: buildDiscoveryExtractor(ctx.signal),
   });
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);

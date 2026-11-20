@@ -81,6 +81,7 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
             fetcher,
             signal: opts.signal,
             maxJobs: Math.min(perSourceMax, remaining),
+            extract: opts.extract,
           });
           return { sourceId: source.id, jobs: result.jobs, errors: result.errors };
         } catch (e) {
