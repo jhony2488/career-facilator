@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { SCHEMA_SQL } from './schema';
 
@@ -81,10 +81,10 @@ export function contentHashOf(company: string, title: string, descriptionMarkdow
 }
 
 export class JobRepository {
-  private db: Database.Database;
+  private db: DatabaseSync;
 
   constructor(dbPath: string = ':memory:') {
-    this.db = new Database(dbPath);
+    this.db = new DatabaseSync(dbPath);
     this.db.exec(SCHEMA_SQL);
   }
 

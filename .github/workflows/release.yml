@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Versão do release (ex: v0.1.0)'
+        required: false
+        default: 'dev'
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: career-windows-x64.exe
+            node-bin: node.exe
+          - os: macos-latest
+            asset: career-macos-arm64
+            node-bin: node
+          - os: ubuntu-latest
+            asset: career-linux-x64
+            node-bin: node
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+      - run: npm run test:unit
+
+      - name: Bundle + SEA blob
+        run: npm run build:exe
+        env:
+          CAREER_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.tag || 'dev' }}
+
+      - name: Inject blob into binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item (Get-Command node).Source ${{ matrix.asset }}
+          npx postject ${{ matrix.asset }} NODE_SEA_BLOB dist/bundle/sea-prep.blob `
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Inject blob into binary (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cp "$(which node)" ${{ matrix.asset }}
+          chmod +x ${{ matrix.asset }}
+          npx postject ${{ matrix.asset }} NODE_SEA_BLOB dist/bundle/sea-prep.blob \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
+            --macho-segment-name NODE_SEA
+          codesign --remove-signature ${{ matrix.asset }} || true
+          codesign --sign - ${{ matrix.asset }} || true
+
+      - name: Inject blob into binary (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp "$(which node)" ${{ matrix.asset }}
+          chmod +x ${{ matrix.asset }}
+          npx postject ${{ matrix.asset }} NODE_SEA_BLOB dist/bundle/sea-prep.blob \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Smoke test binary
+        shell: bash
+        run: |
+          VERSION=$(./${{ matrix.asset }} --version)
+          echo "Binary version: $VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist-release
+
+      - name: Checksums
+        run: |
+          cd dist-release
+          sha256sum career-* > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-release/*
+          generate_release_notes: true
+          body: |
+            Executáveis single-file do CareerFacilator AI — sem Node.js necessário.
+
+            **Instalação**
+            - Windows: `career-windows-x64.exe` — o SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"
+            - macOS: `career-macos-arm64` — `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper)
+            - Linux: `career-linux-x64` — `chmod +x`
+
+            **Configuração:** `career config init` cria `~/.careerfacilator/.env`; ou coloque um `.env` com `CAREER_HOME=.` ao lado do executável para dados portáteis. Biblioteca de skills: copie `src/skills/library/` para `skills/` ao lado do executável.
+
+            **Limitação do binário:** extração de PDF usa o modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam; os demais seguem pelo fluxo npm com `pdf-parse`.
