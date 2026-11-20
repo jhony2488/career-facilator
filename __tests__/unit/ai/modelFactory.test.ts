@@ -126,6 +126,24 @@ describe('createModelClients — provider ollama', () => {
   });
 });
 
+describe('createModelClients — overrides de routing (fallback do preflight)', () => {
+  it('override.smart troca provider/modelo do adapter', async () => {
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse(JSON.stringify({ resumeMarkdown: '# x', answers: {} })),
+    );
+    const clients = createModelClients(ollamaConfig(), {
+      ollama: { fetchImpl },
+      overrides: {
+        smart: { provider: 'ollama', modelId: 'llama3.2:3b', baseUrl: 'http://gpu:11434' },
+      },
+    });
+    await clients.tailorModel.tailor('x');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://gpu:11434/api/chat');
+    expect(JSON.parse(init.body as string).model).toBe('llama3.2:3b');
+  });
+});
+
 describe('createModelClients — non-ollama provider', () => {
   it('adapter rejects with clear ProviderNotImplementedError', async () => {
     const config = loadCareerOpsConfig({

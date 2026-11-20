@@ -32,7 +32,9 @@ import {
   ProviderNotImplementedError,
   type ModelCallStats,
 } from '../ai/modelFactory';
+import { checkProviders, type ProviderCheckResult, type TierKey } from '../ai/preflight';
 import { createOllamaClient } from '../ai/ollamaClient';
+import type { ModelRouting } from '../config/careerOps.config';
 import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
@@ -49,7 +51,14 @@ const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', ef
 const USAGE =
   'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
   'run --jobs-file <json> [--dry-run] [--verbose] | review | approve | status | ' +
-  'config [path|init|get|set|unset] | exit';
+  'config [path|init|get|set|unset|check] | exit';
+
+/** Contexto de execução de um comando — cancelamento + perguntas interativas. */
+interface CmdCtx {
+  signal?: AbortSignal;
+  /** Só no REPL: pergunta sim/não ao usuário. */
+  ask?: (question: string) => Promise<string>;
+}
 
 /** Template mínimo gravado por `config init` — sem chaves reais. */
 const ENV_TEMPLATE = `# CareerFacilator AI — configuração global (gerada por 'config init')
@@ -75,6 +84,19 @@ const isAbortError = (err: unknown): boolean =>
 
 const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
 
+/**
+ * Recursos que seguram o processo vivo (fs.watch etc.) — precisam de dispose
+ * explícito pra Ctrl+C/exit realmente encerrar tudo.
+ */
+const cleanups = new Set<() => void>();
+const registerCleanup = (cb: () => void): void => { cleanups.add(cb); };
+const runCleanups = (): void => {
+  for (const cb of cleanups) {
+    try { cb(); } catch { /* best-effort */ }
+  }
+  cleanups.clear();
+};
+
 /** Stream de tokens no terminal apenas quando --verbose. */
 const streamTokens = (args: string[]) =>
   args.includes('--verbose') ? (t: string) => process.stdout.write(t) : undefined;
@@ -94,6 +116,12 @@ const dotsTokens = (() => {
 /** Callback de tokens: --verbose mostra o stream; sem ele, pontinhos de progresso. */
 const tokenSink = (args: string[]) => streamTokens(args) ?? dotsTokens;
 
+/** Raciocínio do modelo em cinza (dim) — --thinking ou AI_THINK_ENABLED=true. */
+const thoughtSink = (args: string[]) =>
+  args.includes('--thinking') || effEnv.env.AI_THINK_ENABLED === 'true'
+    ? (t: string) => process.stdout.write(`\x1b[2m${t}\x1b[0m`)
+    : undefined;
+
 /** Linha de métricas ao fim de cada chamada de modelo (provider-agnóstico). */
 const onStage = (s: ModelCallStats): void => {
   const secs = s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : '?';
@@ -103,21 +131,114 @@ const onStage = (s: ModelCallStats): void => {
   console.log(`\n  ✓ ${s.stage} (${s.provider}/${s.modelId}) ${secs}${toks}${tps}${load}`);
 };
 
-async function requireOllama(baseUrl: string | undefined, modelId: string): Promise<void> {
-  const probe = createOllamaClient({ baseUrl });
-  if (!(await probe.isReachable())) {
-    throw new CliError(
-      `Ollama offline em ${baseUrl ?? 'http://localhost:11434'}. ` +
-        `Rode 'ollama serve' e 'ollama pull ${modelId}'.`,
-    );
+const fmtRouting = (r: ModelRouting): string =>
+  `${r.provider}/${r.modelId}${r.baseUrl ? ` @ ${r.baseUrl.replace(/^https?:\/\//, '')}` : ''}`;
+
+/** Linha de status de um resultado de preflight. */
+function printCheck(r: ProviderCheckResult): void {
+  const ms = r.latencyMs ? ` (${r.latencyMs}ms)` : '';
+  const adapter = r.adapterImplemented ? '' : ' — geração: adapter ainda não implementado';
+  if (r.status === 'ok') {
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — OK${ms}${adapter}`);
+  } else if (r.status === 'skipped') {
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — pulado (${r.detail ?? ''})`);
+  } else {
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — FALHOU — ${r.detail ?? r.status}`);
   }
-  const installed = await probe.listModels();
-  const wanted = modelId.includes(':') ? modelId : `${modelId}:latest`;
-  if (installed.length && !installed.some((m) => m === wanted || m === modelId)) {
-    throw new CliError(
-      `Modelo '${wanted}' não baixado em ${baseUrl ?? 'localhost:11434'}. ` +
-        `Rode 'ollama pull ${wanted}'. Instalados: ${installed.join(', ')}`,
+}
+
+/**
+ * Preflight dos tiers usados pelo comando: testa endpoint+modelo e resolve
+ * fallback. No REPL pergunta antes de trocar; fora dele falha com dica.
+ * Retorna overrides de routing p/ createModelClients.
+ */
+async function requireAiReady(
+  tiers: TierKey[],
+  ctx: CmdCtx,
+): Promise<Partial<Record<TierKey, ModelRouting>>> {
+  console.log('Verificando provedores de IA…');
+  const results = await checkProviders(config, tiers, {
+    env: effEnv.env,
+    signal: ctx.signal,
+  });
+  const overrides: Partial<Record<TierKey, ModelRouting>> = {};
+
+  for (const r of results) {
+    if (r.status === 'ok' || r.status === 'skipped') {
+      printCheck(r);
+      continue;
+    }
+
+    const fallback = r.routing.fallback;
+    if (!fallback || fallback === 'off') {
+      printCheck(r);
+      throw new CliError(
+        `${r.tier.toUpperCase()} (${fmtRouting(r.routing)}) falhou: ${r.detail ?? r.status}. ` +
+          `Ajuste AI_${r.tier.toUpperCase()}_PROVIDER/MODEL ou configure AI_${r.tier.toUpperCase()}_FALLBACK.`,
+      );
+    }
+
+    // Confere o fallback antes de oferecer — não adianta sugerir um quebrado.
+    const fbCheck = await checkProviders(
+      { ...config, ai: { ...config.ai, [r.tier]: fallback } },
+      [r.tier],
+      { env: effEnv.env, signal: ctx.signal },
     );
+    printCheck(r);
+    if (fbCheck[0].status !== 'ok') {
+      throw new CliError(
+        `${r.tier.toUpperCase()} falhou (${r.detail}) e o fallback ${fmtRouting(fallback)} ` +
+          `também (${fbCheck[0].detail ?? fbCheck[0].status}). Corrija o .env.`,
+      );
+    }
+
+    const question = `  ⚠ Usar fallback ${fmtRouting(fallback)}? [s/N] `;
+    if (!ctx.ask || !(await ctx.ask(question)).trim().toLowerCase().startsWith('s')) {
+      throw new CliError(
+        `${r.tier.toUpperCase()} (${fmtRouting(r.routing)}) falhou: ${r.detail ?? r.status}. ` +
+          `Fallback disponível: ${fmtRouting(fallback)} — rode no shell interativo p/ escolher, ` +
+          `ou ajuste AI_${r.tier.toUpperCase()}_PROVIDER/MODEL no .env.`,
+      );
+    }
+    overrides[r.tier] = fallback;
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} → usando ${fmtRouting(fallback)}`);
+  }
+
+  // Modelo ollama já quente? Se não, aquece agora (visível) em vez de a 1ª
+  // chamada real travar em silêncio.
+  for (const tier of tiers) {
+    const routing = overrides[tier] ?? config.ai[tier];
+    if (routing.provider === 'ollama') {
+      await warmOllamaIfNeeded(routing, ctx.signal);
+    }
+  }
+  return overrides;
+}
+
+/** Verifica /api/ps; se o modelo não estiver na RAM, dispara 1 token p/ carregá-lo. */
+async function warmOllamaIfNeeded(routing: ModelRouting, signal?: AbortSignal): Promise<void> {
+  const client = createOllamaClient({
+    baseUrl: routing.baseUrl,
+    keepAlive: effEnv.env.OLLAMA_KEEP_ALIVE,
+  });
+  const loaded = await client.listLoadedModels();
+  const wanted = routing.modelId.includes(':') ? routing.modelId : `${routing.modelId}:latest`;
+  if (loaded.some((m) => m === wanted || m === routing.modelId)) {
+    console.log(`  ${routing.modelId} já quente (carregado em RAM)`);
+    return;
+  }
+  process.stdout.write(`  Aquecendo ${routing.modelId}…`);
+  try {
+    await client.chat(routing.modelId, [{ role: 'user', content: 'ok' }], {
+      options: { num_predict: 1 },
+      timeoutMs: 120_000,
+      signal,
+    });
+    console.log(' pronto');
+  } catch (err) {
+    // warmup é best-effort — se falhar, a chamada real carrega o modelo do mesmo jeito
+    if (isAbortError(err)) throw err;
+    console.log(` falhou (será carregado na 1ª chamada)`);
   }
 }
 
@@ -147,7 +268,7 @@ function printImportResult(result: InboxItemResult): void {
   }
 }
 
-async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
+async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
   const useInbox = args.includes('--inbox');
   const watch = args.includes('--watch');
   const pdfIdx = args.indexOf('--pdf');
@@ -156,13 +277,18 @@ async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
     throw new CliError('Uso: import --pdf <caminho> | import --inbox [--watch]');
   }
   const mode = args.includes('--replace') ? 'REPLACE' : 'MERGE';
+  const { signal } = ctx;
 
-  const { smart } = config.ai;
-  if (smart.provider === 'ollama') await requireOllama(smart.baseUrl, smart.modelId);
+  const overrides = await requireAiReady(['smart'], ctx);
+  const smart = overrides.smart ?? config.ai.smart;
 
   let clients;
   try {
-    clients = createModelClients(config, { onToken: tokenSink(args), onStage, signal });
+    clients = createModelClients(
+      config,
+      { onToken: tokenSink(args), onThought: thoughtSink(args), onStage, signal, overrides },
+      effEnv.env,
+    );
   } catch (err) {
     throw new CliError(err instanceof Error ? err.message : String(err));
   }
@@ -181,10 +307,7 @@ async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
       scanner: { listPendingPdfs, moveToProcessed },
       onFile: (p: string) => {
         if (signal?.aborted) throw abortError();
-        console.log(
-          `Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId} ` +
-            `(1ª chamada carrega o modelo — pode demorar)…`,
-        );
+        console.log(`Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId}…`);
       },
     };
     const sweep = async () => {
@@ -214,11 +337,16 @@ async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
           500,
         );
       });
-      signal?.addEventListener('abort', () => {
+      const dispose = () => {
         clearTimeout(debounce);
         watcher.close();
+      };
+      signal?.addEventListener('abort', () => {
+        dispose();
+        cleanups.delete(dispose);
         console.log('\nMonitoramento interrompido (Ctrl+C).');
       });
+      registerCleanup(dispose);
       return; // watch fica ativo em background (no shell, o prompt continua livre)
     }
     return;
@@ -241,7 +369,8 @@ async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
   }
 }
 
-async function cmdRun(args: string[], signal?: AbortSignal): Promise<void> {
+async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
+  const { signal } = ctx;
   const fileIdx = args.indexOf('--jobs-file');
   const jobsPath =
     fileIdx === -1 ? args.find((a) => !a.startsWith('-')) : args[fileIdx + 1];
@@ -267,11 +396,13 @@ async function cmdRun(args: string[], signal?: AbortSignal): Promise<void> {
   }[];
   const profile = loadMasterProfile();
 
-  if (config.ai.local.provider === 'ollama') {
-    await requireOllama(config.ai.local.baseUrl, config.ai.local.modelId);
-  }
+  const overrides = await requireAiReady(['local', 'smart'], ctx);
 
-  const clients = createModelClients(config, { onToken: tokenSink(args), onStage, signal });
+  const clients = createModelClients(
+    config,
+    { onToken: tokenSink(args), onThought: thoughtSink(args), onStage, signal, overrides },
+    effEnv.env,
+  );
   const embedder = createEmbedder(config);
   const skills = await loadSkillRegistry(join(packageRoot, 'src/skills/library')).catch(() => []);
   const repo = openRepo();
@@ -363,9 +494,25 @@ async function cmdStatus(): Promise<void> {
   }
 }
 
-function cmdConfig(args: string[]): void {
+async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
   const [sub, key, ...rest] = args;
   const envFile = effEnv.homeEnvFile;
+
+  if (sub === 'check') {
+    console.log('Verificando provedores de IA…');
+    const results = await checkProviders(config, ['local', 'fast', 'smart'], {
+      env: effEnv.env,
+      signal: ctx.signal,
+    });
+    for (const r of results) printCheck(r);
+    const failed = results.filter((r) => r.status !== 'ok' && r.status !== 'skipped');
+    if (failed.length) {
+      throw new CliError(
+        `${failed.length} tier(s) indisponível(is) — ajuste o .env ou configure fallbacks.`,
+      );
+    }
+    return;
+  }
 
   switch (sub) {
     case 'path': {
@@ -423,7 +570,7 @@ function cmdConfig(args: string[]): void {
     case undefined:
       break;
     default:
-      throw new CliError(`Subcomando desconhecido: config ${sub}. Use path|init|get|set|unset.`);
+      throw new CliError(`Subcomando desconhecido: config ${sub}. Use path|init|get|set|unset|check.`);
   }
 
   const { ai } = config;
@@ -450,13 +597,13 @@ function cmdConfig(args: string[]): void {
 }
 
 /** Despacha um comando. Retorna false se o comando não existe. */
-async function dispatch(command: string, args: string[], signal?: AbortSignal): Promise<boolean> {
+async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Promise<boolean> {
   switch (command) {
     case 'import':
-      await cmdImport(args, signal);
+      await cmdImport(args, ctx);
       return true;
     case 'run':
-      await cmdRun(args, signal);
+      await cmdRun(args, ctx);
       return true;
     case 'review':
       await cmdReview();
@@ -468,7 +615,7 @@ async function dispatch(command: string, args: string[], signal?: AbortSignal): 
       await cmdStatus();
       return true;
     case 'config':
-      cmdConfig(args);
+      await cmdConfig(args, ctx);
       return true;
     default:
       return false;
@@ -493,7 +640,7 @@ async function repl(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: 'career> ' });
   let closed = false;
   let current: AbortController | null = null;
-  rl.on('close', () => { closed = true; });
+  rl.on('close', () => { closed = true; runCleanups(); });
   // Ctrl+C: com comando em curso → aborta (fetch, watch, pipeline); ocioso → sai do shell.
   rl.on('SIGINT', () => {
     if (current && !current.signal.aborted) {
@@ -520,8 +667,9 @@ async function repl(): Promise<void> {
       }
       const ctrl = new AbortController();
       current = ctrl;
+      const ask = (q: string) => new Promise<string>((res) => rl.question(q, res));
       try {
-        if (!(await dispatch(cmd, cmdArgs, ctrl.signal))) {
+        if (!(await dispatch(cmd, cmdArgs, { signal: ctrl.signal, ask }))) {
           console.log(`Comando desconhecido: ${cmd}. ${USAGE}`);
         }
       } catch (err) {
@@ -545,7 +693,7 @@ async function main(): Promise<void> {
   process.once('SIGINT', () => ctrl.abort());
   try {
     const [command, ...args] = argv;
-    if (!(await dispatch(command, args, ctrl.signal))) {
+    if (!(await dispatch(command, args, { signal: ctrl.signal }))) {
       console.log(`CareerFacilator AI — ${USAGE}`);
       process.exitCode = 1;
     }

@@ -62,6 +62,7 @@ npm run cli -- run --jobs-file jobs.json --dry-run   # funil completo (jobs.json
 npm run cli -- approve              # promove o rascunho de perfil a profile.master.md
 npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW (SQLite real)
 npm run cli -- status               # contagens por status no jobs.sqlite
+npm run cli -- config check         # testa endpoint+modelo dos 3 tiers (preflight)
 
 npm run build     # compila para dist/
 npm run start -- <comando>   # roda o build compilado

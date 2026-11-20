@@ -97,6 +97,42 @@ describe('createOllamaClient', () => {
     expect(stats.outputTokens).toBe(10);
   });
 
+  it('think:true enviado; chunk message.thinking → onThought', async () => {
+    const fetchImpl = (
+      jest.fn() as jest.MockedFunction<typeof fetch>
+    ).mockResolvedValue(
+      ndjsonResponse([
+        { message: { thinking: 'analisando a vaga...' } },
+        { message: { content: '{"fitScore":80}' }, done: true },
+      ]),
+    );
+    const client = createOllamaClient({ fetchImpl });
+    const thoughts: string[] = [];
+    const out = await client.chat('deepseek-r1:1.5b', [], {
+      think: true,
+      onToken: () => {},
+      onThought: (t) => thoughts.push(t),
+    });
+    expect(out).toBe('{"fitScore":80}');
+    expect(thoughts.join('')).toBe('analisando a vaga...');
+    const body = JSON.parse(
+      (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.think).toBe(true);
+  });
+
+  it("keepAlive '-1' → enviado como número (Ollama recusa string sem unidade)", async () => {
+    const fetchImpl = (
+      jest.fn() as jest.MockedFunction<typeof fetch>
+    ).mockResolvedValue(jsonResponse({ message: { content: 'x' } }));
+    const client = createOllamaClient({ fetchImpl, keepAlive: '-1' });
+    await client.chat('m', []);
+    const body = JSON.parse(
+      (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.keep_alive).toBe(-1);
+  });
+
   it('caller signal is combined with timeout and forwarded to fetch', async () => {
     const fetchImpl = (
       jest.fn() as jest.MockedFunction<typeof fetch>

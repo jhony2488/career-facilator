@@ -39,6 +39,10 @@ export function parseEnvFile(path: string): EnvMap {
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
+    } else {
+      // Comentário inline padrão dotenv: ' #' encerra o valor (exceto em aspas).
+      const hash = value.indexOf(' #');
+      if (hash !== -1) value = value.slice(0, hash).trimEnd();
     }
     if (key) out[key] = value;
   }
@@ -76,6 +80,37 @@ function resolveTier(key: 'local' | 'fast' | 'smart', env: EnvMap): ModelRouting
     baseUrl,
     apiKeyEnv: provider === 'ollama' ? undefined : `${P}_API_KEY`,
   };
+}
+
+/** Routing explícito para provider:modelo (fallback customizado via AI_<T>_FALLBACK). */
+function routingForSpec(spec: string, env: EnvMap): ModelRouting {
+  const [provider, ...rest] = spec.split(':');
+  const modelId = rest.join(':') || undefined;
+  const P = providerEnvKey(provider);
+  return {
+    provider,
+    modelId: modelId ?? env[`${P}_MODEL`] ?? PROVIDER_DEFAULT_MODELS[provider] ?? provider,
+    baseUrl: env[`${P}_BASE_URL`] ?? (provider === 'ollama' ? 'http://localhost:11434' : undefined),
+    apiKeyEnv: provider === 'ollama' ? undefined : `${P}_API_KEY`,
+  };
+}
+
+/**
+ * Gramática de AI_<TIER>_FALLBACK: 'off'/'none' → sem fallback; 'local'|'fast'|'smart'
+ * → roteamento daquele tier; '<provider>[:<modelo>]' → routing explícito.
+ * Default da spec: local→fast, smart→fast, fast→off. AI_FALLBACK_ENABLED=false desliga tudo.
+ */
+function resolveFallback(
+  key: 'local' | 'fast' | 'smart',
+  env: EnvMap,
+  tiers: Record<'local' | 'fast' | 'smart', ModelRouting>,
+): ModelRouting | 'off' | undefined {
+  if (env.AI_FALLBACK_ENABLED === 'false' || env.AI_FALLBACK_ENABLED === '0') return 'off';
+  const raw = (env[`AI_${key.toUpperCase()}_FALLBACK`] ?? '').trim().toLowerCase();
+  if (raw === 'off' || raw === 'none') return 'off';
+  if (raw === 'local' || raw === 'fast' || raw === 'smart') return tiers[raw];
+  if (raw) return routingForSpec(raw, env);
+  return key === 'fast' ? 'off' : tiers.fast;
 }
 
 
@@ -135,19 +170,30 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       ...(mode ? { mode } : {}),
       lexicalMinTerms,
     },
-    ai: {
-      local: resolveTier('local', env),
-      fast: resolveTier('fast', env),
-      smart: resolveTier('smart', env),
-      ...(embeddingsEnabled
-        ? {
-            embeddings: {
-              enabled: true,
-              modelId: env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text',
-            },
-          }
-        : {}),
-    },
+    ai: (() => {
+      const tiers = {
+        local: resolveTier('local', env),
+        fast: resolveTier('fast', env),
+        smart: resolveTier('smart', env),
+      };
+      const withFallback = (key: 'local' | 'fast' | 'smart'): ModelRouting => ({
+        ...tiers[key],
+        fallback: resolveFallback(key, env, tiers),
+      });
+      return {
+        local: withFallback('local'),
+        fast: withFallback('fast'),
+        smart: withFallback('smart'),
+        ...(embeddingsEnabled
+          ? {
+              embeddings: {
+                enabled: true,
+                modelId: env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text',
+              },
+            }
+          : {}),
+      };
+    })(),
     profile: {
       inboxDir: homePath(env.PROFILE_INBOX_DIR ?? defaultCareerOpsConfig.profile.inboxDir),
       draftPath: homePath(env.PROFILE_DRAFT_PATH ?? defaultCareerOpsConfig.profile.draftPath),

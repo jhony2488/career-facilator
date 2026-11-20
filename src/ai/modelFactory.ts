@@ -7,7 +7,7 @@ import type { TailorModel } from './tailorerAgent';
 import type { StructurerModel } from '../intake/profileStructurer';
 import { MasterProfileSchema } from '../intake/profileStructurer';
 import { z } from 'zod';
-import type { CareerOpsConfig } from '../config/careerOps.config';
+import type { CareerOpsConfig, ModelRouting } from '../config/careerOps.config';
 
 export interface LlmClients {
   triageModel: TriageModel;
@@ -30,12 +30,16 @@ export interface ModelCallStats {
 export interface ModelFactoryOptions {
   /** Callback por token — streaming exposto ao consumidor (CLI/UI). */
   onToken?: (token: string) => void;
+  /** Callback por token de raciocínio (modelos thinking — deepseek-r1, qwen3…). */
+  onThought?: (token: string) => void;
   /** Callback ao fim de cada chamada com métricas normalizadas. */
   onStage?: (stats: ModelCallStats) => void;
   /** Cancelamento externo (ex.: Ctrl+C no CLI) — aplicado a todas as chamadas. */
   signal?: AbortSignal;
   /** Overrides do ollamaClient (baseUrl, keepAlive, fetchImpl p/ testes). */
   ollama?: Parameters<typeof createOllamaClient>[0];
+  /** Roteamento efetivo por tier (ex.: fallback escolhido no preflight) — sobrescreve config.ai. */
+  overrides?: Partial<Record<'local' | 'fast' | 'smart', ModelRouting>>;
 }
 
 const TailorOutputSchema = z.object({
@@ -55,8 +59,10 @@ export class ProviderNotImplementedError extends Error {
 
 function ollamaOptions(env: Record<string, string | undefined>): Record<string, unknown> | undefined {
   const opts: Record<string, unknown> = {};
-  if (env.AI_TEMPERATURE) opts.temperature = Number(env.AI_TEMPERATURE);
-  if (env.AI_NUM_PREDICT) opts.num_predict = Number(env.AI_NUM_PREDICT);
+  const temperature = Number(env.AI_TEMPERATURE);
+  const numPredict = Number(env.AI_NUM_PREDICT);
+  if (Number.isFinite(temperature)) opts.temperature = temperature;
+  if (Number.isFinite(numPredict) && numPredict > 0) opts.num_predict = numPredict;
   return Object.keys(opts).length ? opts : undefined;
 }
 
@@ -72,9 +78,10 @@ function callOptions(
   numPredict: number,
 ): { options?: Record<string, unknown>; timeoutMs: number } {
   const base = ollamaOptions(env) ?? {};
+  const envTimeout = Number(env.AI_TIMEOUT_MS);
   return {
     options: { ...base, num_predict: base.num_predict ?? numPredict },
-    timeoutMs: env.AI_TIMEOUT_MS ? Number(env.AI_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS,
+    timeoutMs: Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : DEFAULT_TIMEOUT_MS,
   };
 }
 
@@ -88,12 +95,16 @@ export function createModelClients(
   opts: ModelFactoryOptions = {},
   env: Record<string, string | undefined> = process.env,
 ): LlmClients {
-  const local = resolveModel('LOCAL', config);
-  const smart = resolveModel('SMART', config);
+  const local = opts.overrides?.local ?? resolveModel('LOCAL', config);
+  const smart = opts.overrides?.smart ?? resolveModel('SMART', config);
 
-  const ollamaFor = (routing: { provider: string; baseUrl?: string }): OllamaClient => {
-    if (routing.provider !== 'ollama') throw new ProviderNotImplementedError(routing.provider, 'LOCAL');
-    return createOllamaClient({ baseUrl: routing.baseUrl, ...opts.ollama });
+  const ollamaFor = (routing: { provider: string; baseUrl?: string }, tier: string): OllamaClient => {
+    if (routing.provider !== 'ollama') throw new ProviderNotImplementedError(routing.provider, tier);
+    return createOllamaClient({
+      baseUrl: routing.baseUrl,
+      keepAlive: env.OLLAMA_KEEP_ALIVE,
+      ...opts.ollama,
+    });
   };
 
   const chatText = async (
@@ -112,7 +123,9 @@ export function createModelClients(
       options: call.options,
       timeoutMs: call.timeoutMs,
       signal: opts.signal,
+      think: env.AI_THINK_ENABLED === 'true' || opts.onThought !== undefined,
       onToken: opts.onToken,
+      onThought: opts.onThought,
       onDone: (s) => {
         const durationMs = s.totalDurationMs ?? Date.now() - t0;
         const evalMs = s.evalDurationMs;
@@ -135,7 +148,7 @@ export function createModelClients(
   const triageModel: TriageModel =
     local.provider === 'ollama'
       ? (() => {
-          const client = ollamaFor(local);
+          const client = ollamaFor(local, 'LOCAL');
           return {
             generate: (prompt: string) =>
               generateStructured(
@@ -143,7 +156,7 @@ export function createModelClients(
                   chatText(client, local.modelId, p, {
                     format: 'json',
                     numPredict: NUM_PREDICT_DEFAULTS.triage,
-                  }, 'triage'),
+                  }, 'triage', local.provider),
                 prompt,
                 JobTriageSchema,
               ) as Promise<JobTriageResult>,
@@ -154,7 +167,7 @@ export function createModelClients(
   const structurerModel: StructurerModel =
     smart.provider === 'ollama'
       ? (() => {
-          const client = ollamaFor(smart);
+          const client = ollamaFor(smart, 'SMART');
           return {
             generate: (prompt: string) =>
               generateStructured(
@@ -162,7 +175,7 @@ export function createModelClients(
                   chatText(client, smart.modelId, p, {
                     format: 'json',
                     numPredict: NUM_PREDICT_DEFAULTS.structurer,
-                  }, 'structurer'),
+                  }, 'structurer', smart.provider),
                 prompt,
                 MasterProfileSchema,
               ),
@@ -173,7 +186,7 @@ export function createModelClients(
   const tailorModel: TailorModel =
     smart.provider === 'ollama'
       ? (() => {
-          const client = ollamaFor(smart);
+          const client = ollamaFor(smart, 'SMART');
           return {
             tailor: async (prompt: string) => {
               const guided = [
@@ -187,7 +200,7 @@ export function createModelClients(
                   chatText(client, smart.modelId, p, {
                     format: 'json',
                     numPredict: NUM_PREDICT_DEFAULTS.tailor,
-                  }, 'tailor'),
+                  }, 'tailor', smart.provider),
                 guided,
                 TailorOutputSchema,
               );

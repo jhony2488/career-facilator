@@ -94,6 +94,63 @@ describe('loadCareerOpsConfig — data directory (global CLI)', () => {
   });
 });
 
+describe('loadCareerOpsConfig — fallbacks por tier', () => {
+  it('default da spec: local→fast, smart→fast, fast→off', () => {
+    const cfg = loadCareerOpsConfig({ env: {}, envFile: '' });
+    expect(cfg.ai.local.fallback).toMatchObject({
+      provider: cfg.ai.fast.provider,
+      modelId: cfg.ai.fast.modelId,
+    });
+    expect(cfg.ai.smart.fallback).toMatchObject({ provider: cfg.ai.fast.provider });
+    expect(cfg.ai.fast.fallback).toBe('off');
+  });
+
+  it('AI_<T>_FALLBACK=off desativa', () => {
+    const cfg = loadCareerOpsConfig({ env: { AI_SMART_FALLBACK: 'off' }, envFile: '' });
+    expect(cfg.ai.smart.fallback).toBe('off');
+    expect(cfg.ai.local.fallback).not.toBe('off');
+  });
+
+  it('AI_<T>_FALLBACK=<tier> aponta p/ outro tier', () => {
+    const cfg = loadCareerOpsConfig({ env: { AI_LOCAL_FALLBACK: 'smart' }, envFile: '' });
+    expect(cfg.ai.local.fallback).toMatchObject({
+      provider: cfg.ai.smart.provider,
+      modelId: cfg.ai.smart.modelId,
+    });
+  });
+
+  it('AI_<T>_FALLBACK=<provider>:<modelo> cria routing explícito', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { AI_SMART_FALLBACK: 'groq:llama-3.3-70b' },
+      envFile: '',
+    });
+    expect(cfg.ai.smart.fallback).toMatchObject({
+      provider: 'groq',
+      modelId: 'llama-3.3-70b',
+      apiKeyEnv: 'GROQ_API_KEY',
+    });
+  });
+
+  it('fallback provider:modelo ollama sem tag → baseUrl padrão', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { AI_SMART_FALLBACK: 'ollama:llama3.2' },
+      envFile: '',
+    });
+    expect(cfg.ai.smart.fallback).toMatchObject({
+      provider: 'ollama',
+      modelId: 'llama3.2',
+      baseUrl: 'http://localhost:11434',
+    });
+  });
+
+  it('AI_FALLBACK_ENABLED=false → todos off', () => {
+    const cfg = loadCareerOpsConfig({ env: { AI_FALLBACK_ENABLED: 'false' }, envFile: '' });
+    expect(cfg.ai.local.fallback).toBe('off');
+    expect(cfg.ai.smart.fallback).toBe('off');
+    expect(cfg.ai.fast.fallback).toBe('off');
+  });
+});
+
 describe('parseEnvFile', () => {
   it('reads KEY=VALUE, ignores comments and strips quotes', () => {
     const path = join(tmpdir(), `cf-env-${Date.now()}.env`);
@@ -107,6 +164,25 @@ describe('parseEnvFile', () => {
       AI_SMART_PROVIDER: 'openai',
       VAZIO: '',
     });
+    rmSync(path, { force: true });
+  });
+
+  it('strips inline " #" comments; keeps # glued to the value and inside quotes', () => {
+    const path = join(tmpdir(), `cf-env-${Date.now()}-c.env`);
+    writeFileSync(
+      path,
+      [
+        'A=8000   # tempo máx por probe',
+        'B=valor#colado',
+        'C="string com # dentro"',
+        'D=1 # comentário com # dentro do comentário',
+      ].join('\n'),
+    );
+    const env = parseEnvFile(path);
+    expect(env.A).toBe('8000');
+    expect(env.B).toBe('valor#colado');
+    expect(env.C).toBe('string com # dentro');
+    expect(env.D).toBe('1');
     rmSync(path, { force: true });
   });
 

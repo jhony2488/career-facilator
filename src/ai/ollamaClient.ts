@@ -24,11 +24,15 @@ export interface OllamaChatOptions {
   format?: 'json' | Record<string, unknown>;
   /** num_predict, temperature, etc. — repassados direto ao Ollama. */
   options?: Record<string, unknown>;
-  /** Tempo que o modelo fica em memória (ex.: '10m'). Default config/env. */
+  /** Tempo que o modelo fica em memória (ex.: '10m', '-1' = nunca, '0' = descarrega). */
   keepAlive?: string;
   stream?: boolean;
+  /** 'think: true' no Ollama — pede o canal de raciocínio (deepseek-r1, qwen3…). */
+  think?: boolean;
   /** Callback por token — expõe streaming ao consumidor (CLI/UI). */
   onToken?: (token: string) => void;
+  /** Callback por token de raciocínio (canal `thinking` do chunk). */
+  onThought?: (token: string) => void;
   /** Callback com as métricas da chamada ao fim (tokens, durações, carga). */
   onDone?: (stats: OllamaCallStats) => void;
   /** Cancelamento externo (ex.: Ctrl+C no CLI) — combinado com o timeout. */
@@ -42,6 +46,8 @@ export interface OllamaClient {
   isReachable(): Promise<boolean>;
   /** Nomes dos modelos instalados (GET /api/tags) — p/ preflight antes de gerar. */
   listModels(): Promise<string[]>;
+  /** Nomes dos modelos atualmente carregados em RAM/VRAM (GET /api/ps). */
+  listLoadedModels(): Promise<string[]>;
 }
 
 export interface OllamaClientDeps {
@@ -54,6 +60,14 @@ export interface OllamaClientDeps {
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_KEEP_ALIVE = '10m';
 const DEFAULT_TIMEOUT_MS = 300_000;
+
+/**
+ * keep_alive: Ollama aceita duration string ('10m', '0' segundos) ou inteiro
+ * em segundos. Inteiro puro → number ('-1' = nunca descarrega — como string
+ * falha com 'missing unit').
+ */
+const normalizeKeepAlive = (v: string): string | number =>
+  /^-?\d+$/.test(v.trim()) ? Number(v.trim()) : v;
 
 export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
   const baseUrl = (deps.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
@@ -76,7 +90,8 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
         model,
         messages,
         stream,
-        keep_alive: opts.keepAlive ?? keepAlive,
+        keep_alive: normalizeKeepAlive(opts.keepAlive ?? keepAlive),
+        ...(opts.think ? { think: true } : {}),
         ...(opts.format !== undefined ? { format: opts.format } : {}),
         ...(opts.options ? { options: opts.options } : {}),
       }),
@@ -88,13 +103,16 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
 
     if (!stream) {
-      const data = (await res.json()) as { message?: { content?: string } } & Record<string, unknown>;
+      const data = (await res.json()) as {
+        message?: { content?: string; thinking?: string };
+      } & Record<string, unknown>;
       opts.onDone?.(statsFromChunk(data));
+      if (data.message?.thinking) opts.onThought?.(data.message.thinking);
       return data.message?.content ?? '';
     }
 
     if (!res.body) throw new Error('Ollama: resposta sem body para streaming');
-    return readNdjsonStream(res.body, opts.onToken, opts.onDone);
+    return readNdjsonStream(res.body, opts.onToken, opts.onDone, opts.onThought);
   }
 
   async function embed(model: string, texts: string[]): Promise<number[][]> {
@@ -121,9 +139,9 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
   }
 
-  async function listModels(): Promise<string[]> {
+  async function modelNames(endpoint: string): Promise<string[]> {
     try {
-      const res = await fetchImpl(`${baseUrl}/api/tags`, {
+      const res = await fetchImpl(`${baseUrl}${endpoint}`, {
         signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) return [];
@@ -134,7 +152,13 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
   }
 
-  return { chat, embed, isReachable, listModels };
+  return {
+    chat,
+    embed,
+    isReachable,
+    listModels: () => modelNames('/api/tags'),
+    listLoadedModels: () => modelNames('/api/ps'),
+  };
 }
 
 /** Normaliza os campos de métricas do Ollama (nanosegundos → ms). */
@@ -157,6 +181,7 @@ async function readNdjsonStream(
   body: ReadableStream<Uint8Array>,
   onToken?: (token: string) => void,
   onDone?: (stats: OllamaCallStats) => void,
+  onThought?: (token: string) => void,
 ): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -175,8 +200,13 @@ async function readNdjsonStream(
       buffer = buffer.slice(newline + 1);
       if (!line) continue;
       try {
-        const chunk = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+        const chunk = JSON.parse(line) as {
+          message?: { content?: string; thinking?: string };
+          done?: boolean;
+        };
         if (chunk.done === true) stats = statsFromChunk(chunk);
+        const thought = chunk.message?.thinking ?? '';
+        if (thought) onThought?.(thought);
         const piece = chunk.message?.content ?? '';
         if (piece) {
           content += piece;

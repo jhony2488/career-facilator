@@ -114,7 +114,10 @@ career config path                        # shows home and the config file
 career config set AI_SMART_PROVIDER groq  # writes to <home>/.env
 career config get AI_LOCAL_MODEL          # effective value (warns if local .env shadows it)
 career config unset AI_LOCAL_MODEL
+career config check                     # preflight: tests endpoint+model of all 3 tiers
 ```
+
+**AI preflight + fallback** — before any LLM-using command (`import`, `run`), the CLI tests the endpoint+model of the tier(s) it needs and shows `OK`/`FAILED — reason`. On failure, the tier's `fallback` routing is offered: the interactive shell asks `[y/N]`; a direct command fails with a hint. `AI_<TIER>_FALLBACK` grammar: `off` | `local`/`fast`/`smart` | `<provider>:<model>` — spec default `local→fast`, `smart→fast`, `fast→off`. `AI_FALLBACK_ENABLED=false` disables all; `AI_PREFLIGHT_ENABLED=false` skips checks; `AI_PREFLIGHT_TIMEOUT_MS=8000` per probe.
 
 ## 12. Updated Full Flow
 
