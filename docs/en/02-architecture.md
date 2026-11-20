@@ -56,9 +56,13 @@ career-facilitator-ts/
 │   ├── config/
 │   │   ├── profile.master.md        # Editable master profile (source of truth)
 │   │   ├── profile.master.json      # Compiled from the MD — prompt cache artifact
-│   │   └── careerOps.config.ts      # Model routing, score thresholds and budget
+│   │   ├── careerOps.config.ts      # Model routing, score thresholds and budget
+│   │   ├── loadConfig.ts            # .env chain: <home> → ./.env → process.env
+│   │   ├── paths.ts                 # Data directory (CAREER_HOME → ~/.careerfacilator)
+│   │   └── envFile.ts               # .env key read/write (config set/unset)
 │   ├── intake/
 │   │   ├── intakeCore.ts            # Orchestrates the flow: inbox/command → approval → compile
+│   │   ├── inboxScanner.ts          # Sweeps profile_inbox/ and archives PDFs into processed/
 │   │   ├── pdfExtractor.ts          # Extracts the PDF text layer (no silent OCR)
 │   │   ├── profileStructurer.ts     # Structures via LLM + Zod only what's in the doc
 │   │   ├── masterProfileStore.ts    # Draft, merge/replace and version history

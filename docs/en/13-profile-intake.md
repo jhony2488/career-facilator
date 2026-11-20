@@ -49,6 +49,8 @@ The flow is orchestrated by `intakeCore.ts`, which triggers the sequence below b
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Watched folder in practice:** `career-facilitator import --inbox` sweeps `profile_inbox/` and imports each PDF as `INBOX` source; `--watch` keeps continuous monitoring (drop a PDF in the folder and it is processed automatically). Every swept file — readable or not — is archived under `profile_inbox/processed/`, so no document is reprocessed or alerted twice.
+
 ## 13.3. Human review flow
 
 Aligned with the global Human-in-the-Loop principle, **no extracted content takes effect automatically**:

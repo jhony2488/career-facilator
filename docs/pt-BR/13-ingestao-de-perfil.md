@@ -49,6 +49,8 @@ O fluxo é orquestrado por `intakeCore.ts`, que dispara a sequência abaixo tant
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Pasta monitorada na prática:** `career-facilitator import --inbox` varre `profile_inbox/` e importa cada PDF como fonte `INBOX`; `--watch` mantém a varredura contínua (solte um PDF na pasta e ele é processado sozinho). Todo arquivo varrido — legível ou não — é arquivado em `profile_inbox/processed/`, garantindo que nenhum documento seja reprocessado nem alertado duas vezes.
+
 ## 13.3. Fluxo de revisão humana
 
 Alinhado ao princípio global de Human-in-the-Loop, **nenhum conteúdo extraído entra em vigor automaticamente**:

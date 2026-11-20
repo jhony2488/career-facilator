@@ -15,7 +15,7 @@ Thanks for contributing! This document defines the project's workflow, style and
 npm run lint         # ESLint
 npm run format:check # Prettier
 npx tsc --noEmit     # Typecheck
-npm run test         # 34 Jest suites
+npm run test         # 36 Jest suites
 ```
 
 ## PR rules
@@ -77,6 +77,7 @@ Additional rules:
 - **Dependency injection:** modules never import Playwright, SMTP or LLM SDKs in testable code — they receive them via `deps`.
 - **Anti-fabrication (doc 13):** no user profile data may be inferred/invented — absent fields stay `NÃO_INFORMADO`/`null`.
 - **Human-in-the-loop:** no flow may submit an application without respecting the configured execution mode.
+- **Test descriptions in English:** `describe`/`it` titles and comments inside `__tests__/` are always in English (the source `.feature` scenarios stay in PT).
 
 ## Structure
 

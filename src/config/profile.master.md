@@ -1,18 +1,15 @@
 # Perfil-Mestre
 
-## Dados pessoais
-- Nome: Dev Tester
+## Dados Pessoais
 - E-mail: dev@example.com
 - Telefone: +55 81 99999-0000
 - LinkedIn: https://linkedin.com/in/devtester
 - GitHub: https://github.com/devtester
 - Portfólio: https://devtester.dev
-- Pretensão salarial: R$ 10.000 (CLT/PJ) · USD 4.500 (contractor)
+- Pretensão salarial: R$ 10000 | USD 4500
 
 ## Resumo
 Senior Full-Stack TypeScript Engineer — 6 anos construindo SaaS multi-tenant,
-dashboards analíticos e automações com IA. Stack central: TypeScript, Node.js,
-Next.js, PostgreSQL.
 
 ## Experiências
 ### Senior Full-Stack Engineer — TechCorp (2022–atual)
@@ -37,20 +34,14 @@ Sistema autônomo de prospecção e candidatura assistida
 - Funil de triagem em 3 camadas com economia de tokens
 
 ## Habilidades
-- TypeScript
-- Node.js
-- Next.js
-- React
-- PostgreSQL
-- Prisma
-- Docker
+- Stacks: _NÃO_INFORMADO_
 - Idiomas: Português (nativo), Inglês (avançado)
+- Certificações: _NÃO_INFORMADO_
+- Anos de experiência: 0
+- Palavras bloqueadas: _NÃO_INFORMADO_
 
 ## Formação
-- Bacharelado em Ciência da Computação
+- Bacharelado em Ciência da Computação — NÃO_INFORMADO (NÃO_INFORMADO)
 
-## Respostas padrão
-### availability
-Imediata
-### salaryExpectation
-A combinar conforme faixa do mercado
+## Respostas Padrão
+_NÃO_INFORMADO_

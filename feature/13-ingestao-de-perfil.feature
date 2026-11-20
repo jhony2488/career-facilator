@@ -91,8 +91,16 @@ Funcionalidade: Ingestão de perfil a partir de currículos em PDF
     Então os materiais dessas candidaturas são regenerados com o perfil novo
     E os Fit Scores pendentes são recalculados
 
+  Cenário: Documento já processado não é reimportado
+    Dado que um PDF na área de entrada já foi processado numa varredura anterior
+    Quando uma nova varredura da área de entrada ocorre
+    Então o documento não é processado novamente
+    E ele permanece arquivado na área de processados
+
 # Decisão: trechos extraídos com baixa confiança entram no rascunho marcados
 # para revisão — o usuário decide na aprovação.
 # Decisão: o histórico guarda um snapshot por aprovação.
 # Decisão: perfil atualizado regenera materiais de TAILORED/READY_TO_REVIEW e
 # recalcula Fit Scores pendentes (alinhado a 03-triagem-fit-score).
+# Decisão: todo arquivo varrido na área de entrada é arquivado em processados —
+# legível ou não — para nunca ser reprocessado nem alertado duas vezes.
