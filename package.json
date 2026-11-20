@@ -25,7 +25,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "cli": "tsx src/cli/index.ts",
-    "dev": "tsx watch src/cli/index.ts",
+    "dev": "tsx src/cli/index.ts",
+    "dev:watch": "tsx watch --include src src/cli/index.ts",
     "build": "tsc",
     "start": "node dist/src/cli/index.js"
   },

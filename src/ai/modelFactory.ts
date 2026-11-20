@@ -15,9 +15,25 @@ export interface LlmClients {
   structurerModel: StructurerModel;
 }
 
+/** Métricas normalizadas de uma chamada de modelo — agnóstico de provider. */
+export interface ModelCallStats {
+  stage: 'triage' | 'structurer' | 'tailor';
+  provider: string;
+  modelId: string;
+  durationMs?: number;
+  loadDurationMs?: number;
+  promptTokens?: number;
+  outputTokens?: number;
+  tokensPerSecond?: number;
+}
+
 export interface ModelFactoryOptions {
   /** Callback por token — streaming exposto ao consumidor (CLI/UI). */
   onToken?: (token: string) => void;
+  /** Callback ao fim de cada chamada com métricas normalizadas. */
+  onStage?: (stats: ModelCallStats) => void;
+  /** Cancelamento externo (ex.: Ctrl+C no CLI) — aplicado a todas as chamadas. */
+  signal?: AbortSignal;
   /** Overrides do ollamaClient (baseUrl, keepAlive, fetchImpl p/ testes). */
   ollama?: Parameters<typeof createOllamaClient>[0];
 }
@@ -45,6 +61,24 @@ function ollamaOptions(env: Record<string, string | undefined>): Record<string, 
 }
 
 /**
+ * Teto de saída por chamada — sem cap, um 3B pode divagar indefinidamente.
+ * `AI_NUM_PREDICT` na env sobrescreve todos.
+ */
+const NUM_PREDICT_DEFAULTS = { triage: 512, structurer: 3072, tailor: 4096 } as const;
+const DEFAULT_TIMEOUT_MS = 180_000;
+
+function callOptions(
+  env: Record<string, string | undefined>,
+  numPredict: number,
+): { options?: Record<string, unknown>; timeoutMs: number } {
+  const base = ollamaOptions(env) ?? {};
+  return {
+    options: { ...base, num_predict: base.num_predict ?? numPredict },
+    timeoutMs: env.AI_TIMEOUT_MS ? Number(env.AI_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS,
+  };
+}
+
+/**
  * Fábrica de adapters de modelo por provider/tier (doc 02/03).
  * Ollama: client real com format:'json' + jsonRepair + streaming via onToken.
  * Demais providers: erro explícito — metadados do router já resolvidos.
@@ -56,7 +90,6 @@ export function createModelClients(
 ): LlmClients {
   const local = resolveModel('LOCAL', config);
   const smart = resolveModel('SMART', config);
-  const genOpts = ollamaOptions(env);
 
   const ollamaFor = (routing: { provider: string; baseUrl?: string }): OllamaClient => {
     if (routing.provider !== 'ollama') throw new ProviderNotImplementedError(routing.provider, 'LOCAL');
@@ -67,14 +100,36 @@ export function createModelClients(
     client: OllamaClient,
     modelId: string,
     prompt: string,
-    extra: { format?: 'json' | Record<string, unknown> } = {},
+    extra: { format?: 'json' | Record<string, unknown>; numPredict: number },
+    stage?: ModelCallStats['stage'],
+    provider = 'ollama',
   ): Promise<string> => {
     const messages: OllamaMessage[] = [{ role: 'user', content: prompt }];
-    return client.chat(modelId, messages, {
+    const call = callOptions(env, extra.numPredict);
+    const t0 = Date.now();
+    const content = await client.chat(modelId, messages, {
       format: extra.format,
-      options: genOpts,
+      options: call.options,
+      timeoutMs: call.timeoutMs,
+      signal: opts.signal,
       onToken: opts.onToken,
+      onDone: (s) => {
+        const durationMs = s.totalDurationMs ?? Date.now() - t0;
+        const evalMs = s.evalDurationMs;
+        opts.onStage?.({
+          stage: stage ?? 'triage',
+          provider,
+          modelId,
+          durationMs,
+          loadDurationMs: s.loadDurationMs,
+          promptTokens: s.promptTokens,
+          outputTokens: s.outputTokens,
+          tokensPerSecond:
+            evalMs && s.outputTokens ? Math.round(s.outputTokens / (evalMs / 1000)) : undefined,
+        });
+      },
     });
+    return content;
   };
 
   const triageModel: TriageModel =
@@ -84,7 +139,11 @@ export function createModelClients(
           return {
             generate: (prompt: string) =>
               generateStructured(
-                (p) => chatText(client, local.modelId, p, { format: 'json' }),
+                (p) =>
+                  chatText(client, local.modelId, p, {
+                    format: 'json',
+                    numPredict: NUM_PREDICT_DEFAULTS.triage,
+                  }, 'triage'),
                 prompt,
                 JobTriageSchema,
               ) as Promise<JobTriageResult>,
@@ -99,7 +158,11 @@ export function createModelClients(
           return {
             generate: (prompt: string) =>
               generateStructured(
-                (p) => chatText(client, smart.modelId, p, { format: 'json' }),
+                (p) =>
+                  chatText(client, smart.modelId, p, {
+                    format: 'json',
+                    numPredict: NUM_PREDICT_DEFAULTS.structurer,
+                  }, 'structurer'),
                 prompt,
                 MasterProfileSchema,
               ),
@@ -120,7 +183,11 @@ export function createModelClients(
                 '{"resumeMarkdown": "<markdown completo do currículo>", "answers": {"<pergunta>": "<resposta>"}}',
               ].join('\n');
               return generateStructured(
-                (p) => chatText(client, smart.modelId, p, { format: 'json' }),
+                (p) =>
+                  chatText(client, smart.modelId, p, {
+                    format: 'json',
+                    numPredict: NUM_PREDICT_DEFAULTS.tailor,
+                  }, 'tailor'),
                 guided,
                 TailorOutputSchema,
               );

@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import {
   importResume,
   processInbox,
@@ -26,7 +26,12 @@ import { loadCareerOpsConfig, loadEffectiveEnv, parseEnvFile } from '../config/l
 import { careerHome, resolveHome, packageRoot } from '../config/paths';
 import { setEnvKey, unsetEnvKey } from '../config/envFile';
 import { createNodeFileStore } from '../intake/nodeFileStore';
-import { createModelClients, createEmbedder, ProviderNotImplementedError } from '../ai/modelFactory';
+import {
+  createModelClients,
+  createEmbedder,
+  ProviderNotImplementedError,
+  type ModelCallStats,
+} from '../ai/modelFactory';
 import { createOllamaClient } from '../ai/ollamaClient';
 import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
@@ -64,17 +69,56 @@ OLLAMA_BASE_URL=http://localhost:11434
 /** Erro de uso/entrada — impresso sem stack; no shell não derruba o REPL. */
 class CliError extends Error {}
 
+/** Rejeição de AbortSignal — Ctrl+C ou timeout. */
+const isAbortError = (err: unknown): boolean =>
+  err instanceof Error && err.name === 'AbortError';
+
+const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
+
 /** Stream de tokens no terminal apenas quando --verbose. */
 const streamTokens = (args: string[]) =>
   args.includes('--verbose') ? (t: string) => process.stdout.write(t) : undefined;
 
+/** Progresso silencioso: '.' a cada ~32 chars de token — mostra que o modelo está gerando. */
+const dotsTokens = (() => {
+  let pending = 0;
+  return (t: string) => {
+    pending += t.length;
+    while (pending >= 32) {
+      process.stdout.write('.');
+      pending -= 32;
+    }
+  };
+})();
+
+/** Callback de tokens: --verbose mostra o stream; sem ele, pontinhos de progresso. */
+const tokenSink = (args: string[]) => streamTokens(args) ?? dotsTokens;
+
+/** Linha de métricas ao fim de cada chamada de modelo (provider-agnóstico). */
+const onStage = (s: ModelCallStats): void => {
+  const secs = s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : '?';
+  const toks = s.outputTokens !== undefined ? ` · ${s.outputTokens} tok` : '';
+  const tps = s.tokensPerSecond ? ` · ${s.tokensPerSecond} tok/s` : '';
+  const load = s.loadDurationMs ? ` · carga ${(s.loadDurationMs / 1000).toFixed(1)}s` : '';
+  console.log(`\n  ✓ ${s.stage} (${s.provider}/${s.modelId}) ${secs}${toks}${tps}${load}`);
+};
+
 async function requireOllama(baseUrl: string | undefined, modelId: string): Promise<void> {
   const probe = createOllamaClient({ baseUrl });
-  if (await probe.isReachable()) return;
-  throw new CliError(
-    `Ollama offline em ${baseUrl ?? 'http://localhost:11434'}. ` +
-      `Rode 'ollama serve' e 'ollama pull ${modelId}'.`,
-  );
+  if (!(await probe.isReachable())) {
+    throw new CliError(
+      `Ollama offline em ${baseUrl ?? 'http://localhost:11434'}. ` +
+        `Rode 'ollama serve' e 'ollama pull ${modelId}'.`,
+    );
+  }
+  const installed = await probe.listModels();
+  const wanted = modelId.includes(':') ? modelId : `${modelId}:latest`;
+  if (installed.length && !installed.some((m) => m === wanted || m === modelId)) {
+    throw new CliError(
+      `Modelo '${wanted}' não baixado em ${baseUrl ?? 'localhost:11434'}. ` +
+        `Rode 'ollama pull ${wanted}'. Instalados: ${installed.join(', ')}`,
+    );
+  }
 }
 
 function openRepo(): JobRepository {
@@ -103,7 +147,7 @@ function printImportResult(result: InboxItemResult): void {
   }
 }
 
-async function cmdImport(args: string[]): Promise<void> {
+async function cmdImport(args: string[], signal?: AbortSignal): Promise<void> {
   const useInbox = args.includes('--inbox');
   const watch = args.includes('--watch');
   const pdfIdx = args.indexOf('--pdf');
@@ -118,7 +162,7 @@ async function cmdImport(args: string[]): Promise<void> {
 
   let clients;
   try {
-    clients = createModelClients(config, { onToken: streamTokens(args) });
+    clients = createModelClients(config, { onToken: tokenSink(args), onStage, signal });
   } catch (err) {
     throw new CliError(err instanceof Error ? err.message : String(err));
   }
@@ -135,6 +179,13 @@ async function cmdImport(args: string[]): Promise<void> {
       model: clients.structurerModel,
       store,
       scanner: { listPendingPdfs, moveToProcessed },
+      onFile: (p: string) => {
+        if (signal?.aborted) throw abortError();
+        console.log(
+          `Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId} ` +
+            `(1ª chamada carrega o modelo — pode demorar)…`,
+        );
+      },
     };
     const sweep = async () => {
       const inbox = await processInbox({ inboxDir: cfg.inboxDir, mode }, deps);
@@ -154,17 +205,29 @@ async function cmdImport(args: string[]): Promise<void> {
       mkdirSync(cfg.inboxDir, { recursive: true });
       console.log(`\nMonitorando ${cfg.inboxDir} — solte PDFs lá.`);
       let debounce: NodeJS.Timeout | undefined;
-      fsWatch(cfg.inboxDir, (_event, filename) => {
+      const watcher = fsWatch(cfg.inboxDir, (_event, filename) => {
         if (!filename?.toLowerCase().endsWith('.pdf')) return;
+        if (signal?.aborted) return;
         clearTimeout(debounce);
-        debounce = setTimeout(() => void sweep().catch(console.error), 500);
+        debounce = setTimeout(
+          () => void sweep().catch((e) => { if (!isAbortError(e)) console.error(e); }),
+          500,
+        );
+      });
+      signal?.addEventListener('abort', () => {
+        clearTimeout(debounce);
+        watcher.close();
+        console.log('\nMonitoramento interrompido (Ctrl+C).');
       });
       return; // watch fica ativo em background (no shell, o prompt continua livre)
     }
     return;
   }
 
-  console.log(`Estruturando ${resolve(pdfPath as string)} via ${smart.provider}/${smart.modelId}…`);
+  console.log(
+    `Estruturando ${resolve(pdfPath as string)} via ${smart.provider}/${smart.modelId} ` +
+      `(1ª chamada carrega o modelo — pode demorar)…`,
+  );
   const result = await importResume(
     { file: { path: pdfPath as string }, mode, source: 'CLI' },
     { reader: createNodePdfReader(), model: clients.structurerModel, store },
@@ -178,7 +241,7 @@ async function cmdImport(args: string[]): Promise<void> {
   }
 }
 
-async function cmdRun(args: string[]): Promise<void> {
+async function cmdRun(args: string[], signal?: AbortSignal): Promise<void> {
   const fileIdx = args.indexOf('--jobs-file');
   const jobsPath =
     fileIdx === -1 ? args.find((a) => !a.startsWith('-')) : args[fileIdx + 1];
@@ -208,7 +271,7 @@ async function cmdRun(args: string[]): Promise<void> {
     await requireOllama(config.ai.local.baseUrl, config.ai.local.modelId);
   }
 
-  const clients = createModelClients(config, { onToken: streamTokens(args) });
+  const clients = createModelClients(config, { onToken: tokenSink(args), onStage, signal });
   const embedder = createEmbedder(config);
   const skills = await loadSkillRegistry(join(packageRoot, 'src/skills/library')).catch(() => []);
   const repo = openRepo();
@@ -226,19 +289,23 @@ async function cmdRun(args: string[]): Promise<void> {
     submitted: false,
   });
 
-  const result = await runApplicationPipeline(
-    { rawJobs, profile, config, dryRun },
-    {
-      repo,
-      triageModel: clients.triageModel,
-      tailorModel: clients.tailorModel,
-      pageFactory: () => emptyPage(''),
-      skills,
-      retriever: (chunks, keywords, jobText) =>
-        retrieveHybrid(chunks, { keywords, jobText }, embedder),
-    },
-  );
-  repo.close();
+  let result;
+  try {
+    result = await runApplicationPipeline(
+      { rawJobs, profile, config, dryRun },
+      {
+        repo,
+        triageModel: clients.triageModel,
+        tailorModel: clients.tailorModel,
+        pageFactory: () => emptyPage(''),
+        skills,
+        retriever: (chunks, keywords, jobText) =>
+          retrieveHybrid(chunks, { keywords, jobText }, embedder),
+      },
+    );
+  } finally {
+    repo.close();
+  }
 
   console.log(`\n${result.processed} vaga(s) processada(s):`);
   for (const a of result.applications) {
@@ -383,13 +450,13 @@ function cmdConfig(args: string[]): void {
 }
 
 /** Despacha um comando. Retorna false se o comando não existe. */
-async function dispatch(command: string, args: string[]): Promise<boolean> {
+async function dispatch(command: string, args: string[], signal?: AbortSignal): Promise<boolean> {
   switch (command) {
     case 'import':
-      await cmdImport(args);
+      await cmdImport(args, signal);
       return true;
     case 'run':
-      await cmdRun(args);
+      await cmdRun(args, signal);
       return true;
     case 'review':
       await cmdReview();
@@ -409,6 +476,10 @@ async function dispatch(command: string, args: string[]): Promise<boolean> {
 }
 
 function printError(err: unknown): void {
+  if (isAbortError(err)) {
+    console.log('\nComando cancelado (Ctrl+C).');
+    return;
+  }
   if (err instanceof CliError || err instanceof ProviderNotImplementedError) {
     console.error(err.message);
   } else {
@@ -421,8 +492,19 @@ async function repl(): Promise<void> {
   const { createInterface } = await import('node:readline');
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: 'career> ' });
   let closed = false;
+  let current: AbortController | null = null;
   rl.on('close', () => { closed = true; });
-  console.log(`CareerFacilator AI — shell interativo. 'help' lista comandos, 'exit' sai.`);
+  // Ctrl+C: com comando em curso → aborta (fetch, watch, pipeline); ocioso → sai do shell.
+  rl.on('SIGINT', () => {
+    if (current && !current.signal.aborted) {
+      current.abort();
+    } else {
+      rl.close();
+    }
+  });
+  console.log(
+    `CareerFacilator AI — shell interativo. 'help' lista comandos, 'exit' sai. Ctrl+C cancela.`,
+  );
   rl.prompt();
   rl.on('line', (line) => {
     const [cmd, ...cmdArgs] = line.trim().split(/\s+/).filter(Boolean);
@@ -436,10 +518,16 @@ async function repl(): Promise<void> {
         console.log(USAGE);
         return;
       }
+      const ctrl = new AbortController();
+      current = ctrl;
       try {
-        if (!(await dispatch(cmd, cmdArgs))) console.log(`Comando desconhecido: ${cmd}. ${USAGE}`);
+        if (!(await dispatch(cmd, cmdArgs, ctrl.signal))) {
+          console.log(`Comando desconhecido: ${cmd}. ${USAGE}`);
+        }
       } catch (err) {
         printError(err);
+      } finally {
+        if (current === ctrl) current = null;
       }
     })().finally(() => {
       if (!closed) rl.prompt();
@@ -453,15 +541,21 @@ async function main(): Promise<void> {
     await repl();
     return;
   }
+  const ctrl = new AbortController();
+  process.once('SIGINT', () => ctrl.abort());
   try {
     const [command, ...args] = argv;
-    if (!(await dispatch(command, args))) {
+    if (!(await dispatch(command, args, ctrl.signal))) {
       console.log(`CareerFacilator AI — ${USAGE}`);
       process.exitCode = 1;
     }
   } catch (err) {
     printError(err);
-    process.exitCode = err instanceof ProviderNotImplementedError ? 2 : 1;
+    process.exitCode = isAbortError(err)
+      ? 130
+      : err instanceof ProviderNotImplementedError
+        ? 2
+        : 1;
   }
 }
 

@@ -89,11 +89,12 @@ export async function importResume(
  */
 export async function processInbox(
   input: { inboxDir: string; mode: ProfileImportMode },
-  deps: ImportResumeDeps & { scanner: InboxScanner },
+  deps: ImportResumeDeps & { scanner: InboxScanner; onFile?: (path: string) => void },
 ): Promise<ProcessInboxResult> {
   const pending = await deps.scanner.listPendingPdfs(input.inboxDir);
   const results: InboxItemResult[] = [];
   for (const path of pending) {
+    deps.onFile?.(path);
     const result = await importResume({ file: { path }, mode: input.mode, source: 'INBOX' }, deps);
     const archivedTo = await deps.scanner.moveToProcessed(path, input.inboxDir);
     results.push({ ...result, path, archivedTo });
