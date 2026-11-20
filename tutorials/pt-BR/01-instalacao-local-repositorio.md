@@ -20,7 +20,7 @@ npm --version
 1. Clone o repositório e entre na pasta:
 
 ```powershell
-git clone https://github.com/jhony2488/career-facilitator-ts.git
+git clone https://github.com/jhony2488/career-facilitator.git
 cd career-facilitator-ts
 ```
 

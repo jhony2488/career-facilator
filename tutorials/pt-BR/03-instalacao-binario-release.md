@@ -4,7 +4,7 @@ Baixe um executável único. Não precisa instalar Node.js nem npm.
 
 ## Baixar
 
-Acesse a aba **Releases** do repositório no GitHub e escolha o arquivo do seu sistema:
+Acesse a aba **[Releases](https://github.com/jhony2488/career-facilitator/releases)** do repositório no GitHub e escolha o arquivo do seu sistema:
 
 | Sistema               | Arquivo                  |
 | --------------------- | ------------------------ |

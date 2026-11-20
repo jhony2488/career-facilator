@@ -2,6 +2,8 @@
 
 Sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida com otimização de inferência.
 
+Versão em português do README. [English version (README-en.md)](README-en.md).
+
 > **Status:** especificação completa + implementação inicial — **44 suites Jest verdes** e client Ollama real funcionando (streaming + JSON estruturado). Automação de browser (Playwright) e SMTP reais ainda não conectados (ver [Limitações atuais](#limitações-atuais)).
 
 ## O que é
@@ -100,7 +102,7 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 ### Executável standalone (GitHub Releases)
 
-Baixe o binário da aba [Releases](../../releases) — **não precisa de Node.js**:
+Baixe o binário da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js**:
 
 | Arquivo                  | Primeiro uso                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------- |
@@ -126,7 +128,7 @@ Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` �
 ### Testes e verificação
 
 ```powershell
-npm run test        # 36 suites: unit + integration + e2e
+npm run test        # 44 suites: unit + integration + e2e
 npm run test:unit   # só unitários
 npm run lint        # ESLint
 npm run format      # Prettier
@@ -137,7 +139,7 @@ npx tsc --noEmit    # typecheck
 
 ```text
 CareerFacilator/
-├── docs/            # Especificação de arquitetura (13 docs)
+├── docs/            # Especificação de arquitetura (16 docs)
 │   ├── pt-BR/       # versão em português (fonte da verdade)
 │   └── en/          # versão em inglês
 ├── feature/         # Especificações BDD/Gherkin (13 .feature + DECISOES.md)
@@ -158,7 +160,7 @@ CareerFacilator/
 │   ├── config/      # careerOps.config + loadConfig + paths/envFile (.env, CAREER_HOME)
 │   └── cli/         # entrypoint — shell interativo + comandos (import/run/review/status/config)
 ├── bin/career.cjs   # wrapper p/ CLI global (npm link → career)
-├── __tests__/       # 36 suites Jest (contratos em helpers/contracts.ts)
+├── __tests__/       # 44 suites Jest (contratos em helpers/contracts.ts)
 ├── CONTRIBUTING.md  # Guia de contribuição (PT-BR) — CONTRIBUTING.en.md (EN)
 └── AGENTS.md        # Guia para agentes de IA neste repo
 ```
