@@ -124,6 +124,59 @@ describe('createModelClients — provider ollama', () => {
       durationMs: 3000,
     });
   });
+
+  it('AI_THINK_ENABLED + model sem capability "thinking" → think não vai no body', async () => {
+    const fetchImpl = (
+      jest.fn() as jest.MockedFunction<typeof fetch>
+    ).mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes('/api/show'))
+        return Promise.resolve(new Response(JSON.stringify({ capabilities: ['completion'] })));
+      return Promise.resolve(jsonResponse(triageJson));
+    });
+    const clients = createModelClients(
+      ollamaConfig(),
+      { ollama: { fetchImpl } },
+      { AI_THINK_ENABLED: 'true' },
+    );
+    await clients.triageModel.generate('x');
+    const chatCall = fetchImpl.mock.calls.find((c) => String(c[0]).includes('/api/chat'))!;
+    const body = JSON.parse(chatCall[1]!.body as string);
+    expect(body.think).toBeUndefined();
+  });
+
+  it('400 "does not support thinking" → retry automático sem think', async () => {
+    let chatCalls = 0;
+    const fetchImpl = (
+      jest.fn() as jest.MockedFunction<typeof fetch>
+    ).mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes('/api/show'))
+        return Promise.resolve(new Response('{"error":"boom"}', { status: 500 }));
+      if (url.includes('/api/chat')) {
+        chatCalls++;
+        if (chatCalls === 1)
+          return Promise.resolve(
+            new Response('{"error":"\\"m\\" does not support thinking"}', { status: 400 }),
+          );
+        return Promise.resolve(jsonResponse(triageJson));
+      }
+      return Promise.resolve(new Response('{}'));
+    });
+    const clients = createModelClients(
+      ollamaConfig(),
+      { ollama: { fetchImpl } },
+      { AI_THINK_ENABLED: 'true' },
+    );
+    const out = await clients.triageModel.generate('x');
+    expect(out.fitScore).toBe(85);
+    expect(chatCalls).toBe(2);
+    const chatBodies = fetchImpl.mock.calls
+      .filter((c) => String(c[0]).includes('/api/chat'))
+      .map((c) => JSON.parse(c[1]!.body as string));
+    expect(chatBodies[0].think).toBe(true);
+    expect(chatBodies[1].think).toBeUndefined();
+  });
 });
 
 describe('createModelClients — overrides de routing (fallback do preflight)', () => {
