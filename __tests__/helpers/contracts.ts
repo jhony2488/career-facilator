@@ -268,6 +268,14 @@ export interface CareerOpsConfig {
       salaryExpectationUSD: number;
     };
   };
+  salary: {
+    adaptToJobRange: boolean;
+    byLevel: {
+      JUNIOR: { brl: number; usd: number };
+      PLENO: { brl: number; usd: number };
+      SENIOR: { brl: number; usd: number };
+    };
+  };
   profile: {
     inboxDir: string;
     draftPath: string;

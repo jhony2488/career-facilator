@@ -52,6 +52,7 @@ import type { PageStateLike } from '../autofill/formExecutor';
 // No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) —
 // stderr limpo p/ usuário do binário. Em dev (tsx) os warnings continuam.
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- detecção síncrona de SEA (import() é assíncrono demais para este ponto de entrada)
   const sea = require('node:sea') as { isSea?: () => boolean };
   if (sea.isSea?.()) process.removeAllListeners('warning');
 } catch {

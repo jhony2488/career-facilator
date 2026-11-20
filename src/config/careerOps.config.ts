@@ -71,6 +71,17 @@ export interface CareerOpsConfig {
       salaryExpectationUSD: number;
     };
   };
+  /** Pretensão salarial por nível de senioridade + adaptação à faixa da vaga. */
+  salary: {
+    /** Vaga paga menos que a pretensão → estipula o teto da faixa dela. */
+    adaptToJobRange: boolean;
+    /** Pretensão por nível detectado no título da vaga (SALARY_<CUR>_<LEVEL>). */
+    byLevel: {
+      JUNIOR: { brl: number; usd: number };
+      PLENO: { brl: number; usd: number };
+      SENIOR: { brl: number; usd: number };
+    };
+  };
   profile: {
     inboxDir: string;
     draftPath: string;
@@ -162,6 +173,14 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
       regions: ['WORLDWIDE', 'LATAM', 'AMERICAS_TIMEZONE'],
       blockVisaRequired: true,
       salaryExpectationUSD: 4500,
+    },
+  },
+  salary: {
+    adaptToJobRange: true,
+    byLevel: {
+      JUNIOR: { brl: 5000, usd: 2500 },
+      PLENO: { brl: 10000, usd: 4500 },
+      SENIOR: { brl: 16000, usd: 7000 },
     },
   },
   profile: {
