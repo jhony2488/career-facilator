@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 
 /**
  * Extrai o primeiro objeto JSON balanceado de um texto — tolera fences
