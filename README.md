@@ -2,7 +2,7 @@
 
 Sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida com otimização de inferência.
 
-> **Status:** especificação completa + implementação inicial — **36 suites Jest verdes** e client Ollama real funcionando (streaming + JSON estruturado). Automação de browser (Playwright) e SMTP reais ainda não conectados (ver [Limitações atuais](#limitações-atuais)).
+> **Status:** especificação completa + implementação inicial — **44 suites Jest verdes** e client Ollama real funcionando (streaming + JSON estruturado). Automação de browser (Playwright) e SMTP reais ainda não conectados (ver [Limitações atuais](#limitações-atuais)).
 
 ## O que é
 
@@ -22,7 +22,7 @@ O CareerFacilator AI automatiza o ciclo ponta a ponta de busca e candidatura a v
 - [Ollama](https://ollama.com) (opcional, mas recomendado — custo zero para triagem/estruturação)
 
 ```powershell
-npm install          # instala dependências (Jest, tsx, better-sqlite3, …)
+npm install          # instala dependências (Jest, tsx, esbuild, postject, node:sqlite builtin, …)
 ```
 
 ### Configuração (`.env`)
@@ -68,7 +68,8 @@ npm run cli -- vault list           # refs gravadas no cofre (sem expor segredos
 npm run cli -- whatsapp setup       # cria instância Evolution API + QR no terminal p/ parear
 npm run cli -- whatsapp status      # estado da conexão WhatsApp
 
-npm run build     # compila para dist/
+npm run build     # compila TypeScript para dist/
+npm run build:exe # gera blob SEA (dist/bundle/) — a injeção no binário do SO é feita no CI ou manualmente
 npm run start -- <comando>   # roda o build compilado
 ```
 
@@ -92,6 +93,8 @@ career config unset AI_LOCAL_MODEL
 ```
 
 Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH`.
+
+> **Tutoriais detalhados:** veja instruções passo a passo de instalação pelo repositório, npm global, binários de release e configuração de modelos (incluindo Ollama por capacidade de RAM) em [tutorials/README.md](tutorials/README.md).
 
 > **Dev no repo:** o `.env` local tem `CAREER_HOME=.`, então os dados continuam em `storage/` e `src/config/` como antes.
 
@@ -162,6 +165,7 @@ CareerFacilator/
 
 ## Documentação
 
+- **[tutorials/README.md](tutorials/README.md)** — guias passo a passo de instalação (repositório, npm global, binários de release) e configuração de modelos de IA (Ollama e provedores remotos)
 - **[docs/README.md](docs/README.md)** — índice geral (PT-BR + EN)
 - **[docs/pt-BR/README.md](docs/pt-BR/README.md)** — arquitetura, otimização de IA, skills, modos, escopo geográfico, confiabilidade, e-mail e ingestão de perfil
 - **[feature/README.md](feature/README.md)** — cenários BDD cobrindo todos os módulos

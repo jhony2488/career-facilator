@@ -4,14 +4,15 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação de `src/` — **42 suites passam** (217 unit + 43 integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`.
+**Estado atual:** especificação + implementação de `src/` — **44 suites passam** (247 unit + 43 integration + 9 e2e). SMTP real via nodemailer + cofre AES-256-GCM e WhatsApp (fila/Evolution API) conectados; Playwright segue stub. Ollama funciona de verdade via `import`/`run`.
 
 ## Onde encontrar as coisas
 
 | Caminho | Conteúdo |
 |---------|----------|
-| `docs/pt-BR/` | Especificação de arquitetura (fonte da verdade, 15 docs numerados) |
+| `docs/pt-BR/` | Especificação de arquitetura (fonte da verdade, 16 docs numerados) |
 | `docs/en/` | Mesma especificação traduzida para inglês |
+| `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, binários de release) e configuração de modelos de IA |
 | `feature/*.feature` | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo |
 | `feature/DECISOES.md` | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar** |
 | `src/` | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
@@ -25,9 +26,10 @@
 
 ### Documentação
 - Docs em **PT-BR e EN** sempre em pares (`docs/pt-BR/NN-nome.md` ↔ `docs/en/NN-name.md`)
+- Tutoriais em **PT-BR e EN** sempre em pares (`tutorials/pt-BR/NN-nome.md` ↔ `tutorials/en/NN-name.md`)
 - Numeração de seção interna preserva os números originais da spec (ex: `05-skills` começa em "# 8.")
 - Navegação « anterior / índice / próximo » ao fim de cada doc
-- Ao alterar um doc PT-BR, atualizar o equivalente EN
+- Ao alterar um doc PT-BR, atualizar o equivalente EN; o mesmo vale para tutoriais
 
 ### Specs BDD (`.feature`)
 - `# language: pt` sempre; keywords `Funcionalidade`, `Contexto`, `Cenário`, `Esquema do Cenário`, `Exemplos`
@@ -54,7 +56,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **42 suites** derivadas dos `.feature` + contratos de infra, todas verdes
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **44 suites** derivadas dos `.feature` + contratos de infra, todas verdes
 - Descrições de `describe`/`it` e comentários nos testes sempre em **inglês**
 - **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes
