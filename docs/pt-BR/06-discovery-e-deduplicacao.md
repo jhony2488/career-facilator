@@ -44,7 +44,8 @@ Antes mesmo de gastar 1 único token de IA, o repositório (`src/db/repository.t
 - **CLI:** `career run` (sem `--jobs-file`) executa descoberta; `career discover [--sources id1,id2] [--max-jobs N] [--export out.json]` lista ou exporta vagas; `career scan <source-id> [--max-jobs N]` testa uma fonte. `--dry-run` em `discover` lista fontes ativas sem buscar.
 - **Isolamento de erro:** uma fonte que falha retorna `DiscoveryError` e o motor segue nas demais; se todas falham, o ciclo alerta e aborta sem tocar nos tiers de IA.
 - **Limites/rate:** `DISCOVERY_MAX_JOBS_PER_SOURCE`, `DISCOVERY_CONCURRENCY`, `DISCOVERY_PER_DOMAIN_DELAY_MS`, `MAX_JOBS_PER_RUN` (global).
-- **Não implementado ainda:** boards ATS por slug de empresa (Greenhouse/Lever/Gupy), scrapers HTML genéricos, LinkedIn/sessão autenticada e dorks de busca estão registrados, mas retornam erro `not implemented` até os adapters existirem.
+- **Fallback genérico (HTML + LLM):** fontes `html` com `url`/`searchUrlTemplate` usam `src/discovery/adapters/htmlAdapter.ts` + `genericExtractor.ts` — a página vira Markdown (`cleanJobHtml`) e um modelo extrai `{"jobs": [...]}` via `generateStructured`. Requer `DISCOVERY_USE_GENERIC_FALLBACK=true`; o modelo é `DISCOVERY_GENERIC_MODEL` ou, se vazio, herda o tier `AI_LOCAL_*` (hoje só provider `ollama`). Nada é inventado: o prompt exige URLs reais e campos ausentes ficam vazios.
+- **Não implementado ainda:** boards ATS por slug de empresa (Greenhouse/Lever/Gupy), LinkedIn/sessão autenticada e dorks de busca estão registrados, mas retornam erro `not implemented` até os adapters existirem.
 
 ---
 
