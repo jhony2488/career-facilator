@@ -6,11 +6,11 @@ Download a single executable. No Node.js or npm is required.
 
 Open the **Releases** tab in the GitHub repository and pick the file for your system:
 
-| System | File |
-|--------|------|
-| Windows | `career-windows-x64.exe` |
-| macOS (Apple Silicon) | `career-macos-arm64` |
-| Linux | `career-linux-x64` |
+| System                | File                     |
+| --------------------- | ------------------------ |
+| Windows               | `career-windows-x64.exe` |
+| macOS (Apple Silicon) | `career-macos-arm64`     |
+| Linux                 | `career-linux-x64`       |
 
 ## Windows
 

@@ -8,23 +8,25 @@
 
 ## Onde encontrar as coisas
 
-| Caminho | Conteúdo |
-|---------|----------|
-| `docs/pt-BR/` | Especificação de arquitetura (fonte da verdade, 16 docs numerados) |
-| `docs/en/` | Mesma especificação traduzida para inglês |
-| `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, binários de release) e configuração de modelos de IA |
-| `feature/*.feature` | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo |
-| `feature/DECISOES.md` | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar** |
-| `src/` | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
+| Caminho                              | Conteúdo                                                                                                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/pt-BR/`                        | Especificação de arquitetura (fonte da verdade, 16 docs numerados)                                                                                                                     |
+| `docs/en/`                           | Mesma especificação traduzida para inglês                                                                                                                                              |
+| `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, binários de release) e configuração de modelos de IA                                                                            |
+| `feature/*.feature`                  | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo                                                                                                                           |
+| `feature/DECISOES.md`                | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar**                                                                                                    |
+| `src/`                               | Implementação: `intake/`, `ai/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
 
 ## Convenções do projeto
 
 ### Nomenclatura
+
 - Produto: **CareerFacilator AI** (a spec antiga usava "CareerOps AI" — normalizado; identificadores de código da spec como `CareerOpsConfig`/`careerOps.config.ts` permanecem como no documento original)
 - Diretório de código planejado: `career-facilitator-ts/src/` (ver `docs/pt-BR/02-arquitetura.md`)
 - Extensões sempre `.ts` — a spec antiga usava `.kf` no módulo de e-mail (resquício de outro sistema, já normalizado)
 
 ### Documentação
+
 - Docs em **PT-BR e EN** sempre em pares (`docs/pt-BR/NN-nome.md` ↔ `docs/en/NN-name.md`)
 - Tutoriais em **PT-BR e EN** sempre em pares (`tutorials/pt-BR/NN-nome.md` ↔ `tutorials/en/NN-name.md`)
 - Numeração de seção interna preserva os números originais da spec (ex: `05-skills` começa em "# 8.")
@@ -32,12 +34,14 @@
 - Ao alterar um doc PT-BR, atualizar o equivalente EN; o mesmo vale para tutoriais
 
 ### Specs BDD (`.feature`)
+
 - `# language: pt` sempre; keywords `Funcionalidade`, `Contexto`, `Cenário`, `Esquema do Cenário`, `Exemplos`
 - **Comportamental, não técnico:** proibido seletores CSS, SQL, nomes de função nos passos — apenas estado observável (status como `APPLIED`, `NEEDS_HUMAN_INPUT` ficam em inglês por serem identificadores)
 - Cenários com IA fixam a entrada no `Dado` — nunca dependem da saída real do modelo
 - Ambiguidades: comentário `# Ambiguidade:` ao fim do arquivo + consolidar em `feature/DECISOES.md`
 
 ### Conceitos-chave do domínio
+
 - **Máquina de estados:** `DISCOVERED → TRIAGED → TAILORED → READY_TO_REVIEW → APPLIED` (+ `SKIPPED`, `APPLIED_VIA_EMAIL`, `APPLIED_VIA_WHATSAPP`, `NEEDS_HUMAN_INPUT`, `REJECTED`, `INTERVIEW`, `ASSESSMENT_INVITED`)
 - **Modos de execução:** `FULL_AUTO` / `SEMI_AUTO` / `HYBRID_THRESHOLD` (régua: 75 para tailoring, 88 para auto-envio)
 - **Escopo de mercado:** `NATIONAL` / `INTERNATIONAL` / `BOTH`
@@ -46,6 +50,7 @@
 - **Canais de candidatura:** web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT`. E-mail: credencial SMTP no cofre (`career vault set`), teto 45/dia (`EMAIL_MAX_DAILY`), corpo via template `email_template.md`. WhatsApp: `MANUAL_QUEUE` (fila no `review`) ou `EVOLUTION_API` — ver `docs/pt-BR/14` e `docs/pt-BR/15`
 
 ### CLI e dados do usuário
+
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
 - Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1
 - Precedência de env: `<home>/.env` < `./.env` < `process.env`; `career config set|get|unset|init|path` manipula o `.env` do home via `src/config/envFile.ts`
