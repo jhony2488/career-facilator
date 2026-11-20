@@ -50,7 +50,7 @@
 
 ## Stack planejada (quando implementar)
 
-Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod · Drizzle + better-sqlite3 · Ollama (triagem local) + Groq/Gemini/Claude Haiku (nuvem com cache)
+Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod · `node:sqlite` builtin (sem dep nativa — viabiliza exe single-file) · Ollama (triagem local) + Groq/Gemini/Claude Haiku (nuvem com cache)
 
 ## Testes (`__tests__/`)
 
@@ -63,7 +63,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Verificação
 
-Não há build ainda. Para alterações em docs/specs/testes:
+Builds: `npm run build:exe` gera blob SEA (`esbuild` → `dist/bundle/` + `node --experimental-sea-config`); injeção no binário é por OS (postject — ver `.github/workflows/release.yml`). Releases: tag `v*` publica exes Win/macOS/Linux. Para alterações em docs/specs/testes:
 
 ```powershell
 # Resíduos proibidos (deve retornar 0 fora de identificadores de código)

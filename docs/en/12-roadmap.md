@@ -1,6 +1,6 @@
 # 7. Next Implementation Steps
 
-1. **Initial Setup:** Initialize a Node/TypeScript project with `drizzle-orm`, `better-sqlite3`, `playwright` and `ai` (Vercel AI SDK).
+1. **Initial Setup:** Initialize a Node/TypeScript project with `node:sqlite` (builtin), `playwright` and `ai` (Vercel AI SDK).
 2. **Build `domCleaner.ts` + `triageAgent.ts`:** Validate extraction and Fit Score calculation with minimal token cost.
 3. **Create the ATS Template (`resumeBuilder.ts`):** Structure a clean single-column HTML layout that generates lightweight PDFs 100% readable by HR parsers.
 4. **Attach the Playwright Executor (`formExecutor.ts`):** Integrate React/SPA-compatible filling and the manual approval loop.
