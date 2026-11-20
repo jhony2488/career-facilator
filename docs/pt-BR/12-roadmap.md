@@ -1,4 +1,4 @@
-# 7. Próximos Passos para Implementação
+﻿# 7. Próximos Passos para Implementação
 
 1. **Setup Inicial:** Inicializar projeto Node/TypeScript com `node:sqlite` (builtin), `playwright` e `ai` (Vercel AI SDK).
 2. **Construir o `domCleaner.ts` + `triageAgent.ts`:** Validar a extração e o cálculo de Fit Score com custo mínimo de tokens.
@@ -15,6 +15,7 @@
 | **Fase 3 — Automação de Envio** | `formInspector.ts`, `deterministicMatcher.ts`, `wizardNavigator.ts`, `formExecutor.ts`, `sessionVault.ts` |
 | **Fase 4 — Inteligência e Escala** | Módulo `src/skills/`, `src/geo/`, `autonomyEngine.ts`, `escalationHandler.ts`, `--dry-run` |
 | **Fase 5 — Fechamento do Ciclo** | `email_application/`, `outcomeMonitor.ts`, métricas de conversão por skill |
+| **Fase 6 — Discovery expandido** | `src/discovery/` com APIs/RSS públicas + fallback genérico HTML+LLM (`genericExtractor.ts`); pendente: adapters ATS por slug, LinkedIn autenticado, dorks orgânicos |
 
 ---
 

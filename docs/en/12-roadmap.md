@@ -15,6 +15,7 @@
 | **Phase 3 — Submission Automation** | `formInspector.ts`, `deterministicMatcher.ts`, `wizardNavigator.ts`, `formExecutor.ts`, `sessionVault.ts` |
 | **Phase 4 — Intelligence and Scale** | `src/skills/` module, `src/geo/`, `autonomyEngine.ts`, `escalationHandler.ts`, `--dry-run` |
 | **Phase 5 — Cycle Closing** | `email_application/`, `outcomeMonitor.ts`, conversion metrics per skill |
+| **Phase 6 — Expanded discovery** | `src/discovery/` with public APIs/RSS + generic HTML+LLM fallback (`genericExtractor.ts`); pending: ATS slug adapters, authenticated LinkedIn, organic dorks |
 
 ---
 

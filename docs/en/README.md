@@ -13,7 +13,7 @@ Versão em português disponível em [`../pt-BR/`](../pt-BR/README.md).
 | 03 | [AI Optimization](03-ai-optimization.md) | DOM cleaning, Zod schemas, prompt caching and hybrid filling |
 | 04 | [Flow and Safety](04-flow-and-safety.md) | State machine in SQLite and Human-in-the-Loop |
 | 05 | [Dynamic Skills](05-dynamic-skills.md) | `src/skills/` module: registry, selector, injector and SKILL.md format |
-| 06 | [Discovery and Deduplication](06-discovery-and-dedup.md) | Job sources, Google Dorks and 3-level deduplication |
+| 06 | [Discovery and Deduplication](06-discovery-and-dedup.md) | Job sources (APIs/RSS/LLM fallback), registry and 3-level deduplication |
 | 07 | [Application Modes](07-application-modes.md) | FULL_AUTO, SEMI_AUTO, HYBRID_THRESHOLD and the Fit Score scale |
 | 08 | [Geographic Scope](08-geographic-scope.md) | `src/geo/` module: national, international or hybrid market |
 | 09 | [Configuration](09-configuration.md) | Complete `careerOps.config.ts` and updated execution flow |

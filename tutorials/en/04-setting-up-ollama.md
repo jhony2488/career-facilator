@@ -141,11 +141,15 @@ This tests the endpoint, model, and embeddings.
 
 ```powershell
 career import --pdf cv.pdf --dry-run
+career discover --dry-run            # lists active sources (no AI)
+career scan justremote --max-jobs 2  # generic fallback: HTML → LLM (uses the LOCAL tier)
 # or, if you already have jobs.json
 career run --jobs-file jobs.json --dry-run
 ```
 
 Use `--verbose` to see tokens being generated.
+
+> The discovery generic fallback inherits `AI_LOCAL_*` by default — or set `DISCOVERY_GENERIC_MODEL` to point at a specific model (e.g., a 7B if extractions come out weak with 3B). Details in [Discovering jobs](06-discovering-jobs.md).
 
 ## Performance tips
 

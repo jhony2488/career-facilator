@@ -67,6 +67,13 @@ career-facilitator-ts/
 │   │   ├── profileStructurer.ts     # Structures via LLM + Zod only what's in the doc
 │   │   ├── masterProfileStore.ts    # Draft, merge/replace and version history
 │   │   └── profileCompiler.ts       # Validates the MD and compiles the prompt cache JSON
+│   ├── discovery/
+│   │   ├── registry.ts              # Source catalog (APIs, ATS, job boards, search)
+│   │   ├── sourceRegistry.ts        # Filters sources by allowlist/region/work model
+│   │   ├── discoveryEngine.ts       # Orchestrates the run, URL dedup and RawJobInput
+│   │   ├── genericExtractor.ts      # LLM fallback for pages without API/RSS (inherits AI_LOCAL_*)
+│   │   ├── fetcher.ts               # HTTP with minimum per-domain delay
+│   │   └── adapters/                # apiAdapter, rssAdapter, htmlAdapter, stubs (ats/search/linkedin)
 │   ├── scraper/
 │   │   ├── browser.ts               # Persistent Playwright instance (logged-in sessions)
 │   │   ├── sessionVault.ts          # Encrypted cookies/storageState + jittered queue

@@ -2,7 +2,7 @@
 
 Jest + ts-jest suites derived from the specs in `docs/pt-BR/` and `feature/*.feature`.
 
-> **Status:** the tests import from `../src/`, which does not exist yet — they **do not compile/run** until the implementation begins. This is intentional (TDD/red-first): the tests are the executable spec of the modules.
+> **Status:** the implementation in `src/` exists and all suites run green (`npm run test:unit`, `test:integration`, `test:e2e`). The suites remain the executable spec of the modules.
 
 ## Structure
 
@@ -26,11 +26,11 @@ __tests__/
 - **Determinism:** tests involving AI inject `mockTriageModel`/`mockTailorModel` — they never depend on a real model.
 - **Config:** use `makeConfig()` with overrides — never hardcode thresholds outside the scenarios that explicitly test them.
 
-## Provisional contracts
+## Contracts
 
-The expected signatures of each `src/` module are documented in [`helpers/contracts.ts`](helpers/contracts.ts). If the implementation diverges, discuss/update it there **before** changing tests in bulk.
+The signatures of each `src/` module are centralized in [`helpers/contracts.ts`](helpers/contracts.ts). If the implementation diverges, discuss/update it there **before** changing tests in bulk.
 
-## Commands (once `src/` exists and `npm install` has been run)
+## Commands
 
 ```powershell
 npm run test:unit          # unit/ only
@@ -41,18 +41,18 @@ npm test                   # everything
 
 ## Feature → suites map
 
-| Feature | Unit | Integration | E2E |
-|---------|------|-------------|-----|
-| 01-discovery | `geo/dorkBuilder` | — | `pipeline.happy-path` |
-| 02-deduplicacao | — | `repository.sqlite` | `pipeline.*` |
-| 03-triagem-fit-score | `ai/triageAgent`, `ai/router` | `triage-to-tailor` | `pipeline.*` |
-| 04-skills | `skills/skillSelector`, `skills/skillInjector` | `triage-to-tailor` | `pipeline.*` |
-| 05-geracao-curriculo | `ai/tokenTracker` | `triage-to-tailor` | `pipeline.*` |
-| 06-autofill | `autofill/deterministicMatcher` | `autofill-pipeline`, `wizard-flow` | `pipeline.*` |
-| 07-modos | `core/autonomyEngine` | — | `pipeline.full-auto` |
-| 08-escopo-geo | `geo/eligibilityGuard`, `geo/localeAdapter` | — | — |
-| 09-escalonamento | — | `escalation` | `pipeline.full-auto` |
-| 10-email | `email/recipientResolver` | `email-application` | — |
-| 11-sessao | — | `escalation` (expired session) | — |
-| 12-tracking/dry-run | `tracker/outcomeMonitor` | — | `pipeline.dry-run` |
-| 13-ingestao-perfil | `intake/pdfExtractor`, `intake/profileStructurer`, `intake/masterProfileStore`, `intake/profileCompiler` | `intake-pipeline` | — |
+| Feature              | Unit                                                                                                                          | Integration                        | E2E                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------- |
+| 01-discovery         | `geo/dorkBuilder`, `discovery/apiAdapter`, `discovery/htmlAdapter`, `discovery/genericExtractor`, `discovery/discoveryEngine` | —                                  | `pipeline.happy-path` |
+| 02-deduplicacao      | —                                                                                                                             | `repository.sqlite`                | `pipeline.*`          |
+| 03-triagem-fit-score | `ai/triageAgent`, `ai/router`                                                                                                 | `triage-to-tailor`                 | `pipeline.*`          |
+| 04-skills            | `skills/skillSelector`, `skills/skillInjector`                                                                                | `triage-to-tailor`                 | `pipeline.*`          |
+| 05-geracao-curriculo | `ai/tokenTracker`                                                                                                             | `triage-to-tailor`                 | `pipeline.*`          |
+| 06-autofill          | `autofill/deterministicMatcher`                                                                                               | `autofill-pipeline`, `wizard-flow` | `pipeline.*`          |
+| 07-modos             | `core/autonomyEngine`                                                                                                         | —                                  | `pipeline.full-auto`  |
+| 08-escopo-geo        | `geo/eligibilityGuard`, `geo/localeAdapter`                                                                                   | —                                  | —                     |
+| 09-escalonamento     | —                                                                                                                             | `escalation`                       | `pipeline.full-auto`  |
+| 10-email             | `email/recipientResolver`                                                                                                     | `email-application`                | —                     |
+| 11-sessao            | —                                                                                                                             | `escalation` (expired session)     | —                     |
+| 12-tracking/dry-run  | `tracker/outcomeMonitor`                                                                                                      | —                                  | `pipeline.dry-run`    |
+| 13-ingestao-perfil   | `intake/pdfExtractor`, `intake/profileStructurer`, `intake/masterProfileStore`, `intake/profileCompiler`                      | `intake-pipeline`                  | —                     |

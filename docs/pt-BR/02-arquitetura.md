@@ -1,4 +1,4 @@
-# 2. Arquitetura do Sistema
+﻿# 2. Arquitetura do Sistema
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -67,6 +67,13 @@ career-facilitator-ts/
 │   │   ├── profileStructurer.ts     # Estrutura via LLM + Zod só o que consta no documento
 │   │   ├── masterProfileStore.ts    # Rascunho, merge/replace e histórico de versões
 │   │   └── profileCompiler.ts       # Valida o MD e compila o JSON do cache de prompt
+│   ├── discovery/
+│   │   ├── registry.ts              # Catálogo de fontes (APIs, ATS, boards, busca)
+│   │   ├── sourceRegistry.ts        # Filtra fontes por allowlist/região/work model
+│   │   ├── discoveryEngine.ts       # Orquestra execução, dedup por URL e RawJobInput
+│   │   ├── genericExtractor.ts      # Fallback LLM p/ páginas sem API/RSS (herda AI_LOCAL_*)
+│   │   ├── fetcher.ts               # HTTP com delay mínimo por domínio
+│   │   └── adapters/                # apiAdapter, rssAdapter, htmlAdapter, stubs (ats/search/linkedin)
 │   ├── scraper/
 │   │   ├── browser.ts               # Instância persistente do Playwright (sessões logadas)
 │   │   ├── sessionVault.ts          # Cookies/storageState criptografados + fila com jitter

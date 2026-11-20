@@ -132,7 +132,7 @@ Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` �
 ### Testes e verificação
 
 ```powershell
-npm run test        # 44 suites: unit + integration + e2e
+npm run test        # unit + integration + e2e
 npm run test:unit   # só unitários
 npm run lint        # ESLint
 npm run format      # Prettier
@@ -146,11 +146,11 @@ CareerFacilator/
 ├── docs/            # Especificação de arquitetura (16 docs)
 │   ├── pt-BR/       # versão em português (fonte da verdade)
 │   └── en/          # versão em inglês
-├── feature/         # Especificações BDD/Gherkin (13 .feature + DECISOES.md)
+├── feature/         # Especificações BDD/Gherkin (14 .feature + DECISOES.md)
 ├── src/
 │   ├── intake/      # Ingestão de perfil: PDF → estruturação → master.md (doc 13)
 │   ├── ai/          # Router de tiers, triage, tailorer (prompt cache), token tracker
-│   ├── discovery/   # registry, sourceRegistry, adapters, engine (APIs/RSS públicos)
+│   ├── discovery/   # registry, sourceRegistry, engine, fetcher, genericExtractor (LLM) + adapters (api/rss/html; ats/search/linkedin stub)
 │   ├── scraper/     # domCleaner, sessionVault (AES-256-GCM)
 │   ├── geo/         # dorkBuilder, eligibilityGuard, localeAdapter
 │   ├── skills/      # core (registry/selector/injector) + library/ (SKILL.md + keywords.json)
@@ -186,10 +186,10 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, s
 ## Limitações atuais
 
 - **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
-- **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão e ainda aceita `jobs.json` (`[{url, html}]`) via `--jobs-file`; scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
+- **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão, aceita `jobs.json` (`[{url, html}]`) via `--jobs-file` e cobre fontes `html` sem estrutura via fallback genérico com LLM (`DISCOVERY_USE_GENERIC_FALLBACK`; modelo = `DISCOVERY_GENERIC_MODEL` ou herda `AI_LOCAL_*`, provider ollama); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
 - **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
 
 ## Próximos passos
 
-Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`); próximas etapas: adapters ATS/HTML/LinkedIn autenticado e busca orgânica.
+Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + fallback genérico HTML+LLM; próximas etapas: adapters ATS por slug, LinkedIn autenticado e busca orgânica (dorks).

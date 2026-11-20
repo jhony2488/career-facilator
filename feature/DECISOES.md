@@ -9,6 +9,8 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 ### 01-discovery.feature
 - [x] Comportamento quando **todas** as fontes falham na mesma execução. **Decisão:** abortar o ciclo com alerta ao usuário, sem consumir IA.
 - [x] Volume máximo de vagas coletadas por execução. **Decisão:** limite configurável `maxJobsPerRun` (default 100).
+- [x] Fontes sem API/listagem estruturada. **Decisão:** fallback assistido de extração (`DISCOVERY_USE_GENERIC_FALLBACK`); desabilitado → fonte ignorada com aviso, sem quebrar o ciclo.
+- [x] Modelo do extrator genérico. **Decisão:** `DISCOVERY_GENERIC_MODEL` quando preenchido; vazio herda o tier leve já configurado (`AI_LOCAL_*`).
 
 ### 02-deduplicacao.feature
 - [x] Critério de "conteúdo equivalente" no hash cross-platform. **Decisão:** normalizar o conteúdo antes do hash (lowercase, sem pontuação, espaços extras e boilerplate) sobre os 300 primeiros caracteres.
@@ -67,7 +69,7 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 
 ## Nota sobre os testes (`__tests__/`)
 
-As suites Jest em `__tests__/` usam **assinaturas provisórias** dos módulos `src/`, centralizadas em `__tests__/helpers/contracts.ts`. Elas representam a leitura mais plausível da spec, mas são um contrato a confirmar quando a implementação começar — divergências devem ser resolvidas naquele arquivo primeiro.
+As suites Jest em `__tests__/` usam assinaturas dos módulos `src/` centralizadas em `__tests__/helpers/contracts.ts`. Com a implementação em andamento, esse arquivo é o contrato mantido — divergências devem ser resolvidas lá primeiro.
 
 ## Padrões adotados
 
@@ -84,3 +86,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 7 | Teto diário de e-mails | **45/dia** configurável (`EMAIL_MAX_DAILY`) |
 | 8 | Canal WhatsApp default | `MANUAL_QUEUE` (fila no `review`); `EVOLUTION_API` opt-in |
 | 9 | Precedência de canal | Web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT` |
+| 10 | Fonte sem estrutura no discovery | Fallback assistido (`DISCOVERY_USE_GENERIC_FALLBACK`); desabilitado → ignora com aviso |
+| 11 | Modelo do extrator genérico | `DISCOVERY_GENERIC_MODEL` ou, vazio, herda `AI_LOCAL_*` |
