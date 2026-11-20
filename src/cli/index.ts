@@ -68,13 +68,35 @@ const effEnv = loadEffectiveEnv();
 const HOME = careerHome(effEnv.env);
 const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', effEnv.env);
 
-const USAGE =
-  'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
-  'run [--jobs-file <json>] [--max-jobs N] [--sources id1,id2] [--dry-run] [--verbose] | ' +
-  'discover [--sources id1,id2] [--max-jobs N] [--export <json>] | ' +
-  'scan <source-id> [--max-jobs N] | review | approve | status | ' +
-  'vault [list|set|remove <ref>] | whatsapp [setup|status] | ' +
-  'config [path|init|get|set|unset|check] | exit';
+const HELP = [
+  'Comandos:',
+  '',
+  '  Perfil',
+  '    import --pdf <arquivo>                  Estrutura um CV em PDF → profile.draft.md',
+  '    import --inbox [--watch] [--replace]    Processa PDFs pendentes da inbox',
+  '    approve                                 Promove o rascunho a perfil-mestre',
+  '',
+  '  Descoberta de vagas',
+  '    discover [--sources id1,id2] [--max-jobs N] [--export <json>]',
+  '                                          Lista/exporta vagas descobertas (--dry-run lista fontes)',
+  '    scan <source-id> [--max-jobs N]         Testa uma fonte e imprime amostras',
+  '    run [--jobs-file <json>] [--sources id1,id2] [--max-jobs N] [--dry-run] [--verbose]',
+  '                                          Descobre vagas (ou lê jobs.json) e roda o funil',
+  '',
+  '  Revisão e estado',
+  '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
+  '    status                                  Contagens por status no jobs.sqlite',
+  '',
+  '  Configuração e canais',
+  '    config [path|init|get|set|unset|check]  Config global + preflight dos tiers de IA',
+  '    vault [list|set|remove <ref>]           Cofre de credenciais (SMTP etc.)',
+  '    whatsapp [setup|status]                 Evolution API: instância + QR no terminal',
+  '',
+  '  Outros',
+  '    version                                 Versão da build',
+  '    help                                    Esta ajuda',
+  '    exit                                    Sai do shell interativo',
+].join('\n');
 
 /** Contexto de execução de um comando — cancelamento + perguntas interativas. */
 interface CmdCtx {
@@ -1021,6 +1043,12 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
     case 'version':
       console.log(process.env.CAREER_VERSION ?? 'dev');
       return true;
+    case 'help':
+    case '-h':
+    case '--help':
+    case '?':
+      console.log(HELP);
+      return true;
     default:
       return false;
   }
@@ -1069,7 +1097,7 @@ async function repl(): Promise<void> {
         return;
       }
       if (cmd === 'help' || cmd === '?') {
-        console.log(USAGE);
+        console.log(HELP);
         return;
       }
       const ctrl = new AbortController();
@@ -1077,7 +1105,7 @@ async function repl(): Promise<void> {
       const ask = (q: string) => new Promise<string>((res) => rl.question(q, res));
       try {
         if (!(await dispatch(cmd, cmdArgs, { signal: ctrl.signal, ask }))) {
-          console.log(`Comando desconhecido: ${cmd}. ${USAGE}`);
+          console.log(`Comando desconhecido: ${cmd} — 'help' lista os comandos.`);
         }
       } catch (err) {
         printError(err);
@@ -1106,7 +1134,8 @@ async function main(): Promise<void> {
   try {
     const [command, ...args] = argv;
     if (!(await dispatch(command, args, { signal: ctrl.signal }))) {
-      console.log(`CareerFacilator AI — ${USAGE}`);
+      console.log(`Comando desconhecido: ${command}`);
+      console.log(HELP);
       process.exitCode = 1;
     }
   } catch (err) {
