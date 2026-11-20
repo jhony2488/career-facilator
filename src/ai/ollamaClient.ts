@@ -9,6 +9,16 @@ export interface OllamaMessage {
   content: string;
 }
 
+/** Métricas reais devolvidas pelo Ollama no fim de cada chamada (chunk done / resposta). */
+export interface OllamaCallStats {
+  totalDurationMs?: number;
+  loadDurationMs?: number;
+  promptTokens?: number;
+  promptEvalDurationMs?: number;
+  outputTokens?: number;
+  evalDurationMs?: number;
+}
+
 export interface OllamaChatOptions {
   /** 'json' força saída JSON válida; objeto = JSON schema (Ollama ≥ 0.5). */
   format?: 'json' | Record<string, unknown>;
@@ -19,6 +29,10 @@ export interface OllamaChatOptions {
   stream?: boolean;
   /** Callback por token — expõe streaming ao consumidor (CLI/UI). */
   onToken?: (token: string) => void;
+  /** Callback com as métricas da chamada ao fim (tokens, durações, carga). */
+  onDone?: (stats: OllamaCallStats) => void;
+  /** Cancelamento externo (ex.: Ctrl+C no CLI) — combinado com o timeout. */
+  signal?: AbortSignal;
   timeoutMs?: number;
 }
 
@@ -26,6 +40,8 @@ export interface OllamaClient {
   chat(model: string, messages: OllamaMessage[], opts?: OllamaChatOptions): Promise<string>;
   embed(model: string, texts: string[]): Promise<number[][]>;
   isReachable(): Promise<boolean>;
+  /** Nomes dos modelos instalados (GET /api/tags) — p/ preflight antes de gerar. */
+  listModels(): Promise<string[]>;
 }
 
 export interface OllamaClientDeps {
@@ -50,10 +66,12 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     opts: OllamaChatOptions = {},
   ): Promise<string> {
     const stream = opts.stream ?? opts.onToken !== undefined;
+    const signals = [AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)];
+    if (opts.signal) signals.push(opts.signal);
     const res = await fetchImpl(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.any(signals),
       body: JSON.stringify({
         model,
         messages,
@@ -70,12 +88,13 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
 
     if (!stream) {
-      const data = (await res.json()) as { message?: { content?: string } };
+      const data = (await res.json()) as { message?: { content?: string } } & Record<string, unknown>;
+      opts.onDone?.(statsFromChunk(data));
       return data.message?.content ?? '';
     }
 
     if (!res.body) throw new Error('Ollama: resposta sem body para streaming');
-    return readNdjsonStream(res.body, opts.onToken);
+    return readNdjsonStream(res.body, opts.onToken, opts.onDone);
   }
 
   async function embed(model: string, texts: string[]): Promise<number[][]> {
@@ -102,18 +121,48 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     }
   }
 
-  return { chat, embed, isReachable };
+  async function listModels(): Promise<string[]> {
+    try {
+      const res = await fetchImpl(`${baseUrl}/api/tags`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { models?: { name?: string }[] };
+      return (data.models ?? []).map((m) => m.name ?? '').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  return { chat, embed, isReachable, listModels };
+}
+
+/** Normaliza os campos de métricas do Ollama (nanosegundos → ms). */
+function statsFromChunk(chunk: Record<string, unknown>): OllamaCallStats {
+  const ns = (k: string) =>
+    typeof chunk[k] === 'number' ? Math.round((chunk[k] as number) / 1e6) : undefined;
+  const count = (k: string) => (typeof chunk[k] === 'number' ? (chunk[k] as number) : undefined);
+  return {
+    totalDurationMs: ns('total_duration'),
+    loadDurationMs: ns('load_duration'),
+    promptTokens: count('prompt_eval_count'),
+    promptEvalDurationMs: ns('prompt_eval_duration'),
+    outputTokens: count('eval_count'),
+    evalDurationMs: ns('eval_duration'),
+  };
 }
 
 /** Acumula o stream NDJSON do Ollama — cada linha é um chunk { message: { content } }. */
 async function readNdjsonStream(
   body: ReadableStream<Uint8Array>,
   onToken?: (token: string) => void,
+  onDone?: (stats: OllamaCallStats) => void,
 ): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let content = '';
+  let stats: OllamaCallStats = {};
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -126,7 +175,8 @@ async function readNdjsonStream(
       buffer = buffer.slice(newline + 1);
       if (!line) continue;
       try {
-        const chunk = JSON.parse(line) as { message?: { content?: string } };
+        const chunk = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+        if (chunk.done === true) stats = statsFromChunk(chunk);
         const piece = chunk.message?.content ?? '';
         if (piece) {
           content += piece;
@@ -137,5 +187,6 @@ async function readNdjsonStream(
       }
     }
   }
+  onDone?.(stats);
   return content;
 }
