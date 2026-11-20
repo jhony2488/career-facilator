@@ -160,6 +160,8 @@ Relative paths in `profile` and `storage/` (including `jobs.sqlite`) resolve und
 
 **Prospecting and fit thresholds (env):** `JOB_TITLES` — job titles to look for, comma/semicolon-separated (default: fullstack/backend dev); approximate matching, does not need to be exact (see `titleMatcher.ts`, doc 03 §5.5). `FIT_MIN_SCORE` — minimum fit to proceed to tailoring (default 75); `FIT_AUTO_SCORE` — fit for fully automatic sending without review (default 88). `LEXICAL_MIN_TERMS` — profile terms required in the job text by the Layer 0 filter (default 1).
 
+**Salary expectation (env):** `SALARY_BRL`/`SALARY_USD` — default expectation when the job states no level (default 10000/4500). `SALARY_{BRL,USD}_{JUNIOR,PLENO,SENIOR}` — expectation per level detected in the job title (`junior`/`pleno`/`senior`/`lead`/`staff`…). `SALARY_ADAPT_TO_RANGE=true` (default) — when the job's salary range pays **less** than the expectation, the system asks for the range ceiling instead of exceeding it; it never inflates above the base expectation. See `salaryResolver.ts`.
+
 **Semantic embeddings (env):** `AI_EMBEDDINGS_ENABLED=true` enables the probabilistic layer: `OLLAMA_EMBED_MODEL` (default `nomic-embed-text`) via Ollama's `/api/embed`. Powers two features: profile RAG for tailoring (`retrieveHybrid`, lexical+semantic fusion via RRF) and semantic `JOB_TITLES` matching (fallback when the deterministic layer finds no match — cosine ≥ 0.72). `false`/absent → both run deterministically at zero cost.
 
 ```powershell
