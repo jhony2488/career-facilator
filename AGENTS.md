@@ -48,7 +48,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Testes (`__tests__/`)
 
-- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **27 suites** derivadas dos `.feature`, todas verdes
+- Jest + ts-jest, 3 projects: `unit/`, `integration/`, `e2e/` — **28 suites** derivadas dos `.feature` + contratos de infra, todas verdes
 - **Contratos** das assinaturas de `src/`: `__tests__/helpers/contracts.ts` — atualizar lá antes de mudar testes em massa
 - Mocks de deps externas em `__tests__/helpers/mocks.ts` — nunca importar playwright/nodemailer/SDKs nos testes
 - Comandos: `npm run test:unit|test:integration|test:e2e` · `npx tsc --noEmit` deve ficar limpo

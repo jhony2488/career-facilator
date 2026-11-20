@@ -15,15 +15,14 @@ Obrigado por contribuir! Este documento define as regras de fluxo, estilo e qual
 npm run lint        # ESLint
 npm run format:check# Prettier
 npx tsc --noEmit    # Typecheck
-npm run test        # 27 suites Jest
-npm run check:pr-size  # ≤ 20 arquivos alterados
+npm run test        # 28 suites Jest
 ```
 
 ## Regras de PR
 
 ### Tamanho: máximo de 20 arquivos por PR
 
-PRs devem ser pequenos e revisáveis. O limite é de **20 arquivos alterados** (excluindo lockfiles, que não contam).
+PRs devem ser pequenos e revisáveis. A diretriz é de **até 20 arquivos alterados** (excluindo lockfiles) — verificada na revisão.
 
 **Exceções justificadas** — permitido exceder o limite quando:
 
