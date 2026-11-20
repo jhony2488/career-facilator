@@ -32,6 +32,16 @@ The `profile.master.json` — an artifact compiled from the user-approved `profi
 
 Common application form fields (Name, E-mail, Phone, LinkedIn, GitHub, Portfolio, Salary Expectation, Availability) are resolved locally via a TypeScript synonym dictionary (**0 AI calls**). The LLM is only invoked when the inspector detects a `<textarea>` with a new essay question (e.g.: "Tell us about a complex technical challenge you solved").
 
+## 5.5. Optimizations for small local models (3B)
+
+The system supports small local models (e.g. `hermes3:latest` via Ollama) with three combined optimizations:
+
+**Pre-triage lexical filter (`lexicalMatch.ts`)** — before any Layer 1 call, `computeLexicalFit` counts how many profile terms (stack + titles) appear in the job text. Below `LEXICAL_MIN_TERMS` (default 1) the job is discarded as `LOW_LEXICAL_FIT` — **zero inference spent** on jobs with no overlap.
+
+**Profile RAG (`rag/profileRetriever.ts`)** — the tailor no longer receives the entire profile as a JSON dump (~2–4k tokens). `chunkProfile` splits it into labeled chunks (experiences, projects, stack, standard answers) and `retrieveRelevant` returns only the ones relevant to the job via BM25-like ranking + always-included skeleton. `retrieveHybrid` merges the lexical ranking with Ollama embeddings (`AI_EMBEDDINGS_ENABLED` + `nomic-embed-text`) via Reciprocal Rank Fusion — lexical remains the zero-cost default.
+
+**Streaming + guaranteed JSON (`ollamaClient.ts`, `jsonRepair.ts`)** — the real client calls `/api/chat` with `format:'json'` (forced structured output, critical for 3B), `keep_alive` (warm model), env-driven `options`, and **NDJSON streaming** with `onToken` — the CLI shows progress in real time (`--verbose`). When the model wraps JSON in prose, `generateStructured` extracts the balanced object and retries once with the validation error.
+
 ---
 
 « [Previous: Architecture](02-architecture.md) | [Index](README.md) | [Next: Flow and Safety →](04-flow-and-safety.md)

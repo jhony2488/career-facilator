@@ -2,7 +2,7 @@
 
 Sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida com otimização de inferência.
 
-> **Status:** especificação completa + implementação inicial — todos os módulos do `src/` implementados e **28 suites Jest verdes**. Integrações de produção (clientes LLM, Playwright, SMTP) seguem injetáveis e ainda não conectadas (ver [Limitações atuais](#limitações-atuais)).
+> **Status:** especificação completa + implementação inicial — **34 suites Jest verdes** e client Ollama real funcionando (streaming + JSON estruturado). Automação de browser (Playwright) e SMTP reais ainda não conectados (ver [Limitações atuais](#limitações-atuais)).
 
 ## O que é
 
@@ -35,12 +35,15 @@ Providers e modelos são configurados **por tier** via `.env` — sem tocar em c
 
 ```env
 AI_LOCAL_PROVIDER=ollama     # triagem barata  → qualquer modelo local
-AI_LOCAL_MODEL=qwen2.5:7b
+AI_LOCAL_MODEL=hermes3:latest
 AI_FAST_PROVIDER=ollama      # fallback rápido
-AI_FAST_MODEL=qwen2.5:3b
+AI_FAST_MODEL=hermes3:latest
 AI_SMART_PROVIDER=anthropic  # raciocínio + prompt cache
 AI_SMART_MODEL=claude-haiku-4-5
 ANTHROPIC_API_KEY=sk-ant-...
+
+# tuning opcional: OLLAMA_KEEP_ALIVE, AI_TEMPERATURE, AI_NUM_PREDICT,
+# AI_EMBEDDINGS_ENABLED (RAG semântico via nomic-embed-text), LEXICAL_MIN_TERMS
 ```
 
 Providers válidos: `ollama`, `groq`, `anthropic`, `openai`, `kimi`, `gemini` (ou qualquer outro nome — a chave é lida de `<PROVIDER>_API_KEY`, o modelo de `<PROVIDER>_MODEL` ou `AI_<TIER>_MODEL`). Tudo documentado comentado em `.env.example`.
@@ -50,10 +53,12 @@ Providers válidos: `ollama`, `groq`, `anthropic`, `openai`, `kimi`, `gemini` (o
 ```powershell
 npm run cli -- <comando>          # roda o CLI em dev (tsx, sem build)
 
-npm run cli -- import --pdf cv.pdf   # ingere seu currículo → storage/profile.draft.md
-npm run cli -- run --dry-run         # simula o funil completo (nada é enviado)
-npm run cli -- review                # fila de candidaturas NEEDS_HUMAN_INPUT
-npm run cli -- status                # resumo do SQLite + uso de tokens
+npm run cli -- config               # mostra o roteamento de modelos resolvido do .env
+npm run cli -- import --pdf cv.pdf  # estrutura seu CV via Ollama → storage/profile.draft.md
+npm run cli -- import --pdf cv.pdf --verbose  # idem, com streaming de tokens no terminal
+npm run cli -- run --jobs-file jobs.json --dry-run   # funil completo (jobs.json = [{url, html}])
+npm run cli -- review               # fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW (SQLite real)
+npm run cli -- status               # contagens por status no storage/jobs.sqlite
 
 npm run build     # compila para dist/
 npm run start -- <comando>   # roda o build compilado
@@ -70,7 +75,7 @@ npm run start -- <comando>   # roda o build compilado
 ### Testes e verificação
 
 ```powershell
-npm run test        # 28 suites: unit + integration + e2e
+npm run test        # 34 suites: unit + integration + e2e
 npm run test:unit   # só unitários
 npm run lint        # ESLint
 npm run format      # Prettier
@@ -99,7 +104,7 @@ CareerFacilator/
 │   ├── generator/   # resumeBuilder
 │   ├── config/      # careerOps.config + loadConfig (.env)
 │   └── cli/         # entrypoint
-├── __tests__/       # 28 suites Jest (contratos em helpers/contracts.ts)
+├── __tests__/       # 34 suites Jest (contratos em helpers/contracts.ts)
 ├── CONTRIBUTING.md  # Guia de contribuição (PT-BR) — CONTRIBUTING.en.md (EN)
 └── AGENTS.md        # Guia para agentes de IA neste repo
 ```
@@ -118,11 +123,11 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · better-sqlite3 (+ Drizzle
 
 ## Limitações atuais
 
-- **Clientes LLM**: `resolveModel()` devolve provider/modelo/endpoint do `.env`, mas os clients reais (Ollama, Anthropic…) ainda não foram implementados — `triageModel`, `tailorModel` e o structurer do intake são injetáveis e testados com mocks.
-- **Discovery/browser**: o pipeline recebe vagas já extraídas (`rawJobs`); scraping com Playwright ainda não conectado.
-- **`run`/`review`/`status`** do CLI são stubs de orientação — o funil completo (`runApplicationPipeline`) é exercido pelos testes e2e com deps mockadas.
+- **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
+- **Discovery/browser**: `run` consome `jobs.json` (`[{url, html}]`); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
 - **SMTP**: `emailDispatcher` implementado com transporte injetável; nodemailer real a conectar.
+- **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
 
 ## Próximos passos
 
-Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — próxima etapa: clients de modelo reais (Ollama primeiro) e wiring do `run` no CLI.
+Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — próxima etapa: adapter de nuvem (Groq/Anthropic), discovery com Playwright e nodemailer real.

@@ -32,6 +32,16 @@ O `profile.master.json` — artefato compilado a partir do `profile.master.md` a
 
 Campos comuns de formulários de candidatura (Nome, E-mail, Telefone, LinkedIn, GitHub, Portfólio, Pretensão Salarial, Disponibilidade) são resolvidos localmente via dicionário de sinônimos em TypeScript (**0 chamadas de IA**). A LLM só é invocada quando o inspetor detecta uma `<textarea>` com pergunta dissertativa inédita (ex: "Conte sobre um desafio técnico complexo que você resolveu").
 
+## 5.5. Otimizações para modelos locais pequenos (3B)
+
+O sistema suporta modelos locais pequenos (ex.: `hermes3:latest` via Ollama) com três otimizações combinadas:
+
+**Filtro léxico pré-triagem (`lexicalMatch.ts`)** — antes de qualquer chamada à Camada 1, `computeLexicalFit` conta quantos termos do perfil (stack + títulos) aparecem na vaga. Abaixo de `LEXICAL_MIN_TERMS` (default 1) a vaga é descartada como `LOW_LEXICAL_FIT` — **zero inferência gasta** em vagas sem overlap.
+
+**RAG do perfil (`rag/profileRetriever.ts`)** — o tailor deixa de receber o perfil inteiro em JSON (~2–4k tokens). `chunkProfile` divide o perfil em trechos rotulados (experiências, projetos, stack, respostas padrão) e `retrieveRelevant` devolve só os relevantes à vaga por ranking BM25-like + esqueleto sempre-incluso. `retrieveHybrid` funde o ranking léxico com embeddings Ollama (`AI_EMBEDDINGS_ENABLED` + `nomic-embed-text`) via Reciprocal Rank Fusion — léxico permanece o default de custo zero.
+
+**Streaming + JSON garantido (`ollamaClient.ts`, `jsonRepair.ts`)** — o client real chama `/api/chat` com `format:'json'` (saída estruturada forçada, crítico para 3B), `keep_alive` (modelo quente), `options` via env e **streaming NDJSON** com `onToken` — o CLI exibe o progresso em tempo real (`--verbose`). Quando o modelo devolve prosa ao redor do JSON, `generateStructured` extrai o objeto balanceado e faz 1 retry corretivo com o erro de validação.
+
 ---
 
 « [Anterior: Arquitetura](02-arquitetura.md) | [Índice](README.md) | [Próximo: Fluxo e Segurança →](04-fluxo-e-seguranca.md)
