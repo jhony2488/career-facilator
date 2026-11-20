@@ -37,6 +37,9 @@ import { createOllamaClient } from '../ai/ollamaClient';
 import type { ModelRouting } from '../config/careerOps.config';
 import { JobRepository } from '../db/repository';
 import { runApplicationPipeline } from '../core/pipeline';
+import { FileCredentialVault } from '../email_application/credentialVault';
+import { createSmtpTransport } from '../email_application/smtpTransport';
+import { createEvolutionClient } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
@@ -51,7 +54,7 @@ const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', ef
 const USAGE =
   'Comandos: import --pdf <caminho> | import --inbox [--watch] [--replace] | ' +
   'run --jobs-file <json> [--dry-run] [--verbose] | review | approve | status | ' +
-  'config [path|init|get|set|unset|check] | exit';
+  'vault [list|set|remove <ref>] | config [path|init|get|set|unset|check] | exit';
 
 /** Contexto de execução de um comando — cancelamento + perguntas interativas. */
 interface CmdCtx {
@@ -429,20 +432,54 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     submitted: false,
   });
 
+  // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) — docs 11/15.
+  // Sem credencial/endpoint configurado o pipeline deixa a vaga em NEEDS_HUMAN_INPUT.
+  const channelDeps: Parameters<typeof runApplicationPipeline>[1] = {
+    repo,
+    triageModel: clients.triageModel,
+    tailorModel: clients.tailorModel,
+    pageFactory: () => emptyPage(''),
+    skills,
+    retriever: (chunks, keywords, jobText) =>
+      retrieveHybrid(chunks, { keywords, jobText }, embedder),
+  };
+
+  if (config.email.enabled) {
+    const fileVault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+    if (await fileVault.has(config.email.smtpCredentialRef)) {
+      channelDeps.vault = fileVault;
+      channelDeps.emailTransport = createSmtpTransport({
+        vault: fileVault,
+        ref: config.email.smtpCredentialRef,
+      });
+    } else {
+      console.log(
+        `E-mail: credencial '${config.email.smtpCredentialRef}' ausente no cofre ` +
+          `— rode 'vault set ${config.email.smtpCredentialRef}'. Vagas de e-mail vão para revisão.`,
+      );
+    }
+  }
+
+  if (config.whatsapp.enabled && config.whatsapp.mode === 'EVOLUTION_API') {
+    const apiUrl = effEnv.env[config.whatsapp.apiUrlEnv];
+    const apiKey = effEnv.env[config.whatsapp.apiKeyEnv];
+    if (apiUrl && apiKey) {
+      channelDeps.evolutionTransport = createEvolutionClient({
+        apiUrl,
+        apiKey,
+        instance: config.whatsapp.apiInstance,
+      });
+    } else {
+      console.log(
+        `WhatsApp EVOLUTION_API sem ${config.whatsapp.apiUrlEnv}/${config.whatsapp.apiKeyEnv} ` +
+          `definidos — vagas de WhatsApp cairão na fila manual.`,
+      );
+    }
+  }
+
   let result;
   try {
-    result = await runApplicationPipeline(
-      { rawJobs, profile, config, dryRun },
-      {
-        repo,
-        triageModel: clients.triageModel,
-        tailorModel: clients.tailorModel,
-        pageFactory: () => emptyPage(''),
-        skills,
-        retriever: (chunks, keywords, jobText) =>
-          retrieveHybrid(chunks, { keywords, jobText }, embedder),
-      },
-    );
+    result = await runApplicationPipeline({ rawJobs, profile, config, dryRun }, channelDeps);
   } finally {
     repo.close();
   }
@@ -481,14 +518,25 @@ async function cmdReview(): Promise<void> {
     ...(await repo.listByStatus('NEEDS_HUMAN_INPUT')),
     ...(await repo.listByStatus('READY_TO_REVIEW')),
   ];
+  const whatsappQueue = await repo.listWhatsappQueue();
   repo.close();
-  if (!pending.length) {
+  if (!pending.length && !whatsappQueue.length) {
     console.log('Fila vazia — nenhuma candidatura pendente de ação humana.');
     return;
   }
-  console.log(`${pending.length} candidatura(s) aguardando você:`);
-  for (const j of pending) {
-    console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+  if (pending.length) {
+    console.log(`${pending.length} candidatura(s) aguardando você:`);
+    for (const j of pending) {
+      console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+    }
+  }
+  if (whatsappQueue.length) {
+    console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
+    for (const q of whatsappQueue) {
+      console.log(`  [${q.jobId}] wa.me/${q.recipient}`);
+      if (q.subject) console.log(`    Mensagem:\n${q.subject.split('\n').map((l) => `      ${l}`).join('\n')}`);
+      if (q.attachmentPath) console.log(`    Anexar: ${q.attachmentPath}`);
+    }
   }
 }
 
@@ -596,6 +644,18 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
     console.log(`  EMBED  ollama/${ai.embeddings.modelId} (RAG semântico ativo)`);
   }
   console.log(`  Modo de execução: ${config.execution.mode}`);
+  console.log('Canais de candidatura:');
+  console.log(
+    `  EMAIL    ${config.email.enabled ? config.email.dispatchMode : 'desligado'}` +
+      ` — teto ${config.email.maxDailyEmails}/dia, cred '${config.email.smtpCredentialRef}',` +
+      ` template ${config.email.bodyTemplatePath}`,
+  );
+  console.log(
+    `  WHATSAPP ${config.whatsapp.enabled ? config.whatsapp.mode : 'desligado'}` +
+      (config.whatsapp.mode === 'EVOLUTION_API'
+        ? ` — instância ${config.whatsapp.apiInstance} @ $${config.whatsapp.apiUrlEnv}`
+        : ''),
+  );
   console.log('Caminhos:');
   console.log(`  HOME      ${HOME}  (CAREER_HOME p/ mudar)`);
   console.log(`  ENV       ${effEnv.homeEnvFile}`);
@@ -603,6 +663,52 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
   console.log(`  INBOX     ${config.profile.inboxDir}`);
   console.log(`  MASTER    ${config.profile.masterPath}`);
   console.log(`  DRAFT     ${config.profile.draftPath}`);
+}
+
+/** Cofre de credenciais (doc 11/15): set/list/remove — segredos cifrados, nunca exibidos. */
+async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
+  const [sub, ref] = args;
+  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+
+  switch (sub) {
+    case 'list': {
+      const refs = await vault.list();
+      console.log(refs.length ? `Refs no cofre:\n${refs.map((r) => `  ${r}`).join('\n')}` : 'Cofre vazio — nenhuma credencial gravada.');
+      return;
+    }
+    case 'set': {
+      if (!ref) throw new CliError('Uso: vault set <ref>  (ex.: vault set smtp-main)');
+      if (!ctx.ask) {
+        throw new CliError(
+          `vault set é interativo — rode no shell ('npm run cli' sem argumentos) e digite 'vault set ${ref}'.`,
+        );
+      }
+      const host = (await ctx.ask('SMTP host (ex.: smtp.gmail.com / smtp.office365.com): ')).trim();
+      const portStr = (await ctx.ask('SMTP port (465 = TLS direto, 587 = STARTTLS): ')).trim();
+      const secureStr = (await ctx.ask('TLS direto na conexão (porta 465)? [s/N]: ')).trim();
+      const user = (await ctx.ask('Usuário (seu e-mail completo): ')).trim();
+      const pass = (await ctx.ask('Senha de app (app password — não a senha da conta): ')).trim();
+      const secure = secureStr.toLowerCase().startsWith('s');
+      const cred = {
+        host,
+        port: Number(portStr) || (secure ? 465 : 587),
+        secure,
+        user,
+        pass,
+      };
+      await vault.setCredential(ref, JSON.stringify(cred));
+      console.log(`Credencial '${ref}' gravada criptografada em ${resolveHome('vault', effEnv.env)}.`);
+      return;
+    }
+    case 'remove': {
+      if (!ref) throw new CliError('Uso: vault remove <ref>');
+      const ok = await vault.remove(ref);
+      console.log(ok ? `'${ref}' removida do cofre.` : `'${ref}' não encontrada no cofre.`);
+      return;
+    }
+    default:
+      throw new CliError('Uso: vault list | vault set <ref> | vault remove <ref>');
+  }
 }
 
 /** Despacha um comando. Retorna false se o comando não existe. */
@@ -625,6 +731,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'config':
       await cmdConfig(args, ctx);
+      return true;
+    case 'vault':
+      await cmdVault(args, ctx);
       return true;
     default:
       return false;
