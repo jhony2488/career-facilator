@@ -183,6 +183,39 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       targetTitles:
         titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
     },
+    salary: (() => {
+      const d = defaultCareerOpsConfig.salary;
+      const num = (k: string, def: number) => {
+        const v = Number(env[k]);
+        return Number.isFinite(v) && env[k] !== undefined ? v : def;
+      };
+      return {
+        adaptToJobRange:
+          env.SALARY_ADAPT_TO_RANGE === undefined
+            ? d.adaptToJobRange
+            : env.SALARY_ADAPT_TO_RANGE === 'true' || env.SALARY_ADAPT_TO_RANGE === '1',
+        byLevel: {
+          JUNIOR: { brl: num('SALARY_BRL_JUNIOR', d.byLevel.JUNIOR.brl), usd: num('SALARY_USD_JUNIOR', d.byLevel.JUNIOR.usd) },
+          PLENO: { brl: num('SALARY_BRL_PLENO', d.byLevel.PLENO.brl), usd: num('SALARY_USD_PLENO', d.byLevel.PLENO.usd) },
+          SENIOR: { brl: num('SALARY_BRL_SENIOR', d.byLevel.SENIOR.brl), usd: num('SALARY_USD_SENIOR', d.byLevel.SENIOR.usd) },
+        },
+      };
+    })(),
+    marketScope: {
+      ...defaultCareerOpsConfig.marketScope,
+      national: {
+        ...defaultCareerOpsConfig.marketScope.national,
+        ...(Number.isFinite(Number(env.SALARY_BRL)) && env.SALARY_BRL !== undefined
+          ? { salaryExpectationBRL: Number(env.SALARY_BRL) }
+          : {}),
+      },
+      international: {
+        ...defaultCareerOpsConfig.marketScope.international,
+        ...(Number.isFinite(Number(env.SALARY_USD)) && env.SALARY_USD !== undefined
+          ? { salaryExpectationUSD: Number(env.SALARY_USD) }
+          : {}),
+      },
+    },
     ai: (() => {
       const tiers = {
         local: resolveTier('local', env),

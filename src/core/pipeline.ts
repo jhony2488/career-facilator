@@ -17,6 +17,7 @@ import type {
 import { applyViaWhatsapp } from '../whatsapp_application/whatsappAppCore';
 import type { EvolutionTransport } from '../whatsapp_application/evolutionClient';
 import { resolveLocale } from '../geo/localeAdapter';
+import { resolveSalaryExpectation } from './salaryResolver';
 import type { JobRepository, JobStatus } from '../db/repository';
 import { resolveHome } from '../config/paths';
 import type { CareerOpsConfig } from '../config/careerOps.config';
@@ -310,6 +311,7 @@ export async function runApplicationPipeline(
         clean.company ?? '',
         clean.title ?? '',
         markdown,
+        scope,
         assets.resumePath,
         skills,
         profile,
@@ -411,6 +413,7 @@ async function applyViaMessageChannel(
   company: string,
   title: string,
   markdown: string,
+  scope: 'NATIONAL' | 'INTERNATIONAL',
   resumePath: string | undefined,
   skills: SkillMetadata[],
   profile: MasterProfileLike,
@@ -421,7 +424,12 @@ async function applyViaMessageChannel(
   deps: PipelineDeps,
   dryRun: boolean,
 ): Promise<void> {
-  const locale = resolveLocale('INTERNATIONAL', config);
+  const locale = resolveLocale(scope, config);
+  // Pretensão por nível (junior/pleno/senior) + teto da faixa salarial da vaga.
+  locale.salaryExpectation = resolveSalaryExpectation(
+    { jobTitle: title, jobText: markdown, currency: locale.currency },
+    config,
+  ).value;
   const jobId = title || raw.url;
 
   if (config.email.enabled) {

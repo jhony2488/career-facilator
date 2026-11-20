@@ -53,6 +53,14 @@ export function makeConfig(overrides: Partial<CareerOpsConfig> = {}): CareerOpsC
         salaryExpectationUSD: 4500,
       },
     },
+    salary: {
+      adaptToJobRange: true,
+      byLevel: {
+        JUNIOR: { brl: 5000, usd: 2500 },
+        PLENO: { brl: 10000, usd: 4500 },
+        SENIOR: { brl: 16000, usd: 7000 },
+      },
+    },
     profile: {
       inboxDir: 'storage/profile_inbox/',
       draftPath: 'storage/profile.draft.md',

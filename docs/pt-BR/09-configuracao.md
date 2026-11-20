@@ -160,6 +160,8 @@ Os caminhos relativos de `profile` e `storage/` (incluindo `jobs.sqlite`) resolv
 
 **Prospecção e réguas de aderência (env):** `JOB_TITLES` — títulos de cargo a procurar, separados por vírgula/ponto-e-vírgula (default: fullstack/backend dev); match aproximado, não precisa ser exato (ver `titleMatcher.ts`, doc 03 §5.5). `FIT_MIN_SCORE` — aderência mínima p/ seguir ao tailoring (default 75); `FIT_AUTO_SCORE` — aderência p/ envio 100% automático sem revisão (default 88). `LEXICAL_MIN_TERMS` — termos do perfil exigidos no texto da vaga no filtro da Camada 0 (default 1).
 
+**Pretensão salarial (env):** `SALARY_BRL`/`SALARY_USD` — pretensão default quando a vaga não declara nível (default 10000/4500). `SALARY_{BRL,USD}_{JUNIOR,PLENO,SENIOR}` — pretensão por nível detectado no título da vaga (`junior`/`pleno`/`senior`/`lead`/`staff`…). `SALARY_ADAPT_TO_RANGE=true` (default) — quando a faixa salarial da vaga paga **menos** que a pretensão, o sistema estipula o teto da faixa em vez de pedir acima; nunca infla acima da pretensão base. Ver `salaryResolver.ts`.
+
 **Embeddings semânticos (env):** `AI_EMBEDDINGS_ENABLED=true` ativa a camada probabilística: `OLLAMA_EMBED_MODEL` (default `nomic-embed-text`) via `/api/embed` do Ollama. Alimenta dois recursos: o RAG do perfil no tailoring (`retrieveHybrid`, fusão léxico+semântico por RRF) e o match semântico de `JOB_TITLES` (fallback quando o determinístico não casa — cosine ≥ 0.72). `false`/ausente → ambos operam só no determinístico, custo zero.
 
 ```powershell
