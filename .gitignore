@@ -3,6 +3,10 @@ dist/
 coverage/
 storage/career_facilitator.db
 storage/generated_resumes/
+storage/profile_inbox/
+storage/profile_history/
+storage/profile.draft.md
+tmp/
 *.local
 .env
 .env.*

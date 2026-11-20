@@ -12,7 +12,7 @@
 import { importResume } from '../intake/intakeCore';
 import { createNodePdfReader } from '../intake/pdfReaderNode';
 import { MasterProfileStore } from '../intake/masterProfileStore';
-import { defaultCareerOpsConfig } from '../config/careerOps.config';
+import { loadCareerOpsConfig } from '../config/loadConfig';
 import { createNodeFileStore } from '../intake/nodeFileStore';
 import { makeEmptyProfile } from '../intake/profileStructurer';
 import type { StructurerModel } from '../intake/profileStructurer';
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
         console.error('Uso: career-facilitator import --pdf <caminho>');
         process.exit(1);
       }
-      const cfg = defaultCareerOpsConfig.profile;
+      const cfg = loadCareerOpsConfig().profile;
       const store = new MasterProfileStore(
         { draftPath: cfg.draftPath, masterPath: cfg.masterPath, historyDir: cfg.historyDir },
         { fs: createNodeFileStore() },

@@ -7,6 +7,10 @@ export type IntlRegion = 'WORLDWIDE' | 'LATAM' | 'AMERICAS_TIMEZONE';
 export interface ModelRouting {
   provider: string;
   modelId: string;
+  /** Endpoint do provider (ex.: http://localhost:11434 para Ollama). */
+  baseUrl?: string;
+  /** Nome da env var que contém a API key do provider (ex.: GROQ_API_KEY). Ollama: sem chave. */
+  apiKeyEnv?: string;
 }
 
 export interface CareerOpsConfig {
