@@ -33,7 +33,7 @@ export function makeConfig(overrides: Partial<CareerOpsConfig> = {}): CareerOpsC
       searchEngine: 'none',
       searchResultLimit: 30,
       useGenericHtmlFallback: true,
-      genericExtractionModel: 'qwen2.5:7b',
+      genericExtractionModel: '',
       respectRobotsTxt: true,
     },
     ai: {
