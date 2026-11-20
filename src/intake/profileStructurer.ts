@@ -249,6 +249,7 @@ export async function structureProfile(
         copyFilledFields(merged, p);
       }
     }
+    applyDeterministicBackstops(merged, input.documentText, sections);
     return merged;
   }
 
@@ -265,7 +266,134 @@ export async function structureProfile(
       '</document>',
     ].join('\n'),
   );
-  return MasterProfileSchema.parse(raw);
+  const parsed = MasterProfileSchema.parse(raw);
+  applyDeterministicBackstops(parsed, input.documentText, null);
+  return parsed;
+}
+
+// ─── Backstops determinísticos — só leem o doc, nunca inventam ───────────────
+
+/** "mais de 6 anos de experiência" / "6+ years of experience" → 6. */
+const extractSeniorityYears = (t: string): number | null => {
+  const m =
+    /(\d{1,2})\s*\+?\s*anos?\s*de experi[êe]ncia/i.exec(t) ??
+    /(\d{1,2})\s*\+?\s*years? of experience/i.exec(t);
+  return m ? Number(m[1]) : null;
+};
+
+/**
+ * coreStack por presença literal — cobre seção "COMPETÊNCIAS" vazia no PDF
+ * (layout em colunas/ícones que o extrator de texto não captura): as techs
+ * estão espalhadas nas experiências e projetos. Lista fechada.
+ */
+const TECH_LEXICON = [
+  'JavaScript', 'TypeScript', 'Python', 'PHP', 'HTML', 'CSS',
+  'React.js', 'React Native', 'Next.js', 'Vue.js', 'Nuxt.js', 'PWA',
+  'Node.js', 'NestJS', 'Express.js', 'Adonis.js', 'Flask', 'Laravel',
+  'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Prisma',
+  'Jest', 'Cypress', 'Detox', 'Playwright', 'React Testing Library', 'TDD',
+  'Docker', 'Azure', 'AWS', 'CI/CD', 'GitHub Actions', 'Git', 'GitHub',
+  'GitLab', 'Scrum', 'Kanban', 'Jira', 'REST', 'microsserviços', 'SOLID',
+  'SEO', 'LLM', 'RAG', 'WebLLM', 'WebGPU', 'ChatGPT', 'Gemini', 'Claude',
+  'DeepSeek', 'Groq', 'Ollama', 'WordPress', 'Wix',
+];
+
+const extractCoreStack = (text: string): string[] =>
+  TECH_LEXICON.filter((term) =>
+    new RegExp(
+      `(?<![\\w.])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.])`,
+      'i',
+    ).test(text),
+  );
+
+/** Itens "Título + período + bullets" de uma seção (projetos/OSS). */
+function parseNamedItems(section: string): { name: string; bullets: string[] }[] {
+  const items: { name: string; bullets: string[] }[] = [];
+  let cur: { name: string; bullets: string[] } | null = null;
+  let lastWasBullet = false;
+  let expectName = true; // início de seção ou logo após header
+  for (const raw of section.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (isHeaderLine(line)) {
+      expectName = true; // novo bloco — próxima linha não-bullet é nome
+      continue;
+    }
+    if (/^[-•*·]/.test(line)) {
+      (cur ??= { name: '', bullets: [] }).bullets.push(
+        line.replace(/^[-•*·]\s*/, ''),
+      );
+      lastWasBullet = true;
+      continue;
+    }
+    if (/\b(19|20)\d{2}\b/.test(line) && cur) continue; // linha de período
+    // Linha solta: nome novo (após header / prefixo Projeto / 1ª linha) ou
+    // continuação do último bullet (linha quebrada do PDF).
+    if (expectName || /^projeto|project/i.test(line) || !cur) {
+      if (cur) items.push(cur);
+      cur = { name: line, bullets: [] };
+      expectName = false;
+    } else if (lastWasBullet) {
+      cur.bullets[cur.bullets.length - 1] += ' ' + line;
+      continue;
+    } else {
+      cur.name += ' ' + line;
+    }
+    lastWasBullet = false;
+  }
+  if (cur) items.push(cur);
+  return items.filter((it) => it.name);
+}
+
+/**
+ * Preenche o que o modelo deixou vazio usando apenas o que está literalmente
+ * no documento — anti-fabricação preservada (presença literal ou cópia).
+ */
+function applyDeterministicBackstops(
+  p: ExtractedProfile,
+  doc: string,
+  sections: CvSections | null,
+): void {
+  if (!p.coreStack.length) p.coreStack.push(...extractCoreStack(doc));
+  if (p.seniorityYears === null) p.seniorityYears = extractSeniorityYears(doc);
+  if (p.summary === NOT_INFORMED && sections?.summary) {
+    // RESUMO/SUMMARY: corpo da seção sem o header — cópia literal, nunca gerada.
+    const body = sections.summary
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !isHeaderLine(l))
+      .join(' ');
+    if (body) p.summary = body;
+  }
+  if (!p.languages.length && sections?.languages) {
+    // "• Português: nativo." → "Português: nativo"
+    for (const raw of sections.languages.split('\n')) {
+      const line = raw.trim().replace(/^[-•*·]\s*/, '').replace(/\.$/, '');
+      if (line && !isHeaderLine(line) && !/\b(19|20)\d{2}\b/.test(line)) {
+        p.languages.push(line);
+      }
+    }
+  }
+  if (!p.projects.length && sections?.projects) {
+    for (const it of parseNamedItems(sections.projects)) {
+      p.projects.push({
+        name: it.name,
+        summary: it.bullets[0] ?? '',
+        metrics: it.bullets.slice(1),
+      });
+    }
+  }
+  if (!p.openSourceProjects.length && sections?.openSource) {
+    for (const it of parseNamedItems(sections.openSource)) {
+      const repo = it.bullets.join(' ').match(/https?:\/\/\S+/)?.[0] ?? '';
+      p.openSourceProjects.push({
+        name: it.name,
+        repo,
+        summary: it.bullets[0] ?? '',
+        metrics: it.bullets.slice(1),
+      });
+    }
+  }
 }
 
 /** Linhas com ano (19xx-20xx) — cada experiência/período tem um. */
