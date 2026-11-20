@@ -105,4 +105,38 @@ describe('JobRepository — 3-level deduplication (real SQLite)', () => {
     expect(stored?.status).toBe('APPLIED');
     expect(stored?.appliedAt).toBeTruthy();
   });
+
+  it('counts emails sent today for the daily cap', async () => {
+    // feature/10: maxDailyEmails counts real sends from the applications table
+    const job = makeJob();
+    await repo.recordJob(job);
+
+    expect(await repo.countEmailsSentToday()).toBe(0);
+    await repo.recordEmailApplication({ jobId: job.id, recipient: 'a@b.c', subject: 's' });
+    await repo.recordEmailApplication({ jobId: job.id, recipient: 'c@d.e', subject: 's' });
+    expect(await repo.countEmailsSentToday()).toBe(2);
+  });
+
+  it('enforces per-number WhatsApp cooldown and lists the manual queue', async () => {
+    // feature/15: cooldown after a real send; queue shows pending manual items
+    const job = makeJob();
+    await repo.recordJob(job);
+
+    await repo.recordWhatsappApplication({
+      jobId: job.id,
+      recipient: '5581999887766',
+      sent: false,
+      subject: 'Bom dia...',
+      attachmentPath: 'resume.pdf',
+    });
+    // queued (sent=false) does not count as sent
+    expect(await repo.hasWhatsappSentTo('5581999887766', 30)).toBe(false);
+    const queue = await repo.listWhatsappQueue();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ recipient: '5581999887766', subject: 'Bom dia...' });
+
+    await repo.recordWhatsappApplication({ jobId: job.id, recipient: '5581999887766', sent: true });
+    expect(await repo.hasWhatsappSentTo('5581999887766', 30)).toBe(true);
+    expect(await repo.hasWhatsappSentTo('5581000000000', 30)).toBe(false);
+  });
 });

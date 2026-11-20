@@ -23,6 +23,7 @@ export type JobStatus =
   | 'READY_TO_REVIEW'
   | 'APPLIED'
   | 'APPLIED_VIA_EMAIL'
+  | 'APPLIED_VIA_WHATSAPP'
   | 'NEEDS_HUMAN_INPUT'
   | 'REJECTED'
   | 'ASSESSMENT_INVITED'
@@ -38,6 +39,7 @@ export type ContractType = 'CLT' | 'PJ';
 export type IntlRegion = 'WORLDWIDE' | 'LATAM' | 'AMERICAS_TIMEZONE';
 export type ModelTier = 'LOCAL' | 'FAST' | 'SMART';
 export type EmailDispatchMode = 'REQUIRE_REVIEW' | 'HYBRID_BY_SCORE' | 'AUTO_SEND_HIGH_FIT';
+export type WhatsappMode = 'MANUAL_QUEUE' | 'EVOLUTION_API';
 export type OutcomeStatus = 'REJECTED' | 'ASSESSMENT_INVITED' | 'INTERVIEW';
 export type ApplicationRoute = 'AUTO_SEND' | 'REVIEW' | 'DEFER' | 'ESCALATE';
 export type BlockingSignalKind =
@@ -212,6 +214,14 @@ export interface EmailDraft {
   body: string;
   attachments: string[]; // file paths
   language: 'pt-BR' | 'en-US';
+  fitScore?: number;
+}
+
+export interface WhatsappMessage {
+  number: string; // digits only, international format
+  text: string;
+  resumePath?: string;
+  language: 'pt-BR' | 'en-US';
 }
 
 export interface CareerOpsConfig {
@@ -225,6 +235,9 @@ export interface CareerOpsConfig {
     reviewExpirationDays: number;
     escalationTimeoutMinutes: number;
     maxEscalationsPerPlatformPerDay: number;
+  };
+  discovery: {
+    targetTitles: string[];
   };
   ai: {
     local: { provider: string; modelId: string };
@@ -261,6 +274,31 @@ export interface CareerOpsConfig {
     masterPath: string;
     compiledPath: string;
     historyDir: string;
+  };
+  email: {
+    enabled: boolean;
+    dispatchMode: EmailDispatchMode;
+    minScoreAutoSend: number;
+    attachTailoredResume: boolean;
+    maxDailyEmails: number;
+    smtpCredentialRef: string;
+    recipientCooldownDays: number;
+    maxRetries: number;
+    retryBackoffMs: number;
+    bodyTemplatePath: string;
+    includeSalaryExpectation: boolean;
+  };
+  whatsapp: {
+    enabled: boolean;
+    mode: WhatsappMode;
+    apiUrlEnv: string;
+    apiInstance: string;
+    apiKeyEnv: string;
+    bodyTemplatePath: string;
+    recipientCooldownDays: number;
+    attachResume: boolean;
+    maxRetries: number;
+    retryBackoffMs: number;
   };
 }
 

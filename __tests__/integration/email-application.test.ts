@@ -2,7 +2,12 @@ import { resolveRecipient } from '../../src/email_application/recipientResolver'
 import { composeEmail } from '../../src/email_application/emailComposer';
 import { dispatchEmail } from '../../src/email_application/emailDispatcher';
 import { makeJob, makeMasterProfile, makeSkill } from '../helpers/factories';
-import { mockRepo, mockSmtpTransport, mockVault } from '../helpers/mocks';
+import {
+  mockRepo,
+  mockSmtpTransport,
+  mockFlakySmtpTransport,
+  mockVault,
+} from '../helpers/mocks';
 import { EMAIL_ONLY_JOB_TEXT } from '../helpers/fixtures';
 
 describe('Email application: resolve → compose → dispatch → record', () => {
@@ -89,8 +94,8 @@ describe('Email application: resolve → compose → dispatch → record', () =>
     // the provided config contains no password — only a reference
   });
 
-  it('reschedules the attempt after a temporary failure and does not mark as sent', async () => {
-    // feature/10: Retry after a temporary sending failure
+  it('escalates to NEEDS_HUMAN_INPUT after exhausting transient retries', async () => {
+    // feature/10 + DECISOES: max 3 transient retries, then escalate
     const transport = mockSmtpTransport(true);
     const vault = mockVault();
     const draft = {
@@ -104,10 +109,73 @@ describe('Email application: resolve → compose → dispatch → record', () =>
     const result = await dispatchEmail(draft, {
       transport,
       vault,
-      config: { dispatchMode: 'AUTO_SEND_HIGH_FIT', smtpCredentialRef: 'smtp-main' },
+      config: {
+        dispatchMode: 'AUTO_SEND_HIGH_FIT',
+        smtpCredentialRef: 'smtp-main',
+        maxRetries: 3,
+        retryBackoffMs: 0,
+      },
     });
 
     expect(result.sent).toBe(false);
-    expect(result.retryScheduled).toBe(true);
+    expect(result.status).toBe('NEEDS_HUMAN_INPUT');
+    expect(transport.sendMail).toHaveBeenCalledTimes(3);
+    expect(result.attempts).toBe(3);
+  });
+
+  it('succeeds when a transient failure recovers within the retry budget', async () => {
+    // feature/10: transient failure on attempt 1, success on attempt 2
+    const transport = mockFlakySmtpTransport(1);
+    const vault = mockVault();
+    const draft = {
+      to: 'a@b.co',
+      subject: 's',
+      body: 'b',
+      attachments: [],
+      language: 'en-US' as const,
+    };
+
+    const result = await dispatchEmail(draft, {
+      transport,
+      vault,
+      config: {
+        dispatchMode: 'AUTO_SEND_HIGH_FIT',
+        smtpCredentialRef: 'smtp-main',
+        maxRetries: 3,
+        retryBackoffMs: 0,
+      },
+    });
+
+    expect(result.sent).toBe(true);
+    expect(result.status).toBe('APPLIED_VIA_EMAIL');
+    expect(transport.sendMail).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires review under HYBRID_BY_SCORE when fitScore is below minScoreAutoSend', async () => {
+    // feature/10: hybrid mode routes low-fit drafts to human review
+    const transport = mockSmtpTransport();
+    const vault = mockVault();
+    const draft = {
+      to: 'a@b.co',
+      subject: 's',
+      body: 'b',
+      attachments: [],
+      language: 'en-US' as const,
+      fitScore: 70,
+    };
+
+    const result = await dispatchEmail(draft, {
+      transport,
+      vault,
+      config: {
+        dispatchMode: 'HYBRID_BY_SCORE',
+        smtpCredentialRef: 'smtp-main',
+        minScoreAutoSend: 88,
+      },
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.status).toBe('READY_TO_REVIEW');
+    expect(transport.sendMail).not.toHaveBeenCalled();
   });
 });

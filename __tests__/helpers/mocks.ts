@@ -99,6 +99,39 @@ export function mockSmtpTransport(shouldFail = false): MockSmtpTransport {
   };
 }
 
+/** SmtpTransport that fails transiently N times before succeeding. */
+export function mockFlakySmtpTransport(failures: number): MockSmtpTransport {
+  let calls = 0;
+  return {
+    sendMail: jest.fn(async (_message: unknown) => {
+      if (calls++ < failures) throw new Error('SMTP connection reset');
+      return { messageId: 'msg-002' };
+    }),
+  };
+}
+
+export interface MockEvolutionTransport {
+  sendText: jest.Mock<Promise<{ messageId: string }>, [number: string, text: string]>;
+  sendDocument: jest.Mock<
+    Promise<{ messageId: string }>,
+    [number: string, pdfBase64: string, fileName: string, caption?: string]
+  >;
+}
+
+export function mockEvolutionTransport(shouldFail = false): MockEvolutionTransport {
+  const fail = (): never => {
+    throw new Error('Evolution API /message/sendText: HTTP 503');
+  };
+  return {
+    sendText: shouldFail
+      ? jest.fn(async (_number: string, _text: string) => fail())
+      : jest.fn(async (_number: string, _text: string) => ({ messageId: 'wa-001' })),
+    sendDocument: shouldFail
+      ? jest.fn(async (_number: string, _b64: string, _name: string) => fail())
+      : jest.fn(async (_number: string, _b64: string, _name: string) => ({ messageId: 'wa-002' })),
+  };
+}
+
 export interface MockVault {
   getCredential: jest.Mock<Promise<string>, [ref: string]>;
   getSessionState: jest.Mock<Promise<object | null>, [platform: string]>;
@@ -135,6 +168,10 @@ export function mockRepo() {
       if (job) job.status = status;
     }),
     hasEmailSentTo: jest.fn(async (_email: string, _cooldownDays: number) => false),
+    recordEmailApplication: jest.fn(async (_input: unknown) => undefined),
+    countEmailsSentToday: jest.fn(async () => 0),
+    hasWhatsappSentTo: jest.fn(async (_number: string, _cooldownDays: number) => false),
+    recordWhatsappApplication: jest.fn(async (_input: unknown) => undefined),
   };
 }
 
