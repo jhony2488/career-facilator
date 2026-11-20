@@ -15,6 +15,8 @@ export interface TriageInput {
   profile: unknown;
   /** Cargos almejados (config.discovery.targetTitles) — orienta o fitScore. */
   targetTitles?: string[];
+  /** Match determinístico do título da vaga contra targetTitles (titleMatcher). */
+  titleMatch?: string;
 }
 
 export interface TriageModel {
@@ -70,6 +72,9 @@ function buildTriagePrompt(input: TriageInput): string {
     'matchedKeywords (string[] max 10), atsTitleSuggestion (string).',
     ...(input.targetTitles?.length
       ? ['', `Target job titles: ${input.targetTitles.join(', ')}`]
+      : []),
+    ...(input.titleMatch
+      ? [`Note: the job title closely matches target "${input.titleMatch}".`]
       : []),
     '',
     '<candidate_profile>',
