@@ -17,6 +17,7 @@ export function makeConfig(overrides: Partial<CareerOpsConfig> = {}): CareerOpsC
       maxDailyApplications: 15,
       companyCooldownDays: 30,
       maxJobsPerRun: 100,
+      minJobsPerRun: 0,
       reviewExpirationDays: 7,
       escalationTimeoutMinutes: 15,
       maxEscalationsPerPlatformPerDay: 3,

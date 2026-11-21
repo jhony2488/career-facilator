@@ -66,6 +66,32 @@ describe('loadCareerOpsConfig — model resolution via env', () => {
   });
 });
 
+describe('loadCareerOpsConfig — discovery run limits via env', () => {
+  it('defaults to maxJobsPerRun=100 and minJobsPerRun=0', () => {
+    const cfg = loadCareerOpsConfig({ env: {}, envFile: '' });
+    expect(cfg.execution.maxJobsPerRun).toBe(100);
+    expect(cfg.execution.minJobsPerRun).toBe(0);
+  });
+
+  it('DISCOVERY_MAX_JOBS_PER_RUN and DISCOVERY_MIN_JOBS_PER_RUN override execution limits', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { DISCOVERY_MAX_JOBS_PER_RUN: '40', DISCOVERY_MIN_JOBS_PER_RUN: '5' },
+      envFile: '',
+    });
+    expect(cfg.execution.maxJobsPerRun).toBe(40);
+    expect(cfg.execution.minJobsPerRun).toBe(5);
+  });
+
+  it('ignores non-numeric and empty values', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { DISCOVERY_MAX_JOBS_PER_RUN: 'abc', DISCOVERY_MIN_JOBS_PER_RUN: ' ' },
+      envFile: '',
+    });
+    expect(cfg.execution.maxJobsPerRun).toBe(100);
+    expect(cfg.execution.minJobsPerRun).toBe(0);
+  });
+});
+
 describe('loadCareerOpsConfig — data directory (global CLI)', () => {
   const home = resolve('/cfhome'); // absolute on this machine
 

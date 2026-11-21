@@ -232,6 +232,7 @@ export interface CareerOpsConfig {
     maxDailyApplications: number;
     companyCooldownDays: number;
     maxJobsPerRun: number;
+    minJobsPerRun: number;
     reviewExpirationDays: number;
     escalationTimeoutMinutes: number;
     maxEscalationsPerPlatformPerDay: number;

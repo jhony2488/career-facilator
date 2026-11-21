@@ -1,13 +1,21 @@
 import { discoverJobs, toRawJobInputs } from '../../../src/discovery/discoveryEngine';
 import { makeConfig } from '../../helpers/factories';
-import type { DiscoveryJob, DiscoveryResult } from '../../../src/discovery/types';
+import type {
+  DiscoveryJob,
+  DiscoveryResult,
+  SourceAdapterContext,
+} from '../../../src/discovery/types';
 
 let adapterResult: DiscoveryResult;
+let lastCtx: SourceAdapterContext | undefined;
 
 jest.mock('../../../src/discovery/adapters', () => ({
   getAdapter: () => ({
     name: 'api',
-    discover: async () => adapterResult,
+    discover: async (ctx: SourceAdapterContext) => {
+      lastCtx = ctx;
+      return adapterResult;
+    },
   }),
 }));
 
@@ -59,6 +67,29 @@ describe('discoverJobs', () => {
     const result = await discoverJobs({ config, maxJobs: 1 });
     expect(result.jobs).toHaveLength(1);
     expect(result.jobs[0].raw.url).toBe('https://remoteok.com/remote-jobs/1');
+  });
+
+  // Expansion rounds (minJobsPerRun): sources already seen are dropped by
+  // canonical URL, so a deeper call only surfaces genuinely new jobs.
+  it('drops jobs whose canonical URL is in excludeUrls', async () => {
+    const config = makeConfig();
+    config.discovery.sources = ['remoteok'];
+    const result = await discoverJobs({
+      config,
+      maxJobs: 10,
+      excludeUrls: ['https://remoteok.com/remote-jobs/1?utm_campaign=y'],
+    });
+    expect(result.jobs.map((j) => j.raw.url)).toEqual([
+      'https://remoteok.com/remote-jobs/2',
+    ]);
+  });
+
+  it('perSourceMax overrides discovery.maxJobsPerSource in the adapter call', async () => {
+    const config = makeConfig();
+    config.discovery.sources = ['remoteok'];
+    config.discovery.maxJobsPerSource = 20;
+    await discoverJobs({ config, maxJobs: 100, perSourceMax: 40 });
+    expect(lastCtx?.maxJobs).toBe(40);
   });
 
   it('exposes raw job inputs ready for the pipeline', async () => {
