@@ -19,6 +19,7 @@ Cinco mecanismos que fecham o ciclo de ponta a ponta: Descoberta → Filtro Geog
 **O que adicionar:**
 
 - Um loop de navegação por etapas que preenche a tela atual, clica em "Próximo / Next", aguarda a transição da DOM, valida se não surgiu nenhuma mensagem de erro de campo obrigatório em vermelho e repete até chegar na tela final de revisão/envio.
+- **Implementado:** a inspeção (`pageInspector.snapshotScript`) é multi-frame — roda em cada `page.frames()` (atravessa iframe cross-origin) e recursa em shadow roots **abertos**, carimbando `frameIdx` em cada campo para o executor agir no escopo certo; botões de Next/submit são procurados em todos os frames. Sem `input[type=file]`, dropzones detectadas recebem o PDF via eventos `dragenter/dragover/drop` com `DataTransfer` (`playwrightExecutor.dropResumeViaDropzone`). Shadow roots **fechados** seguem opacos por design da plataforma.
 
 ## 3. Detector de Bloqueios e Human Escalation (`src/core/escalationHandler.ts`)
 
