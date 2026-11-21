@@ -240,7 +240,7 @@ const APPLY_TEXT_RE =
  * genérico ("company portal", "view job") apontando p/ /apply, /bewerben…
  */
 const APPLY_PATH_RE =
-  /\/(apply|apply-now|application|candidat|postul|inscri|aplica|bewerb|vacature|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|job-apply|jobs\/apply|submit-application|enviar-curriculo|register-candidate)([/?#-]|$)/i;
+  /\/(apply|apply-now|application|candidat|postul|postuler|inscri|aplica|bewerb|vacature|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|job-apply|jobs\/apply|submit-application|enviar-curriculo|register-candidate)([/?#-]|$)/i;
 
 const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
 

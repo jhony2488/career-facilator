@@ -193,7 +193,9 @@ function printCheck(r: ProviderCheckResult): void {
   const ms = r.latencyMs ? ` (${r.latencyMs}ms)` : '';
   const adapter = r.adapterImplemented ? '' : ' â€” geraÃ§Ã£o: adapter ainda nÃ£o implementado';
   if (r.status === 'ok') {
-    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” OK${ms}${adapter}`);
+    console.log(
+      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” OK${ms}${adapter}`,
+    );
   } else if (r.status === 'skipped') {
     console.log(
       `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” pulado (${r.detail ?? ''})`,
@@ -485,7 +487,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       maxJobs,
       sourceIds,
       extract: buildDiscoveryExtractor(signal),
-        renderText: buildRenderText(),
+      renderText: buildRenderText(),
     });
     if (discovery.errors.length) {
       for (const e of discovery.errors) {
@@ -662,7 +664,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
           perSourceMax: perSource,
           excludeUrls: rawJobs.map((j) => j.url),
           extract: buildDiscoveryExtractor(signal),
-        renderText: buildRenderText(),
+          renderText: buildRenderText(),
         });
         if (more.jobs.length === 0) break;
         console.log(
@@ -737,9 +739,7 @@ function buildRenderText() {
     renderCtxPromise ??= getJobBrowserContext({
       headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
       profileDir:
-        config.discovery.browserProfileDir ||
-        effEnv.env.AUTOFILL_PROFILE_DIR?.trim() ||
-        undefined,
+        config.discovery.browserProfileDir || effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
     });
     const page = await (await renderCtxPromise).newPage();
     try {
@@ -788,7 +788,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
     maxJobs,
     sourceIds,
     extract: buildDiscoveryExtractor(ctx.signal),
-        renderText: buildRenderText(),
+    renderText: buildRenderText(),
   });
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
@@ -833,7 +833,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
     maxJobs,
     sourceIds: [sourceId],
     extract: buildDiscoveryExtractor(ctx.signal),
-        renderText: buildRenderText(),
+    renderText: buildRenderText(),
   });
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
@@ -1089,7 +1089,9 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
       const portStr = (await ctx.ask('SMTP port (465 = TLS direto, 587 = STARTTLS): ')).trim();
       const secureStr = (await ctx.ask('TLS direto na conexÃ£o (porta 465)? [s/N]: ')).trim();
       const user = (await ctx.ask('UsuÃ¡rio (seu e-mail completo): ')).trim();
-      const pass = (await ctx.ask('Senha de app (app password â€” nÃ£o a senha da conta): ')).trim();
+      const pass = (
+        await ctx.ask('Senha de app (app password â€” nÃ£o a senha da conta): ')
+      ).trim();
       const secure = secureStr.toLowerCase().startsWith('s');
       const cred = {
         host,
@@ -1165,7 +1167,9 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
     }
     case 'status': {
       const state = await setup.getConnectionState(config.whatsapp.apiInstance);
-      console.log(`InstÃ¢ncia '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`);
+      console.log(
+        `InstÃ¢ncia '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`,
+      );
       return;
     }
     default:

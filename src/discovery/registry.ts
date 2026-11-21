@@ -337,9 +337,10 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     name: 'Gupy',
     adapter: 'html',
     enabled: false,
+    render: true,
     url: 'https://portal.gupy.io/job-search',
     notes:
-      'API api.gupy.io exige auth (401); portal público é SPA — extrai via fallback genérico HTML+LLM, best-effort.',
+      'Acesso direto (sem API — api.gupy.io é B2B). SPA renderizada via browser persistente: login manual do usuário (AUTOFILL_PROFILE_DIR / DISCOVERY_BROWSER_PROFILE_DIR) é reaproveitado no apply.',
   },
   getonbrd: {
     category: 'latam',
