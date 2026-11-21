@@ -74,7 +74,22 @@ career run --jobs-file jobs.json   # skips discovery and uses a [{url, html}] fi
 - The prompt requires real URLs and empty fields for missing data — the anti-fabrication rule applies here too.
 - A source without a listing URL, without the fallback, or with an AI failure → error is recorded and the cycle continues with the other sources.
 
-## 7. Tips
+## 7. Organic search (dorks)
+
+`search` sources query the configured engine — `DISCOVERY_SEARCH_ENGINE=duckduckgo|bing` (the other becomes a per-query fallback when the primary fails/gets blocked). Current IDs:
+
+- `searchdork` — scope-driven query plan (`dorkBuilder`): `site:` ATS dorks (Greenhouse/Lever/Ashby) + aggregator searches.
+- `linkedin-posts` — `site:linkedin.com/posts` + job terms — **no session, never touches your account**. Posts don't carry job titles, so the source runs with `titleFilter` off.
+- `linkedin-jobs` — `site:linkedin.com/jobs/view` — indexed public listings.
+
+```powershell
+career scan linkedin-posts --max-jobs 5
+career discover --sources searchdork
+```
+
+Honest notes: `site:` is sometimes relaxed by the engine — the adapter filters hits by the real domain, so 0 results is possible when nothing is indexed. SERP markup also changes; failures become `DiscoveryError`s and the cycle continues.
+
+## 8. Tips
 
 - `JOB_TITLES` controls the title filter across **all** sources — tune it before raising `--max-jobs`.
 - `career run` aborts with an alert and zero AI calls if **every** source fails.

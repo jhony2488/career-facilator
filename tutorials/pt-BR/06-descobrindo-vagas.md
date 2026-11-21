@@ -74,7 +74,22 @@ Fontes `html` sem API/RSS passam pela extração assistida: a página vira Markd
 - O prompt exige URLs reais e campos vazios para dados ausentes — a regra anti-fabricação se aplica aqui também.
 - Fonte sem URL de listagem, sem fallback ou com falha de IA → erro registrado e o ciclo segue para as demais fontes.
 
-## 7. Dicas
+## 7. Busca orgânica (dorks)
+
+Fontes `search` pesquisam no buscador configurado — `DISCOVERY_SEARCH_ENGINE=duckduckgo|bing` (o outro vira fallback por query se o primário falhar/bloquear). IDs hoje:
+
+- `searchdork` — plano de buscas por escopo (`dorkBuilder`): dorks `site:` de ATS (Greenhouse/Lever/Ashby) + buscas de agregadores.
+- `linkedin-posts` — `site:linkedin.com/posts` + termos de vaga — **sem sessão, sem tocar sua conta**. Posts não usam título de vaga, então a fonte roda com `titleFilter` desligado.
+- `linkedin-jobs` — `site:linkedin.com/jobs/view` — listagens públicas indexadas.
+
+```powershell
+career scan linkedin-posts --max-jobs 5
+career discover --sources searchdork
+```
+
+Notas honestas: o `site:` às vezes é relaxado pelo buscador — o adapter filtra os hits pelo domínio real, então pode vir 0 quando não há nada indexado. Serp de buscador também muda de markup; falhas viram `DiscoveryError` e o ciclo segue.
+
+## 8. Dicas
 
 - `JOB_TITLES` controla o filtro de títulos em **todas** as fontes — ajuste antes de aumentar `--max-jobs`.
 - `career run` aborta com alerta e sem chamar IA se **todas** as fontes falharem.

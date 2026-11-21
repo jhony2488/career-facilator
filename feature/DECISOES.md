@@ -11,6 +11,9 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 - [x] Volume máximo de vagas coletadas por execução. **Decisão:** limite configurável `maxJobsPerRun` (default 100).
 - [x] Fontes sem API/listagem estruturada. **Decisão:** fallback assistido de extração (`DISCOVERY_USE_GENERIC_FALLBACK`); desabilitado → fonte ignorada com aviso, sem quebrar o ciclo.
 - [x] Modelo do extrator genérico. **Decisão:** `DISCOVERY_GENERIC_MODEL` quando preenchido; vazio herda o tier leve já configurado (`AI_LOCAL_*`).
+- [x] Motor de busca para as buscas estruturadas. **Decisão:** motor público configurável (`DISCOVERY_SEARCH_ENGINE` — `duckduckgo`|`bing`|`none`); o outro vira fallback por query quando o primário falha (ex.: anti-bot). `none` → fonte ignorada com aviso.
+- [x] Links fora do domínio-alvo quando o buscador relaxa `site:`. **Decisão:** descartar — o adapter filtra hits pelo domínio declarado na dork.
+- [x] Posts do LinkedIn (busca pública) no filtro de títulos. **Decisão:** configurável por fonte (`adapterConfig.titleFilter`) — `linkedin-posts` desliga, pois posts não usam título de vaga.
 
 ### 02-deduplicacao.feature
 - [x] Critério de "conteúdo equivalente" no hash cross-platform. **Decisão:** normalizar o conteúdo antes do hash (lowercase, sem pontuação, espaços extras e boilerplate) sobre os 300 primeiros caracteres.
@@ -88,3 +91,6 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 9 | Precedência de canal | Web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT` |
 | 10 | Fonte sem estrutura no discovery | Fallback assistido (`DISCOVERY_USE_GENERIC_FALLBACK`); desabilitado → ignora com aviso |
 | 11 | Modelo do extrator genérico | `DISCOVERY_GENERIC_MODEL` ou, vazio, herda `AI_LOCAL_*` |
+| 12 | Motor de busca orgânica | `DISCOVERY_SEARCH_ENGINE` (`duckduckgo`\|`bing`\|`none`) + fallback por query no outro motor |
+| 13 | Resultados fora do `site:` alvo | Filtrar hits pelo domínio declarado na dork |
+| 14 | Filtro de título em posts LinkedIn | `adapterConfig.titleFilter` — off em `linkedin-posts` |
