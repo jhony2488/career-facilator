@@ -1,10 +1,20 @@
 import {
   linkedinAdapter,
   parseLinkedInSearchHtml,
+  parseLinkedInPostsHtml,
+  parseLinkedInPostDetail,
 } from '../../../src/discovery/adapters/linkedinAdapter';
 import { sourceById } from '../../../src/discovery/registry';
 import { makeConfig } from '../../helpers/factories';
 import type { Fetcher } from '../../../src/discovery/types';
+
+jest.mock('../../../src/discovery/imageOcr', () => ({
+  ocrImageUrl: jest.fn(async (url: string) =>
+    url.includes('banner') ? 'vaga backend — cv p/ rh@acme.com' : '',
+  ),
+  disposeOcrWorker: jest.fn(async () => {}),
+}));
+import { ocrImageUrl } from '../../../src/discovery/imageOcr';
 
 const SEARCH_HTML = `
 <ul class="jobs-search__results-list">
@@ -102,5 +112,146 @@ describe('linkedinAdapter', () => {
 
     expect(result.jobs).toHaveLength(0);
     expect(result.errors[0].message).toContain('Sessão LinkedIn expirada');
+  });
+});
+
+const POSTS_SEARCH_HTML = `
+<div class="feed-shared-update-v2">
+  <a href="https://www.linkedin.com/feed/update/urn:li:activity:7300123456789012345">1d</a>
+  <span class="update-components-text">Estamos contratando! Vaga de Backend Developer…</span>
+  <span class="update-components-actor__name">Recruiter Ana</span>
+</div>
+<div class="feed-shared-update-v2">
+  <a href="https://www.linkedin.com/posts/some-post-activity-7300123456789000999">2d</a>
+</div>`;
+
+const POST_DETAIL_HTML = `<html><body>
+  <div class="update-components-text">Estamos contratando! Vaga de Backend Developer remoto.
+  Envie currículo para rh@acme.com ou chama no telefone +55 81 99988-7766</div>
+  <span class="update-components-actor__name">Recruiter Ana</span>
+  <img src="https://media.licdn.com/dms/image/banner.png">
+</body></html>`;
+
+describe('parseLinkedInPostsHtml / parseLinkedInPostDetail', () => {
+  it('extracts post links, ids, snippets and author', () => {
+    const posts = parseLinkedInPostsHtml(POSTS_SEARCH_HTML);
+
+    expect(posts).toHaveLength(2);
+    expect(posts[0].id).toBe('7300123456789012345');
+    expect(posts[0].url).toBe(
+      'https://www.linkedin.com/feed/update/urn:li:activity:7300123456789012345',
+    );
+    expect(posts[0].snippet).toContain('Backend Developer');
+    expect(posts[0].author).toBe('Recruiter Ana');
+  });
+
+  it('extracts full text, author and licdn image urls from a post page', () => {
+    const d = parseLinkedInPostDetail(POST_DETAIL_HTML);
+
+    expect(d.text).toContain('rh@acme.com');
+    expect(d.author).toBe('Recruiter Ana');
+    expect(d.imageUrls).toEqual(['https://media.licdn.com/dms/image/banner.png']);
+  });
+});
+
+describe('linkedinAdapter posts pass', () => {
+  const renderPostsFlow = (opts: { detailHtml?: string } = {}) => {
+    const rendered: string[] = [];
+    const renderText = async (url: string) => {
+      rendered.push(url);
+      if (url.includes('/jobs/search')) return { url, text: '<html></html>', status: 200 };
+      if (url.includes('/search/results/content'))
+        return { url, text: POSTS_SEARCH_HTML, status: 200 };
+      return { url, text: opts.detailHtml ?? POST_DETAIL_HTML, status: 200 };
+    };
+    return { rendered, renderText };
+  };
+
+  // feature/01: posts divulgam vagas — contatos do texto viram canais reais
+  it('collects a hiring post and embeds email/phone as application channels', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const { rendered, renderText } = renderPostsFlow();
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    expect(result.errors).toHaveLength(0);
+    const postJob = result.jobs.find((j) => j.raw.html.includes('Estamos contratando'));
+    expect(postJob).toBeDefined();
+    expect(postJob!.raw.html).toContain('rh@acme.com');
+    expect(postJob!.raw.html).toContain('Telefone de contato:');
+    expect(postJob!.raw.html).toContain('Post: https://www.linkedin.com/feed/update/');
+    expect(rendered.some((u) => u.includes('results/content'))).toBe(true);
+    expect(ocrImageUrl).not.toHaveBeenCalled();
+  });
+
+  // imagem sem contato no texto → OCR lê o binário procurando canal
+  it('falls back to OCR on post images when the text has no contact', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const noContactDetail = `<html><body>
+      <div class="update-components-text">Estamos contratando! Vaga de Backend Developer, veja o banner.</div>
+      <img src="https://media.licdn.com/dms/image/banner.png">
+    </body></html>`;
+    const { renderText } = renderPostsFlow({ detailHtml: noContactDetail });
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    expect(ocrImageUrl).toHaveBeenCalledWith('https://media.licdn.com/dms/image/banner.png');
+    const postJob = result.jobs.find((j) => j.raw.html.includes('Estamos contratando'));
+    expect(postJob!.raw.html).toContain('rh@acme.com');
+  });
+
+  // post de vaga sem canal nenhum → ainda entra p/ revisão humana
+  it('keeps a job-ish post with no contact at all for human review', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const noContact = `<html><body>
+      <div class="update-components-text">Estamos contratando! Vaga de Backend Developer, detalhes no DM.</div>
+    </body></html>`;
+    const { renderText } = renderPostsFlow({ detailHtml: noContact });
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    const postJob = result.jobs.find((j) => j.raw.html.includes('Estamos contratando'));
+    expect(postJob).toBeDefined();
+    expect(postJob!.raw.url).toContain('urn:li:activity');
+  });
+
+  it('skips posts that are not about jobs', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const offTopic = `<html><body>
+      <div class="update-components-text">Almoço de família hoje, sem trabalho envolvido!</div>
+    </body></html>`;
+    const { renderText } = renderPostsFlow({ detailHtml: offTopic });
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    expect(result.jobs).toHaveLength(0);
   });
 });

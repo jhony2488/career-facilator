@@ -253,6 +253,8 @@ export interface CareerOpsConfig {
     browserProfileDir?: string;
     /** ATS boards por provedor — env DISCOVERY_ATS_BOARDS (provider:slug). */
     atsBoards?: Record<string, string[]>;
+    /** OCR das imagens de posts LinkedIn (default true) — env DISCOVERY_POSTS_OCR. */
+    postsImageOcr: boolean;
     respectRobotsTxt: boolean;
   };
   ai: {

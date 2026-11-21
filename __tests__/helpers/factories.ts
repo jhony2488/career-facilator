@@ -35,6 +35,7 @@ export function makeConfig(overrides: Partial<CareerOpsConfig> = {}): CareerOpsC
       searchResultLimit: 30,
       useGenericHtmlFallback: true,
       genericExtractionModel: '',
+      postsImageOcr: true,
       respectRobotsTxt: true,
     },
     ai: {
