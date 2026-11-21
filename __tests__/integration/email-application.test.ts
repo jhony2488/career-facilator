@@ -2,12 +2,7 @@ import { resolveRecipient } from '../../src/email_application/recipientResolver'
 import { composeEmail } from '../../src/email_application/emailComposer';
 import { dispatchEmail } from '../../src/email_application/emailDispatcher';
 import { makeJob, makeMasterProfile, makeSkill } from '../helpers/factories';
-import {
-  mockRepo,
-  mockSmtpTransport,
-  mockFlakySmtpTransport,
-  mockVault,
-} from '../helpers/mocks';
+import { mockRepo, mockSmtpTransport, mockFlakySmtpTransport, mockVault } from '../helpers/mocks';
 import { EMAIL_ONLY_JOB_TEXT } from '../helpers/fixtures';
 
 describe('Email application: resolve → compose → dispatch → record', () => {

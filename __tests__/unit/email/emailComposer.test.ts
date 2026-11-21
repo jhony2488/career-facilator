@@ -4,8 +4,16 @@ import { join } from 'node:path';
 import { composeEmail } from '../../../src/email_application/emailComposer';
 import { makeMasterProfile, makeSkill } from '../../helpers/factories';
 
-const LOCALE_BR = { resumeLanguage: 'pt-BR' as const, currency: 'BRL' as const, salaryExpectation: 10000 };
-const LOCALE_US = { resumeLanguage: 'en-US' as const, currency: 'USD' as const, salaryExpectation: 4500 };
+const LOCALE_BR = {
+  resumeLanguage: 'pt-BR' as const,
+  currency: 'BRL' as const,
+  salaryExpectation: 10000,
+};
+const LOCALE_US = {
+  resumeLanguage: 'en-US' as const,
+  currency: 'USD' as const,
+  salaryExpectation: 4500,
+};
 
 describe('composeEmail — preferred body template + salary expectation (docs 11/14)', () => {
   const base = {

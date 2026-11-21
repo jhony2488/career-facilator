@@ -20,9 +20,7 @@ describe('matchTargetTitle', () => {
   });
 
   it('matches glued words: "Fullstack Developer" ↔ "Full Stack Developer"', () => {
-    expect(matchTargetTitle('Fullstack Developer', TARGETS)?.target).toBe(
-      'Full Stack Developer',
-    );
+    expect(matchTargetTitle('Fullstack Developer', TARGETS)?.target).toBe('Full Stack Developer');
   });
 
   it('matches hyphenated variants: "Full-Stack Developer"', () => {
@@ -165,7 +163,11 @@ describe('createSemanticTitleMatcher', () => {
   });
 
   it('degrades to deterministic when the embedder throws', async () => {
-    const failing = { embed: jest.fn(async () => { throw new Error('offline'); }) };
+    const failing = {
+      embed: jest.fn(async () => {
+        throw new Error('offline');
+      }),
+    };
     const match = createSemanticTitleMatcher(TARGETS, failing);
     expect(await match('Backned Developer')).toEqual({
       target: 'Backend Developer',

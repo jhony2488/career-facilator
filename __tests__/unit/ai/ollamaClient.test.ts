@@ -21,9 +21,9 @@ function ndjsonResponse(lines: object[]): Response {
 
 describe('createOllamaClient', () => {
   it('chat without streaming → returns message.content', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(jsonResponse({ message: { content: '{"ok":true}' } }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse({ message: { content: '{"ok":true}' } }),
+    );
     const client = createOllamaClient({ fetchImpl });
 
     const out = await client.chat('hermes3:latest', [{ role: 'user', content: 'oi' }]);
@@ -39,9 +39,9 @@ describe('createOllamaClient', () => {
 
   it('chat with onToken → accumulated NDJSON stream + per-chunk callback', async () => {
     const chunks = ['{"resu', 'meMarkdown":', ' "x"}'];
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(ndjsonResponse(chunks.map((c) => ({ message: { content: c } }))));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      ndjsonResponse(chunks.map((c) => ({ message: { content: c } }))),
+    );
     const client = createOllamaClient({ fetchImpl });
 
     const tokens: string[] = [];
@@ -52,15 +52,15 @@ describe('createOllamaClient', () => {
 
     expect(out).toBe('{"resumeMarkdown": "x"}');
     expect(tokens).toEqual(chunks);
-    const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    const body = JSON.parse(
+      (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
     expect(body.stream).toBe(true);
     expect(body.format).toBe('json');
   });
 
   it('onDone receives metrics from the final stream chunk (ns → ms)', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
       ndjsonResponse([
         { message: { content: 'a' } },
         {
@@ -84,9 +84,7 @@ describe('createOllamaClient', () => {
   });
 
   it('onDone also works on non-stream responses (top-level metrics)', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
       jsonResponse({ message: { content: 'x' }, total_duration: 1e9, eval_count: 10 }),
     );
     const client = createOllamaClient({ fetchImpl });
@@ -98,9 +96,7 @@ describe('createOllamaClient', () => {
   });
 
   it('think:true enviado; chunk message.thinking → onThought', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
       ndjsonResponse([
         { message: { thinking: 'analisando a vaga...' } },
         { message: { content: '{"fitScore":80}' }, done: true },
@@ -122,9 +118,9 @@ describe('createOllamaClient', () => {
   });
 
   it("keepAlive '-1' → enviado como número (Ollama recusa string sem unidade)", async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(jsonResponse({ message: { content: 'x' } }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse({ message: { content: 'x' } }),
+    );
     const client = createOllamaClient({ fetchImpl, keepAlive: '-1' });
     await client.chat('m', []);
     const body = JSON.parse(
@@ -134,9 +130,9 @@ describe('createOllamaClient', () => {
   });
 
   it('caller signal is combined with timeout and forwarded to fetch', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(jsonResponse({ message: { content: 'x' } }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse({ message: { content: 'x' } }),
+    );
     const client = createOllamaClient({ fetchImpl });
     const ctrl = new AbortController();
     await client.chat('m', [], { signal: ctrl.signal });
@@ -164,9 +160,7 @@ describe('createOllamaClient', () => {
   });
 
   it('listModels → model names from /api/tags', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
       jsonResponse({ models: [{ name: 'hermes3:latest' }, { name: 'qwen2.5:7b' }] }),
     );
     const client = createOllamaClient({ fetchImpl });
@@ -174,43 +168,55 @@ describe('createOllamaClient', () => {
   });
 
   it('embed → POST /api/embed returns embeddings', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(jsonResponse({ embeddings: [[0.1, 0.2], [0.3, 0.4]] }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse({
+        embeddings: [
+          [0.1, 0.2],
+          [0.3, 0.4],
+        ],
+      }),
+    );
     const client = createOllamaClient({ fetchImpl });
 
     const out = await client.embed('nomic-embed-text', ['a', 'b']);
-    expect(out).toEqual([[0.1, 0.2], [0.3, 0.4]]);
+    expect(out).toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
     expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe(
       'http://localhost:11434/api/embed',
     );
   });
 
   it('custom baseUrl is used in the endpoints', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(jsonResponse({ message: { content: 'x' } }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      jsonResponse({ message: { content: 'x' } }),
+    );
     const client = createOllamaClient({ fetchImpl, baseUrl: 'http://gpu:11434' });
     await client.chat('m', []);
     expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('http://gpu:11434/api/chat');
   });
 
   it('non-ok HTTP → error with status and body', async () => {
-    const fetchImpl = (
-      jest.fn() as jest.MockedFunction<typeof fetch>
-    ).mockResolvedValue(new Response('model not found', { status: 404 }));
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      new Response('model not found', { status: 404 }),
+    );
     const client = createOllamaClient({ fetchImpl });
     await expect(client.chat('inexistente', [])).rejects.toThrow('HTTP 404');
   });
 
   it('isReachable → true when /api/tags responds, false when it throws', async () => {
     const ok = createOllamaClient({
-      fetchImpl: (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(jsonResponse({ models: [] })),
+      fetchImpl: (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+        jsonResponse({ models: [] }),
+      ),
     });
     expect(await ok.isReachable()).toBe(true);
 
     const down = createOllamaClient({
-      fetchImpl: (jest.fn() as jest.MockedFunction<typeof fetch>).mockRejectedValue(new Error('ECONNREFUSED')),
+      fetchImpl: (jest.fn() as jest.MockedFunction<typeof fetch>).mockRejectedValue(
+        new Error('ECONNREFUSED'),
+      ),
     });
     expect(await down.isReachable()).toBe(false);
   });

@@ -27,8 +27,9 @@ describe('FileCredentialVault — AES-256-GCM credential store (docs 10/11)', ()
 
   it('fails to decrypt with a different secret', async () => {
     await new FileCredentialVault(dir, 'key-A').setCredential('smtp-main', 'secret');
-    await expect(new FileCredentialVault(dir, 'key-B').getCredential('smtp-main'))
-      .rejects.toThrow();
+    await expect(
+      new FileCredentialVault(dir, 'key-B').getCredential('smtp-main'),
+    ).rejects.toThrow();
   });
 
   it('lists refs without exposing any secret material', async () => {

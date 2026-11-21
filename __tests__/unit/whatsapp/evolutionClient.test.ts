@@ -60,10 +60,13 @@ describe('createEvolutionSetup — instance provisioning (doc 15)', () => {
   });
 
   it('surfaces API errors with the path and status', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({ ok: false, status: 503, json: async () => ({}) }) as Response,
+    const fetchImpl = jest.fn(
+      async () => ({ ok: false, status: 503, json: async () => ({}) }) as Response,
     );
-    const setup = createEvolutionSetup({ ...deps, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const setup = createEvolutionSetup({
+      ...deps,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
 
     await expect(setup.getConnectionState('x')).rejects.toThrow('HTTP 503');
   });

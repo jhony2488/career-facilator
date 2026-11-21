@@ -1,19 +1,26 @@
-import {
-  computeLexicalFit,
-  profileFitTerms,
-} from '../../../src/core/lexicalMatch';
+import { computeLexicalFit, profileFitTerms } from '../../../src/core/lexicalMatch';
 import { makeMasterProfile } from '../../helpers/factories';
 
 const profile = makeMasterProfile({
   coreStack: ['TypeScript', 'React', 'Node.js', 'PostgreSQL'],
-  experiences: [{ role: 'Senior Fullstack Engineer', company: 'X', period: '2020', highlights: [] }],
+  experiences: [
+    { role: 'Senior Fullstack Engineer', company: 'X', period: '2020', highlights: [] },
+  ],
   projects: [{ name: 'JobSearch CLI', summary: '', metrics: [] }],
 });
 
 describe('profileFitTerms', () => {
   it('extracts stack + terms from titles ≥4 letters long', () => {
     const terms = profileFitTerms(profile);
-    for (const t of ['typescript', 'react', 'node.js', 'postgresql', 'senior', 'fullstack', 'jobsearch']) {
+    for (const t of [
+      'typescript',
+      'react',
+      'node.js',
+      'postgresql',
+      'senior',
+      'fullstack',
+      'jobsearch',
+    ]) {
       expect(terms).toContain(t);
     }
     expect(terms).not.toContain('engineer'.slice(0, 3));
