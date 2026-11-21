@@ -56,6 +56,11 @@ import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager
 import { executeLiveFill } from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
 import { followApplyLink, inspectPage } from '../scraper/pageInspector';
+import {
+  loginRefForUrl,
+  parseLoginCredential,
+  tryPortalLogin,
+} from '../autofill/portalLogin';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
@@ -604,22 +609,33 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
   let pendingVisiblePages = 0;
   if (effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false') {
-    channelDeps.onHumanEscalation = async ({ page, signal, matched, aiAnswers, resumePath }) => {
+    channelDeps.onHumanEscalation = async ({ page, signal, jobUrl, matched, aiAnswers, resumePath }) => {
       if (!page.dom) return false;
       const refill = { matched, aiAnswers, resumePath };
-      // Muro de login: headless → relança visível; já visível → o humano loga
-      // na própria página escalada. Enter aqui → reabre a vaga + refaz o fill.
+      // Muro de login: 1º tenta credencial do cofre (login-<domínio>) — sem
+      // janela humana; sem credencial/falha → abre visível p/ login manual.
+      // Enter aqui → reabre a URL da VAGA + refaz o fill.
       if (signal.kind === 'LOGIN_REQUIRED') {
         console.log(`\n⏸ ${signal.detail}`);
-        const ok =
-          effEnv.env.AUTOFILL_HEADLESS === 'false'
-            ? await continueAfterLogin(page.dom as Page, page.url, refill, ctx)
-            : await relaunchForLogin(page.url, refill, ctx);
+        const dom = page.dom as Page;
+        const headless = effEnv.env.AUTOFILL_HEADLESS !== 'false';
+        let ok = false;
+        if (await tryVaultPortalLogin(dom, page.url)) {
+          // Autologin feito (headless ou visível) → volta p/ vaga e refaz o fill.
+          ok = headless
+            ? await relaunchForLogin(jobUrl, refill, ctx, false)
+            : await resumeAfterLogin(dom, jobUrl, refill);
+        }
+        if (!ok) {
+          ok = headless
+            ? await relaunchForLogin(jobUrl, refill, ctx)
+            : await continueAfterLogin(dom, jobUrl, refill, ctx);
+        }
         if (!ok) return false;
         pendingVisiblePages++;
         console.log(
           `   Formulário refeito — revise e envie; ` +
-            `depois 'mark ${page.url} applied' ou 'e' no review.`,
+            `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
         );
         return true;
       }
@@ -860,22 +876,38 @@ async function relaunchEscalationPage(
 }
 
 /**
- * Human loga na janela (Enter aqui p/ confirmar) → reabre a URL da vaga e
- * refaz o preenchimento p/ revisão+envio manual. Usa a página DOM viva.
+ * Credencial do cofre p/ o portal do muro (`login-<domínio>`, ex.: gupy.io →
+ * login-gupy). Preenche e submete o signin na própria página — sem janela.
  */
-async function continueAfterLogin(
+async function tryVaultPortalLogin(dom: Page, loginUrl: string): Promise<boolean> {
+  const ref = loginRefForUrl(loginUrl);
+  if (!ref) return false;
+  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+  if (!(await vault.has(ref).catch(() => false))) return false;
+  const cred = parseLoginCredential(await vault.getCredential(ref).catch(() => ''));
+  if (!cred) return false;
+  console.log(`   Credencial '${ref}' no cofre — autenticando no portal…`);
+  const ok = await tryPortalLogin(dom, cred);
+  if (ok) console.log('   Login automático concluído — sessão reaproveitada no perfil.');
+  return ok;
+}
+
+/**
+ * Após login (cofre ou manual): reabre a URL da vaga, segue o link de
+ * candidatura se a página não expõe form, e refaz o preenchimento p/ revisão.
+ */
+async function resumeAfterLogin(
   dom: Page,
-  url: string,
+  jobUrl: string,
   refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
-  ctx: CmdCtx,
 ): Promise<boolean> {
   try {
-    console.log(
-      '   Faça login na janela do browser; ao concluir, pressione Enter aqui p/ retomar a candidatura.',
-    );
-    await waitHumanSignal(ctx);
-    await dom.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
-    const state = await inspectPage(dom, url);
+    let state = await inspectPage(dom, jobUrl);
+    // Vaga c/ CTA externo (gupy etc.): o form fica atrás do link de candidatura.
+    if (state.fields.length === 0) {
+      state = (await followApplyLink(dom)) ?? state;
+    }
+    if (state.requiresLogin) return false; // login não pegou — cai p/ manual
     await executeLiveFill(state, {
       ...refill,
       submitMode: 'PAUSE_BEFORE_SUBMIT',
@@ -888,13 +920,36 @@ async function continueAfterLogin(
 }
 
 /**
- * Login wall em headless → relança VISÍVEL no mesmo perfil na URL da vaga
- * (redireciona p/ login), espera o humano autenticar e retoma o preenchimento.
+ * Humano loga na janela (Enter aqui p/ confirmar) → volta à URL da vaga e
+ * refaz o preenchimento p/ revisão+envio manual. Usa a página DOM viva.
  */
-async function relaunchForLogin(
-  url: string,
+async function continueAfterLogin(
+  dom: Page,
+  jobUrl: string,
   refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
   ctx: CmdCtx,
+): Promise<boolean> {
+  try {
+    console.log(
+      '   Faça login na janela do browser; ao concluir, pressione Enter aqui p/ retomar a candidatura.',
+    );
+    await waitHumanSignal(ctx);
+    return await resumeAfterLogin(dom, jobUrl, refill);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Login wall em headless → relança VISÍVEL no mesmo perfil na URL da vaga
+ * (redireciona p/ login). `manual=true`: humano autentica; `false`: o cofre
+ * já logou — só refaz o fill visível p/ revisão.
+ */
+async function relaunchForLogin(
+  jobUrl: string,
+  refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
+  ctx: CmdCtx,
+  manual = true,
 ): Promise<boolean> {
   try {
     await shutdownSharedBrowser(); // solta o lock do perfil headless
@@ -904,8 +959,10 @@ async function relaunchForLogin(
       stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
     });
     const page = await browserCtx.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
-    return await continueAfterLogin(page, url, refill, ctx);
+    await page.goto(jobUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    return manual
+      ? await continueAfterLogin(page, jobUrl, refill, ctx)
+      : await resumeAfterLogin(page, jobUrl, refill);
   } catch {
     return false;
   }
@@ -1462,6 +1519,18 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
         throw new CliError(
           `vault set é interativo — rode no shell ('npm run cli' sem argumentos) e digite 'vault set ${ref}'.`,
         );
+      }
+      // Credencial de portal (autologin em muros de login — doc 10):
+      // `login-<domínio>` → {user, pass} — ex.: login-gupy p/ *.gupy.io/signin.
+      if (ref.startsWith('login-')) {
+        const user = (await ctx.ask(`Usuário/e-mail do portal (${ref.slice(6)}): `)).trim();
+        const pass = (await ctx.ask('Senha do portal: ')).trim();
+        await vault.setCredential(ref, JSON.stringify({ user, pass }));
+        console.log(
+          `Credencial '${ref}' gravada criptografada — login walls de ${ref.slice(6)} ` +
+            `passam a autenticar sozinhos nas candidaturas.`,
+        );
+        return;
       }
       const host = (await ctx.ask('SMTP host (ex.: smtp.gmail.com / smtp.office365.com): ')).trim();
       const portStr = (await ctx.ask('SMTP port (465 = TLS direto, 587 = STARTTLS): ')).trim();

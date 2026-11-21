@@ -96,6 +96,8 @@ export interface PipelineDeps {
   onHumanEscalation?: (ctx: {
     page: PageStateLike;
     signal: BlockingSignal;
+    /** URL original da vaga — `page.url` pode ser o muro (signin) pós followApplyLink. */
+    jobUrl: string;
     matched: FieldMatch[];
     aiAnswers: Record<string, string>;
     resumePath?: string;
@@ -419,6 +421,7 @@ export async function runApplicationPipeline(
               .onHumanEscalation({
                 page,
                 signal: effSignal,
+                jobUrl: raw.url,
                 matched,
                 aiAnswers: assets.answers,
                 resumePath: assets.resumePath,
