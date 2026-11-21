@@ -65,18 +65,14 @@ describe('mergeSnapshots — multi-frame inspection', () => {
         frameIdx: 0,
         snap: {
           ...base,
-          fields: [
-            { kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' },
-          ],
+          fields: [{ kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' }],
         },
       },
       {
         frameIdx: 1,
         snap: {
           ...base,
-          fields: [
-            { kind: 'input', label: 'Email', required: true, selector: 'b', name: 'e' },
-          ],
+          fields: [{ kind: 'input', label: 'Email', required: true, selector: 'b', name: 'e' }],
           dropzones: [{ selector: 'dz' }],
         },
       },
@@ -124,10 +120,7 @@ describe('pickApplyTarget — apply link selection', () => {
   });
 
   it('follows a PT apply link on a non-ATS host', () => {
-    const target = pickApplyTarget(
-      [{ text: 'Candidate-se', href: '/inscricao/123' }],
-      base,
-    );
+    const target = pickApplyTarget([{ text: 'Candidate-se', href: '/inscricao/123' }], base);
     expect(target).toBe('https://company.example/inscricao/123');
   });
 
@@ -145,10 +138,7 @@ describe('pickApplyTarget — apply link selection', () => {
 });
 
 describe('followApplyLink — one-hop apply navigation', () => {
-  function fakePage(opts: {
-    anchors: { text: string; href: string }[];
-    snap?: PageSnapshot;
-  }) {
+  function fakePage(opts: { anchors: { text: string; href: string }[]; snap?: PageSnapshot }) {
     const frame = {
       evaluate: jest.fn(async () => opts.snap ?? emptySnap()),
     };
@@ -177,9 +167,7 @@ describe('followApplyLink — one-hop apply navigation', () => {
   });
   const formSnap = (): PageSnapshot => ({
     ...emptySnap(),
-    fields: [
-      { kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' },
-    ],
+    fields: [{ kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' }],
   });
 
   it('navigates to the ATS link and returns the destination state when it has fields', async () => {

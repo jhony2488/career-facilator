@@ -79,9 +79,7 @@ describe('discoverJobs', () => {
       maxJobs: 10,
       excludeUrls: ['https://remoteok.com/remote-jobs/1?utm_campaign=y'],
     });
-    expect(result.jobs.map((j) => j.raw.url)).toEqual([
-      'https://remoteok.com/remote-jobs/2',
-    ]);
+    expect(result.jobs.map((j) => j.raw.url)).toEqual(['https://remoteok.com/remote-jobs/2']);
   });
 
   it('perSourceMax overrides discovery.maxJobsPerSource in the adapter call', async () => {

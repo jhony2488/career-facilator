@@ -67,19 +67,17 @@ describe('apiAdapter', () => {
       fetchText: jest.fn(async () => ({ url: '', text: '', status: 200 })),
       fetchJson: (async <T = unknown>(url: string) => ({
         url,
-        data: (
-          url.includes('/search?')
-            ? { hits: [{ objectID: '424242', title: 'Ask HN: Who is hiring? (December 2025)' }] }
-            : {
-                children: [
-                  {
-                    id: 777,
-                    text: 'Acme Corp | Senior Backend Developer | Remote | jobs@acme.com<p>We build APIs.</p>',
-                  },
-                  { id: 778, text: 'Just a marketing blurb, no role here.' },
-                ],
-              }
-        ) as T,
+        data: (url.includes('/search?')
+          ? { hits: [{ objectID: '424242', title: 'Ask HN: Who is hiring? (December 2025)' }] }
+          : {
+              children: [
+                {
+                  id: 777,
+                  text: 'Acme Corp | Senior Backend Developer | Remote | jobs@acme.com<p>We build APIs.</p>',
+                },
+                { id: 778, text: 'Just a marketing blurb, no role here.' },
+              ],
+            }) as T,
         status: 200,
       })) as Fetcher['fetchJson'],
     };

@@ -76,7 +76,11 @@ describe('htmlAdapter', () => {
         fetchedUrls.push(url);
         return { url, text: '<html></html>', status: 200 };
       }),
-      fetchJson: (async <T = unknown>() => ({ url: '', data: null as T, status: 200 })) as Fetcher['fetchJson'],
+      fetchJson: (async <T = unknown>() => ({
+        url: '',
+        data: null as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
     };
     const extract: GenericExtractor = async (_html, pageUrl) =>
       pageUrl.includes('Backend')
@@ -108,7 +112,11 @@ describe('htmlAdapter', () => {
         fetchedUrls.push(url);
         return { url, text: '<html></html>', status: 200 };
       }),
-      fetchJson: (async <T = unknown>() => ({ url: '', data: null as T, status: 200 })) as Fetcher['fetchJson'],
+      fetchJson: (async <T = unknown>() => ({
+        url: '',
+        data: null as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
     };
     const extract: GenericExtractor = async () => [];
 
