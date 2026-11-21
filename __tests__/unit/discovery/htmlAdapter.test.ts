@@ -137,6 +137,37 @@ describe('htmlAdapter', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it('uses renderText for render:true sources instead of the HTTP fetcher', async () => {
+    const fetcher = htmlFetcher('<html><body>http list</body></html>');
+    const renderText = jest.fn(async (url: string) => ({
+      url,
+      text: '<html><body>rendered list</body></html>',
+      status: 200,
+    }));
+    const extract = jest.fn(async () => [
+      { title: 'Senior Backend Developer', url: 'https://acme.gupy.io/jobs/1' },
+    ]);
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const result = await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({ id: 'gupy', render: true }),
+      fetcher,
+      renderText,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(renderText).toHaveBeenCalledTimes(1);
+    expect(fetcher.fetchText).not.toHaveBeenCalled();
+    expect(extract).toHaveBeenCalledWith(
+      expect.stringContaining('rendered list'),
+      expect.any(String),
+      10,
+    );
+    expect(result.jobs).toHaveLength(1);
+  });
+
   it('returns a controlled error when the source has no listing URL', async () => {
     const config = makeConfig();
     const result = await htmlAdapter.discover({

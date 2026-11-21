@@ -129,6 +129,15 @@ describe('pickApplyTarget — apply link selection', () => {
     expect(target).toBe('https://company.example/jobs/dev/apply');
   });
 
+  it('follows localized apply paths beyond English', () => {
+    expect(
+      pickApplyTarget([{ text: 'ver mais', href: '/postuler/offre/7' }], base),
+    ).toBe('https://company.example/postuler/offre/7');
+    expect(
+      pickApplyTarget([{ text: 'saiba mais', href: '/trabalhe-conosco/dev' }], base),
+    ).toBe('https://company.example/trabalhe-conosco/dev');
+  });
+
   it('recognizes join.com as an ATS host', () => {
     const target = pickApplyTarget(
       [{ text: 'View job', href: 'https://join.com/companies/acme/123-backend' }],
