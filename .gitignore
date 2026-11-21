@@ -11,3 +11,5 @@ career-*-x64*
 .env
 .env.*
 !.env.example
+
+browser-profile
