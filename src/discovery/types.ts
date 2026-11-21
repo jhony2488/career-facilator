@@ -24,6 +24,11 @@ export interface JobSource {
   apiEndpoint?: string;
   /** Template de URL de busca; placeholders: {query}, {page}, {location}. */
   searchUrlTemplate?: string;
+  /**
+   * Página é SPA/JS-heavy: o adapter `html` usa `renderText` (browser
+   * persistente) em vez do fetcher HTTP. Reuso de login via profileDir.
+   */
+  render?: boolean;
   /** Configuração específica do adapter (ex.: nome do ATS, slug da empresa, selectors). */
   adapterConfig?: Record<string, unknown>;
   robotsPolicy: 'allow' | 'disallow' | 'crawl-delay' | 'unknown';
@@ -63,6 +68,11 @@ export interface DiscoveryOptions {
   signal?: AbortSignal;
   /** Extrator LLM para fontes html sem adapter específico (fallback genérico). */
   extract?: GenericExtractor;
+  /**
+   * Fetch via browser Playwright (contexto persistente = logins do usuário)
+   * para fontes `render: true` — SPAs que não devolvem HTML útil no HTTP.
+   */
+  renderText?: (url: string) => Promise<{ url: string; text: string; status: number }>;
 }
 
 export interface DiscoveryJob {
@@ -101,6 +111,8 @@ export interface SourceAdapterContext {
   maxJobs: number;
   /** Extrator LLM disponível quando o fallback genérico está habilitado. */
   extract?: GenericExtractor;
+  /** Fetch renderizado em browser persistente — fontes `render: true`. */
+  renderText?: (url: string) => Promise<{ url: string; text: string; status: number }>;
 }
 
 export interface SourceAdapter {

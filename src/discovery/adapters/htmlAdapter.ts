@@ -77,7 +77,12 @@ export const htmlAdapter: SourceAdapter = {
       if (extracted.length >= maxJobs || ctx.signal?.aborted) break;
       let page;
       try {
-        page = await fetcher.fetchText(targetUrl);
+        // SPA/render:true → browser persistente (reusa login do usuário);
+        // demais seguem no fetcher HTTP de sempre.
+        page =
+          source.render && ctx.renderText
+            ? await ctx.renderText(targetUrl)
+            : await fetcher.fetchText(targetUrl);
       } catch (e) {
         errors.push({
           sourceId: source.id,

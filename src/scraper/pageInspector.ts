@@ -231,16 +231,16 @@ export function mergeSnapshots(
 const ATS_HOST_RE =
   /greenhouse|lever\.co|ashbyhq|workable|workday|myworkday|gupy|smartrecruiters|breezy\.hr|recruitee|personio|teamtailor|rippling|icims|jobvite|taleo|eightfold|successfactors|bamboohr|pinpoint|join\.com/i;
 
-/** Texto de link/botão de candidatura (EN/PT/ES/DE) — curto o bastante p/ ser CTA. */
+/** Texto de link/botão de candidatura (EN/PT/ES/DE/FR/NL/PL/nórdicos) — curto p/ ser CTA. */
 const APPLY_TEXT_RE =
-  /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|bewerb|enviar curr[ií]culo/i;
+  /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|postuler|bewerb|sollicit|aplikuj|ansok|ans[øo][gk]|s[øo]k|trabalhe|enviar curr[ií]culo/i;
 
 /**
  * Path que é destino de candidatura por definição — cobre links com texto
  * genérico ("company portal", "view job") apontando p/ /apply, /bewerben…
  */
 const APPLY_PATH_RE =
-  /\/(apply|apply-now|application|candidat|postul|inscri|aplica|bewerb|vacature|jobs\/apply)([/?#-]|$)/i;
+  /\/(apply|apply-now|application|candidat|postul|inscri|aplica|bewerb|vacature|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|job-apply|jobs\/apply|submit-application|enviar-curriculo|register-candidate)([/?#-]|$)/i;
 
 const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
 
@@ -304,7 +304,7 @@ export async function followApplyLink(page: Page): Promise<LivePageState | null>
         hasButton: false,
       };
       const RE =
-        /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|bewerb|enviar curr[ií]culo/i;
+        /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|postuler|bewerb|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|enviar curr[ií]culo/i;
       // Todas as âncoras (o seletor decide por texto ou por host de ATS).
       for (const el of Array.from(document.querySelectorAll('a[href]')).slice(0, 300)) {
         const href = el.getAttribute('href') ?? '';
@@ -349,7 +349,9 @@ export async function followApplyLink(page: Page): Promise<LivePageState | null>
       .then(() => page)
       .catch(() => null);
     const btn = page
-      .getByRole('button', { name: /apply|candidat|aplicar|inscrev|postular|bewerb/i })
+      .getByRole('button', {
+        name: /apply|candidat|aplicar|inscrev|postular|postuler|bewerb|sollicit|aplikuj|ansok|trabalhe/i,
+      })
       .first();
     await btn.click({ timeout: 3000 }).catch(() => {});
     const winner = await Promise.race([popup, nav]);
