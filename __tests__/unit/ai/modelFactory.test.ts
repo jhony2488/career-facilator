@@ -221,15 +221,46 @@ describe('createModelClients — overrides de routing (fallback do preflight)', 
   });
 });
 
-describe('createModelClients — non-ollama provider', () => {
-  it('adapter rejects with clear ProviderNotImplementedError', async () => {
+describe('createModelClients — OpenAI-compatible providers', () => {
+  it('AI_SMART_PROVIDER=deepseek routes tailor through /chat/completions', async () => {
     const config = loadCareerOpsConfig({
-      env: { AI_LOCAL_PROVIDER: 'groq', AI_SMART_PROVIDER: 'kimi' },
+      env: { AI_SMART_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'sk-x' },
       envFile: '',
     });
-    const clients = createModelClients(config);
-    await expect(clients.triageModel.generate('x')).rejects.toThrow(ProviderNotImplementedError);
-    await expect(clients.structurerModel.generate('x')).rejects.toThrow('kimi');
+    const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            { message: { content: JSON.stringify({ resumeMarkdown: '# CV', answers: {} }) } },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+        { status: 200 },
+      ),
+    );
+    const clients = createModelClients(
+      config,
+      { openai: { fetchImpl } },
+      { DEEPSEEK_API_KEY: 'sk-x' },
+    );
+
+    const out = await clients.tailorModel.tailor('prompt');
+    expect(out.resumeMarkdown).toBe('# CV');
+
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.deepseek.com/chat/completions');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-x');
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe('deepseek-chat');
+    expect(body.response_format.type).toBe('json_schema');
+  });
+
+  it('provider without default endpoint and no BASE_URL → ProviderNotImplementedError', async () => {
+    const config = loadCareerOpsConfig({
+      env: { AI_LOCAL_PROVIDER: 'provider-inexistente' },
+      envFile: '',
+    });
+    expect(() => createModelClients(config)).toThrow(ProviderNotImplementedError);
   });
 });
 

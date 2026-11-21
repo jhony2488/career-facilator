@@ -33,6 +33,13 @@ describe('loadCareerOpsConfig — model resolution via env', () => {
     expect(cfg.ai.smart.apiKeyEnv).toBe('KIMI_API_KEY');
   });
 
+  it('provider deepseek resolves default model and apiKeyEnv', () => {
+    const cfg = loadCareerOpsConfig({ env: { AI_SMART_PROVIDER: 'deepseek' }, envFile: '' });
+    expect(cfg.ai.smart.provider).toBe('deepseek');
+    expect(cfg.ai.smart.modelId).toBe('deepseek-chat');
+    expect(cfg.ai.smart.apiKeyEnv).toBe('DEEPSEEK_API_KEY');
+  });
+
   it('<PROVIDER>_MODEL serves as the tier default', () => {
     const cfg = loadCareerOpsConfig({
       env: { AI_SMART_PROVIDER: 'groq', GROQ_MODEL: 'llama-3.3-70b-versatile' },

@@ -88,12 +88,22 @@ describe('checkProvider — providers remotos', () => {
     expect(r.detail).toContain('HTTP 401');
   });
 
-  it('provider remoto sem adapter → adapterImplemented=false', async () => {
+  it('provider OpenAI-compatível → adapterImplemented=true', async () => {
     const fetchImpl = (jest.fn() as jest.MockedFunction<typeof fetch>).mockResolvedValue(json({}));
     const r = await checkProvider('smart', groqRouting, {
       fetchImpl,
       env: { GROQ_API_KEY: 'k' },
     });
+    expect(r.adapterImplemented).toBe(true);
+  });
+
+  it('provider desconhecido sem baseUrl → adapterImplemented=false', async () => {
+    const fetchImpl = jest.fn() as jest.MockedFunction<typeof fetch>;
+    const r = await checkProvider(
+      'smart',
+      { provider: 'provedor-xpto', modelId: 'm' },
+      { fetchImpl, env: {} },
+    );
     expect(r.adapterImplemented).toBe(false);
   });
 
