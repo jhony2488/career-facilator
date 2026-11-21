@@ -72,6 +72,8 @@ export interface CareerOpsConfig {
      * (env `DISCOVERY_ATS_BOARDS` = `provider:slug` separados por `,`/`;`).
      */
     atsBoards?: Record<string, string[]>;
+    /** OCR das imagens de posts LinkedIn p/ achar e-mail/telefone (default true). */
+    postsImageOcr: boolean;
     /** Verificar e respeitar robots.txt das fontes. */
     respectRobotsTxt: boolean;
   };
@@ -192,6 +194,7 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     searchResultLimit: 30,
     useGenericHtmlFallback: true,
     genericExtractionModel: '',
+    postsImageOcr: true,
     respectRobotsTxt: true,
   },
   ai: {

@@ -244,6 +244,10 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
               return acc;
             }, {})
         : defaultCareerOpsConfig.discovery.atsBoards,
+      postsImageOcr:
+        env.DISCOVERY_POSTS_OCR !== undefined
+          ? env.DISCOVERY_POSTS_OCR === 'true' || env.DISCOVERY_POSTS_OCR === '1'
+          : defaultCareerOpsConfig.discovery.postsImageOcr,
       respectRobotsTxt:
         env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
           ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'
