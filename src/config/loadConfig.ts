@@ -233,6 +233,17 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       browserProfileDir: env.DISCOVERY_BROWSER_PROFILE_DIR
         ? homePath(env.DISCOVERY_BROWSER_PROFILE_DIR)
         : defaultCareerOpsConfig.discovery.browserProfileDir,
+      // Boards de ATS: "greenhouse:acme,greenhouse:foo,lever:stripe" →
+      // { greenhouse: ['acme','foo'], lever: ['stripe'] }
+      atsBoards: env.DISCOVERY_ATS_BOARDS
+        ? env.DISCOVERY_ATS_BOARDS.split(/[,;]/)
+            .map((e) => e.trim().split(':', 2))
+            .filter(([provider, slug]) => Boolean(provider && slug))
+            .reduce<Record<string, string[]>>((acc, [provider, slug]) => {
+              (acc[provider.toLowerCase()] ??= []).push(slug);
+              return acc;
+            }, {})
+        : defaultCareerOpsConfig.discovery.atsBoards,
       respectRobotsTxt:
         env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
           ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'

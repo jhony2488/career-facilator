@@ -67,6 +67,11 @@ export interface CareerOpsConfig {
     genericExtractionModel: string;
     /** Diretório de perfil persistente do navegador (LinkedIn etc.). */
     browserProfileDir?: string;
+    /**
+     * Boards de ATS por provedor: `{ greenhouse: ['acme'], lever: ['stripe'] }`
+     * (env `DISCOVERY_ATS_BOARDS` = `provider:slug` separados por `,`/`;`).
+     */
+    atsBoards?: Record<string, string[]>;
     /** Verificar e respeitar robots.txt das fontes. */
     respectRobotsTxt: boolean;
   };

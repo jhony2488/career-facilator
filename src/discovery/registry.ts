@@ -359,7 +359,8 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     risky: true,
     requiresAuth: true,
     url: 'https://www.linkedin.com/jobs',
-    notes: 'Exige sessão autenticada e consentimento do usuário.',
+    notes:
+      'Busca por título-alvo no browser da sessão (renderText + profileDir; `career login linkedin`). Detalhe de cada vaga via render da /jobs/view.',
   },
   indeed: {
     category: 'aggregator',
@@ -432,7 +433,7 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     risky: true,
     requiresAuth: true,
     url: 'https://www.linkedin.com/jobs',
-    notes: 'Exige sessão autenticada; adapter stub — opt-in consciente.',
+    notes: 'Mesmo adapter do linkedin — sessão autenticada no perfil persistente.',
   },
 };
 
