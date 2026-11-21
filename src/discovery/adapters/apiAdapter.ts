@@ -79,6 +79,9 @@ export const apiAdapter: SourceAdapter = {
         case 'hnhiring':
           jobs = await hnHiring(ctx);
           break;
+        case 'hnjobs':
+          jobs = await hnJobs(ctx);
+          break;
         default:
           return {
             jobs: [],
@@ -138,7 +141,9 @@ async function remoteok(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
     if ('legal' in it || 'last_updated' in it) continue; // skip disclaimer
     const title = String(it.position ?? '');
     if (!matchesTargetTitles(title, config.discovery.targetTitles)) continue;
-    const url = String(it.url ?? it.apply_url ?? '');
+    // apply_url do RemoteOK aponta o ATS externo real — preferir ela faz o
+    // pipeline aterrissar direto no formulário de candidatura.
+    const url = String(it.apply_url ?? it.url ?? '');
     if (!url) continue;
     out.push(
       rawJobFromNormalized(
@@ -196,10 +201,26 @@ async function remotive(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
   return out;
 }
 
+/** Regiões do config → geo do jobicy. Demais regiões ficam globais. */
+const JOBICY_GEO: Record<string, string> = {
+  BR: 'brazil',
+  US: 'usa',
+  PT: 'portugal',
+};
+
 async function jobicy(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
   const { source, fetcher, config } = ctx;
-  const endpoint = source.apiEndpoint!;
-  const res = await fetcher.fetchJson<{ jobs?: unknown[] }>(endpoint);
+  // Busca derivada da config: count = teto da chamada; geo = 1ª região
+  // mapeável de DISCOVERY_REGIONS (LATAM/EU/GLOBAL/vazio → sem geo).
+  // Sem `tag`: o filtro local por títulos já cobre e um tag errado esvaziaria.
+  const params = new URLSearchParams({ count: String(Math.min(ctx.maxJobs, 50)) });
+  const geo = (config.discovery.regions ?? [])
+    .map((r) => JOBICY_GEO[String(r).toUpperCase()])
+    .find(Boolean);
+  if (geo) params.set('geo', geo);
+  const res = await fetcher.fetchJson<{ jobs?: unknown[] }>(
+    `${source.apiEndpoint!}?${params.toString()}`,
+  );
   if (res.status !== 200) throw new Error(`Jobicy returned ${res.status}`);
   const arr = Array.isArray(res.data?.jobs) ? res.data.jobs! : [];
   const out: DiscoveryJob[] = [];
@@ -231,33 +252,42 @@ async function jobicy(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
 
 async function arbeitnow(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
   const { source, fetcher, config } = ctx;
-  const res = await fetcher.fetchJson<{ data?: unknown[] }>(`${source.apiEndpoint!}?page=1`);
-  if (res.status !== 200) throw new Error(`Arbeitnow returned ${res.status}`);
-  const arr = Array.isArray(res.data?.data) ? res.data.data! : [];
   const out: DiscoveryJob[] = [];
-  for (const item of arr) {
-    if (!item || typeof item !== 'object') continue;
-    const it = item as Record<string, unknown>;
-    const title = String(it.title ?? '');
-    if (!title || !matchesTargetTitles(title, config.discovery.targetTitles)) continue;
-    const url = String(it.url ?? '');
-    if (!url) continue;
-    const loc = [it.location, it.job_types, it.remote ? 'remote' : ''].filter(Boolean).join(' · ');
-    out.push(
-      rawJobFromNormalized(
-        {
-          url,
-          title,
-          company: String(it.company_name ?? ''),
-          location: loc,
-          descriptionHtml: String(it.description ?? ''),
-          postedAt: it.created_at ? String(it.created_at) : undefined,
-        },
-        source.name,
-        source.id,
-      ),
+  // JSON paginado (?page=N): varre até encher maxJobs ou página vir vazia —
+  // cap 5 páginas p/ bounding de requests.
+  for (let page = 1; page <= 5 && out.length < ctx.maxJobs; page++) {
+    const res = await fetcher.fetchJson<{ data?: unknown[] }>(
+      `${source.apiEndpoint!}?page=${page}`,
     );
-    if (out.length >= ctx.maxJobs) break;
+    if (res.status !== 200) throw new Error(`Arbeitnow returned ${res.status}`);
+    const arr = Array.isArray(res.data?.data) ? res.data.data! : [];
+    if (!arr.length) break;
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      const it = item as Record<string, unknown>;
+      const title = String(it.title ?? '');
+      if (!title || !matchesTargetTitles(title, config.discovery.targetTitles)) continue;
+      const url = String(it.url ?? '');
+      if (!url) continue;
+      const loc = [it.location, it.job_types, it.remote ? 'remote' : '']
+        .filter(Boolean)
+        .join(' · ');
+      out.push(
+        rawJobFromNormalized(
+          {
+            url,
+            title,
+            company: String(it.company_name ?? ''),
+            location: loc,
+            descriptionHtml: String(it.description ?? ''),
+            postedAt: it.created_at ? String(it.created_at) : undefined,
+          },
+          source.name,
+          source.id,
+        ),
+      );
+      if (out.length >= ctx.maxJobs) break;
+    }
   }
   return out;
 }
@@ -350,6 +380,41 @@ async function hnHiring(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
           url: `https://news.ycombinator.com/item?id=${id}`,
           title: title || 'Hiring post',
           descriptionHtml: `<p>${text}</p>`,
+        },
+        source.name,
+        source.id,
+      ),
+    );
+    if (out.length >= ctx.maxJobs) break;
+  }
+  return out;
+}
+
+/**
+ * HN Jobs oficial (Firebase API) — posts de vagas das empresas YC. `it.url`
+ * já é o link externo de candidatura; `it.text` pode trazer e-mail/contato.
+ * Cada item = 1 request sequencial (rate limiter serializa por domínio).
+ */
+async function hnJobs(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
+  const { source, fetcher, config } = ctx;
+  const api = source.apiEndpoint!.replace(/\/$/, '');
+  const idsRes = await fetcher.fetchJson<number[]>(`${api}/jobstories.json`);
+  if (idsRes.status !== 200) throw new Error(`HN jobstories returned ${idsRes.status}`);
+  const ids = Array.isArray(idsRes.data) ? idsRes.data.slice(0, ctx.maxJobs) : [];
+  const out: DiscoveryJob[] = [];
+  for (const id of ids) {
+    const res = await fetcher.fetchJson<Record<string, unknown>>(`${api}/item/${id}.json`);
+    if (res.status !== 200 || !res.data || res.data.type !== 'job') continue;
+    const it = res.data;
+    const title = String(it.title ?? '');
+    if (!title || !matchesTargetTitles(title, config.discovery.targetTitles)) continue;
+    out.push(
+      rawJobFromNormalized(
+        {
+          url: String(it.url ?? '') || `https://news.ycombinator.com/item?id=${id}`,
+          title,
+          descriptionHtml: String(it.text ?? ''),
+          postedAt: it.time ? new Date(Number(it.time) * 1000).toISOString() : undefined,
         },
         source.name,
         source.id,

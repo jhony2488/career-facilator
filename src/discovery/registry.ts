@@ -272,6 +272,15 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     notes:
       'Thread mensal HN; comentários = vagas com contato direto (e-mail) no corpo. Alto rendimento por canal de mensagem.',
   },
+  hnjobs: {
+    category: 'global-api',
+    name: 'Hacker News — Jobs (YC)',
+    adapter: 'api',
+    enabled: true,
+    apiEndpoint: 'https://hacker-news.firebaseio.com/v0',
+    minDelayMs: 1200,
+    notes: 'jobstories oficiais YC; IDs → /item/{id}. it.url = link externo de candidatura.',
+  },
   euremotejobs: {
     category: 'remote-rss',
     name: 'EU Remote Jobs',
@@ -406,6 +415,7 @@ const GROUPS: Record<string, string[]> = {
     'remoteco',
     'themuse',
     'hnhiring',
+    'hnjobs',
   ],
   ats: [
     'greenhouse',
