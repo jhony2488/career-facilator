@@ -82,6 +82,11 @@ export const apiAdapter: SourceAdapter = {
         case 'hnjobs':
           jobs = await hnJobs(ctx);
           break;
+        case 'ghfrontendbr':
+        case 'ghbackendbr':
+        case 'ghreactbr':
+          jobs = await githubIssues(ctx);
+          break;
         default:
           return {
             jobs: [],
@@ -415,6 +420,71 @@ async function hnJobs(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
           title,
           descriptionHtml: String(it.text ?? ''),
           postedAt: it.time ? new Date(Number(it.time) * 1000).toISOString() : undefined,
+        },
+        source.name,
+        source.id,
+      ),
+    );
+    if (out.length >= ctx.maxJobs) break;
+  }
+  return out;
+}
+
+/** Labels dos repos de vagas BR → modelo/contrato do job normalizado. */
+function ghLabelFields(labels: string[]): { workModel?: string; contractType?: string } {
+  const lower = labels.map((l) => l.toLowerCase());
+  const workModel = lower.some((l) => l.includes('remot'))
+    ? 'REMOTE'
+    : lower.some((l) => l.includes('hibrid') || l.includes('híbrido'))
+      ? 'HYBRID'
+      : lower.some((l) => l.includes('alocado') || l.includes('presencial'))
+        ? 'ONSITE'
+        : undefined;
+  const contractType = labels
+    .find((l) => /^(clt|pj|freelance|estágio|estagio)$/i.test(l.trim()))
+    ?.toUpperCase();
+  return { workModel, contractType };
+}
+
+/**
+ * Repositórios GitHub de vagas BR (frontendbr/backend-br/react-brasil) —
+ * issues abertas são as vagas. 1 request traz título, labels (modelo,
+ * senioridade, stack) e corpo com e-mail/link de candidatura.
+ */
+async function githubIssues(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
+  const { source, fetcher, config } = ctx;
+  const url = `${source.apiEndpoint!}?state=open&per_page=${Math.min(ctx.maxJobs, 100)}`;
+  const res = await fetcher.fetchJson<unknown[]>(url, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (res.status !== 200) throw new Error(`GitHub issues returned ${res.status}`);
+  const arr = Array.isArray(res.data) ? res.data : [];
+  const out: DiscoveryJob[] = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const it = item as Record<string, unknown>;
+    if (it.pull_request) continue; // a API mistura PRs
+    const title = String(it.title ?? '');
+    if (!title || !matchesTargetTitles(title, config.discovery.targetTitles)) continue;
+    const issueUrl = String(it.html_url ?? '');
+    if (!issueUrl) continue;
+    const labels = Array.isArray(it.labels)
+      ? (it.labels as Array<{ name?: string }>).map((l) => String(l?.name ?? ''))
+      : [];
+    const fields = ghLabelFields(labels);
+    const body = String(it.body ?? '');
+    out.push(
+      rawJobFromNormalized(
+        {
+          url: issueUrl,
+          title,
+          company: String((it.user as Record<string, unknown>)?.login ?? ''),
+          location: labels.join(', '),
+          descriptionHtml: `<p>${body.replace(/\n/g, '<br>')}</p>` +
+            (labels.length ? `<p><strong>Labels:</strong> ${labels.join(', ')}</p>` : ''),
+          workModel: fields.workModel,
+          contractType: fields.contractType,
+          postedAt: it.created_at ? String(it.created_at) : undefined,
         },
         source.name,
         source.id,
