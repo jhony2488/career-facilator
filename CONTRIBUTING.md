@@ -42,17 +42,17 @@ Nesses casos, **explique no corpo do PR**: por que não pode ser dividido e como
 
 Formato: `<tipo>(<escopo>): <descrição curta no imperativo>`
 
-| Tipo | Uso |
-|------|-----|
-| `feat` | Nova funcionalidade |
-| `fix` | Correção de bug |
-| `docs` | Só documentação |
-| `test` | Só testes |
+| Tipo       | Uso                                       |
+| ---------- | ----------------------------------------- |
+| `feat`     | Nova funcionalidade                       |
+| `fix`      | Correção de bug                           |
+| `docs`     | Só documentação                           |
+| `test`     | Só testes                                 |
 | `refactor` | Mudança interna sem alterar comportamento |
-| `perf` | Performance |
-| `chore` | Build, deps, config |
-| `style` | Formatação (sem lógica) |
-| `ci` | Pipelines/CI |
+| `perf`     | Performance                               |
+| `chore`    | Build, deps, config                       |
+| `style`    | Formatação (sem lógica)                   |
+| `ci`       | Pipelines/CI                              |
 
 Escopos sugeridos: `intake`, `ai`, `scraper`, `geo`, `skills`, `autofill`, `core`, `email`, `db`, `tracker`, `cli`, `config`.
 

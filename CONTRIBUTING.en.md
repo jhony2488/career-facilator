@@ -42,17 +42,17 @@ In those cases, **explain in the PR body**: why it can't be split and how the re
 
 Format: `<type>(<scope>): <short imperative description>`
 
-| Type | Use |
-|------|-----|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation only |
-| `test` | Tests only |
+| Type       | Use                                 |
+| ---------- | ----------------------------------- |
+| `feat`     | New feature                         |
+| `fix`      | Bug fix                             |
+| `docs`     | Documentation only                  |
+| `test`     | Tests only                          |
 | `refactor` | Internal change, no behavior change |
-| `perf` | Performance |
-| `chore` | Build, deps, config |
-| `style` | Formatting (no logic) |
-| `ci` | Pipelines/CI |
+| `perf`     | Performance                         |
+| `chore`    | Build, deps, config                 |
+| `style`    | Formatting (no logic)               |
+| `ci`       | Pipelines/CI                        |
 
 Suggested scopes: `intake`, `ai`, `scraper`, `geo`, `skills`, `autofill`, `core`, `email`, `db`, `tracker`, `cli`, `config`.
 
