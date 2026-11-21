@@ -4,13 +4,7 @@ import type { EnvMap } from '../config/loadConfig';
 export type TierKey = 'local' | 'fast' | 'smart';
 
 export type PreflightStatus =
-  | 'ok'
-  | 'offline'
-  | 'http_error'
-  | 'missing_key'
-  | 'model_missing'
-  | 'skipped'
-  | 'adapter_pending';
+  'ok' | 'offline' | 'http_error' | 'missing_key' | 'model_missing' | 'skipped' | 'adapter_pending';
 
 export interface ProviderCheckResult {
   tier: TierKey;
@@ -93,7 +87,10 @@ function probeFor(
   const entry = DEFAULT_ENDPOINTS[p];
   if (entry) {
     if (!apiKey) return null;
-    return { url: `${strip(routing.baseUrl ?? entry.base)}${entry.path}`, headers: entry.headers(apiKey) };
+    return {
+      url: `${strip(routing.baseUrl ?? entry.base)}${entry.path}`,
+      headers: entry.headers(apiKey),
+    };
   }
   if (routing.baseUrl) {
     return {
@@ -137,7 +134,8 @@ export async function checkProvider(
   }
 
   const envTimeout = Number(env.AI_PREFLIGHT_TIMEOUT_MS);
-  const timeoutMs = deps.timeoutMs ?? (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 8_000);
+  const timeoutMs =
+    deps.timeoutMs ?? (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 8_000);
   const t0 = Date.now();
   const signals = [AbortSignal.timeout(timeoutMs)];
   if (deps.signal) signals.push(deps.signal);
@@ -151,8 +149,7 @@ export async function checkProvider(
   const latencyMs = Date.now() - t0;
 
   if (!res.ok) {
-    const hint =
-      res.status === 401 || res.status === 403 ? 'chave inválida ou sem permissão' : '';
+    const hint = res.status === 401 || res.status === 403 ? 'chave inválida ou sem permissão' : '';
     return {
       ...base,
       status: 'http_error',

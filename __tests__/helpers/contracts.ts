@@ -363,9 +363,14 @@ export interface CareerOpsConfig {
 //   resumeAfterEscalation(savedPageState, {humanResolved}): Promise<{continueFromStep; status}>
 // src/core/pipeline.ts
 //   runApplicationPipeline(input: {rawJobs, profile, config, dryRun?}, deps: {repo, triageModel,
-//     tailorModel, pageFactory, humanApproval?}):
+//     tailorModel, pageFactory(url): PageStateLike|Promise<…>, humanApproval?}):
 //     Promise<{processed; applications: Array<{status; stages; resumePath?}>;
 //             tokenReport; dryRunReport?}>
+// src/autofill/playwrightExecutor.ts
+//   executeLiveFill(page(com .dom real), opts) → ExecuteFillResult
+//   submitLivePage(page) → bool (submit pós-aprovação) · closeLivePage(page) → void
+// src/scraper/pageInspector.ts  inspectPage(page,url)/inspectDom(page) → PageStateLike{dom};
+//   snapshotToState(snapshot, url, dom?) — puro, testável sem navegador
 //
 // src/autofill/deterministicMatcher.ts
 //   matchFields(fields: InspectedField[], profile): {matched: FieldMatch[]; unmatched: InspectedField[]}

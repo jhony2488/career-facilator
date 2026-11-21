@@ -4,11 +4,7 @@ import type { LocaleDecision } from '../geo/localeAdapter';
 import type { SkillMetadata } from '../skills/core/skillRegistry';
 import { resolveRecipient } from './recipientResolver';
 import { composeEmail, type ComposeProfile } from './emailComposer';
-import {
-  dispatchEmail,
-  type CredentialVault,
-  type SmtpTransport,
-} from './emailDispatcher';
+import { dispatchEmail, type CredentialVault, type SmtpTransport } from './emailDispatcher';
 import { trackSentEmail } from './emailTracker';
 
 export interface EmailApplyInput {

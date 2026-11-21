@@ -8,12 +8,10 @@ import { checkEligibility } from '../geo/eligibilityGuard';
 import { decideApplicationRoute } from './autonomyEngine';
 import { matchFields, type InspectedField } from '../autofill/deterministicMatcher';
 import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
+import { closeLivePage, executeLiveFill, submitLivePage } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate } from './escalationHandler';
 import { applyViaEmail } from '../email_application/emailAppCore';
-import type {
-  SmtpTransport,
-  CredentialVault,
-} from '../email_application/emailDispatcher';
+import type { SmtpTransport, CredentialVault } from '../email_application/emailDispatcher';
 import { applyViaWhatsapp } from '../whatsapp_application/whatsappAppCore';
 import type { EvolutionTransport } from '../whatsapp_application/evolutionClient';
 import { resolveLocale } from '../geo/localeAdapter';
@@ -57,7 +55,8 @@ export interface PipelineDeps {
   >;
   triageModel: TriageModel;
   tailorModel: TailorModel;
-  pageFactory: () => PageStateLike;
+  /** URL da vaga → estado da página (mock em testes, Playwright em runtime). */
+  pageFactory: (url: string) => PageStateLike | Promise<PageStateLike>;
   skills?: SkillMetadata[];
   humanApproval?: (context: { job: RawJobInput; fitScore: number }) => boolean;
   emailTransport?: SmtpTransport;
@@ -68,7 +67,11 @@ export interface PipelineDeps {
    * Retriever de contexto do perfil (RAG). Recebe chunks + query da vaga e
    * devolve os trechos relevantes. Default: retrieveRelevant (léxico, 0 deps).
    */
-  retriever?: (chunks: ProfileChunk[], keywords: string[], jobText: string) => Promise<ProfileChunk[]>;
+  retriever?: (
+    chunks: ProfileChunk[],
+    keywords: string[],
+    jobText: string,
+  ) => Promise<ProfileChunk[]>;
   /**
    * Matcher de título da vaga contra discovery.targetTitles — default: camada
    * determinística (matchTargetTitle). Com embeddings ativos, injetar
@@ -193,199 +196,232 @@ export async function runApplicationPipeline(
       discoveredAt: new Date().toISOString(),
     });
 
-    // 5. Triagem IA — Camada 1
-    tokenReport.triageCalls++;
-    const titleMatch = deps.titleMatcher
-      ? await deps.titleMatcher(clean.title ?? '')
-      : matchTargetTitle(clean.title ?? '', config.discovery.targetTitles);
-    const triage: JobTriageResult = await triageJob(
-      {
-        jobText: markdown,
-        profile,
-        targetTitles: config.discovery.targetTitles,
-        ...(titleMatch ? { titleMatch: titleMatch.target } : {}),
-      },
-      { model: deps.triageModel },
-    );
-    app.fitScore = triage.fitScore;
-    stages.push('TRIAGED');
-
-    if (triage.isDealbreaker || triage.fitScore < config.execution.minScoreForTailoring) {
-      stages.push('SKIPPED');
-      Object.assign(app, {
-        status: 'SKIPPED',
-        reason: triage.isDealbreaker ? 'DEALBREAKER' : 'LOW_FIT_SCORE',
-      });
-      applications.push(app);
-      continue;
-    }
-
-    // 6. Skills dinâmicas — seleção determinística (0 tokens)
-    const skills = selectRelevantSkills(triage.matchedKeywords, deps.skills ?? []);
-    app.skillsActivated = skills.map((s) => s.id);
-    const skillsBlock = await buildSkillsContextBlock(skills);
-
-    // 7. Geração de ativos — Camada 2 (prompt caching + RAG do perfil)
-    tokenReport.smartTierCalls++;
-    const retrieve =
-      deps.retriever ??
-      ((chunks: ProfileChunk[], keywords: string[], jobText: string) =>
-        Promise.resolve(retrieveRelevant(chunks, { keywords, jobText })));
-    const relevantChunks = await retrieve(
-      chunkProfile(profile),
-      triage.matchedKeywords,
-      markdown,
-    );
-    const assets = await tailorResume(
-      {
-        job: {
-          id: clean.title ?? raw.url,
-          title: clean.title ?? '',
-          company: clean.company ?? '',
-          descriptionMarkdown: markdown,
+    // Falha numa chamada de modelo (timeout, provider down) derruba só esta
+    // vaga — FAILED no tracker e o ciclo segue para as demais.
+    try {
+      // 5. Triagem IA — Camada 1
+      tokenReport.triageCalls++;
+      const titleMatch = deps.titleMatcher
+        ? await deps.titleMatcher(clean.title ?? '')
+        : matchTargetTitle(clean.title ?? '', config.discovery.targetTitles);
+      const triage: JobTriageResult = await triageJob(
+        {
+          jobText: markdown,
+          profile,
+          targetTitles: config.discovery.targetTitles,
+          ...(titleMatch ? { titleMatch: titleMatch.target } : {}),
         },
-        triage,
-        skillsBlock,
-        profile,
-        profileContext: buildProfileContext(relevantChunks),
-      },
-      { model: deps.tailorModel },
-    );
-    app.resumePath = assets.resumePath;
-    stages.push('TAILORED');
-
-    // 8. Motor de autonomia
-    const route = decideApplicationRoute({
-      fitScore: triage.fitScore,
-      mode: config.execution.mode,
-      signals: { hasCaptcha: false, hasLowConfidenceAnswers: false },
-      config,
-      dailyCount: dailySent,
-    });
-
-    if (dryRun) {
-      dryRunJobs.push({
-        url: raw.url,
-        fitScore: triage.fitScore,
-        intendedRoute: route,
-        skillsActivated: app.skillsActivated!,
-      });
-      Object.assign(app, { status: 'DRY_RUN' as JobStatus });
-      applications.push(app);
-      continue;
-    }
-
-    // Persiste a vaga inédita como DISCOVERED para rastrear a máquina de estados
-    await deps.repo.recordJob({
-      id: clean.title ?? raw.url,
-      url: raw.url,
-      source: 'ATS_DIRECT',
-      company: clean.company ?? 'unknown',
-      title: clean.title ?? 'unknown',
-      descriptionMarkdown: markdown,
-      scope,
-      status: 'DISCOVERED',
-      discoveredAt: new Date().toISOString(),
-    });
-
-    if (route === 'DEFER') {
-      stages.push('DEFERRED');
-      Object.assign(app, { status: 'DEFERRED' });
-      applications.push(app);
-      continue;
-    }
-    if (route === 'ESCALATE') {
-      stages.push('NEEDS_HUMAN_INPUT');
-      Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
-      applications.push(app);
-      continue;
-    }
-
-    // 9. Canal: formulário web vs. e-mail
-    const page = deps.pageFactory();
-    const hasWebForm = page.fields.length > 0;
-
-    if (!hasWebForm) {
-      await applyViaMessageChannel(
-        raw,
-        clean.company ?? '',
-        clean.title ?? '',
-        markdown,
-        scope,
-        assets.resumePath,
-        skills,
-        profile,
-        config,
-        triage.fitScore,
-        app,
-        stages,
-        deps,
-        dryRun,
+        { model: deps.triageModel },
       );
-      await deps.repo.updateStatus(raw.url, app.status);
-      applications.push(app);
-      if (app.status === 'APPLIED_VIA_EMAIL' || app.status === 'APPLIED_VIA_WHATSAPP') {
-        dailySent++;
-      }
-      continue;
-    }
+      app.fitScore = triage.fitScore;
+      stages.push('TRIAGED');
 
-    // Detecção visual: plataforma já sinaliza candidatura enviada
-    if (page.alreadyAppliedBanner) {
-      await deps.repo.updateStatus(raw.url, 'APPLIED');
-      stages.push('APPLIED');
-      Object.assign(app, { status: 'APPLIED', reason: 'ALREADY_APPLIED_BANNER' });
-      applications.push(app);
-      continue;
-    }
-
-    // 10. Autofill: match determinístico + respostas IA para unmatched
-    const inspected: InspectedField[] = page.fields.map((f) => ({
-      kind: f.kind as InspectedField['kind'],
-      label: f.label,
-      required: f.required,
-    }));
-    const { matched, unmatched } = matchFields(inspected, profile);
-    const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
-
-    const fill = await executeFill(page, {
-      matched,
-      aiAnswers: assets.answers,
-      resumePath: assets.resumePath,
-      submitMode: (route === 'AUTO_SEND' ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT') as SubmitMode,
-    });
-
-    // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido
-    const signal = detectBlockingSignal(page, {
-      unmatchedRequiredLabels: unmatchedRequired.map((f) => f.label),
-    });
-    if (signal || fill.escalated) {
-      await escalate(
-        page,
-        signal ?? { kind: 'UNKNOWN_REQUIRED_FIELD', detail: 'bloqueio no preenchimento' },
-      );
-      stages.push('NEEDS_HUMAN_INPUT');
-      Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
-      applications.push(app);
-      continue;
-    }
-
-    if (fill.status === 'READY_TO_REVIEW') {
-      stages.push('READY_TO_REVIEW');
-      const approved = deps.humanApproval?.({ job: raw, fitScore: triage.fitScore }) ?? false;
-      if (!approved) {
-        Object.assign(app, { status: 'READY_TO_REVIEW' });
+      if (triage.isDealbreaker || triage.fitScore < config.execution.minScoreForTailoring) {
+        stages.push('SKIPPED');
+        Object.assign(app, {
+          status: 'SKIPPED',
+          reason: triage.isDealbreaker ? 'DEALBREAKER' : 'LOW_FIT_SCORE',
+        });
         applications.push(app);
         continue;
       }
-      page.submitted = true;
-    }
 
-    await deps.repo.updateStatus(raw.url, 'APPLIED');
-    stages.push('APPLIED');
-    dailySent++;
-    Object.assign(app, { status: 'APPLIED' });
-    applications.push(app);
+      // 6. Skills dinâmicas — seleção determinística (0 tokens)
+      const skills = selectRelevantSkills(triage.matchedKeywords, deps.skills ?? []);
+      app.skillsActivated = skills.map((s) => s.id);
+      const skillsBlock = await buildSkillsContextBlock(skills);
+
+      // 7. Geração de ativos — Camada 2 (prompt caching + RAG do perfil)
+      tokenReport.smartTierCalls++;
+      const retrieve =
+        deps.retriever ??
+        ((chunks: ProfileChunk[], keywords: string[], jobText: string) =>
+          Promise.resolve(retrieveRelevant(chunks, { keywords, jobText })));
+      const relevantChunks = await retrieve(
+        chunkProfile(profile),
+        triage.matchedKeywords,
+        markdown,
+      );
+      const assets = await tailorResume(
+        {
+          job: {
+            id: clean.title ?? raw.url,
+            title: clean.title ?? '',
+            company: clean.company ?? '',
+            descriptionMarkdown: markdown,
+          },
+          triage,
+          skillsBlock,
+          profile,
+          profileContext: buildProfileContext(relevantChunks),
+        },
+        { model: deps.tailorModel },
+      );
+      app.resumePath = assets.resumePath;
+      stages.push('TAILORED');
+
+      // 8. Motor de autonomia
+      const route = decideApplicationRoute({
+        fitScore: triage.fitScore,
+        mode: config.execution.mode,
+        signals: { hasCaptcha: false, hasLowConfidenceAnswers: false },
+        config,
+        dailyCount: dailySent,
+      });
+
+      if (dryRun) {
+        dryRunJobs.push({
+          url: raw.url,
+          fitScore: triage.fitScore,
+          intendedRoute: route,
+          skillsActivated: app.skillsActivated!,
+        });
+        Object.assign(app, { status: 'DRY_RUN' as JobStatus });
+        applications.push(app);
+        continue;
+      }
+
+      // Persiste a vaga inédita como DISCOVERED para rastrear a máquina de estados
+      await deps.repo.recordJob({
+        id: clean.title ?? raw.url,
+        url: raw.url,
+        source: 'ATS_DIRECT',
+        company: clean.company ?? 'unknown',
+        title: clean.title ?? 'unknown',
+        descriptionMarkdown: markdown,
+        scope,
+        status: 'DISCOVERED',
+        discoveredAt: new Date().toISOString(),
+      });
+
+      if (route === 'DEFER') {
+        stages.push('DEFERRED');
+        Object.assign(app, { status: 'DEFERRED' });
+        applications.push(app);
+        continue;
+      }
+      if (route === 'ESCALATE') {
+        stages.push('NEEDS_HUMAN_INPUT');
+        Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
+        applications.push(app);
+        continue;
+      }
+
+      // 9. Canal: formulário web vs. e-mail — pageFactory devolve página
+      // real (Playwright, dom) ou stub; finally garante fechar a página.
+      const page = await deps.pageFactory(raw.url);
+      try {
+        const hasWebForm = page.fields.length > 0;
+
+        if (!hasWebForm) {
+          await applyViaMessageChannel(
+            raw,
+            clean.company ?? '',
+            clean.title ?? '',
+            markdown,
+            scope,
+            assets.resumePath,
+            skills,
+            profile,
+            config,
+            triage.fitScore,
+            app,
+            stages,
+            deps,
+            dryRun,
+          );
+          await deps.repo.updateStatus(raw.url, app.status);
+          applications.push(app);
+          if (app.status === 'APPLIED_VIA_EMAIL' || app.status === 'APPLIED_VIA_WHATSAPP') {
+            dailySent++;
+          }
+          continue;
+        }
+
+        // Detecção visual: plataforma já sinaliza candidatura enviada
+        if (page.alreadyAppliedBanner) {
+          await deps.repo.updateStatus(raw.url, 'APPLIED');
+          stages.push('APPLIED');
+          Object.assign(app, { status: 'APPLIED', reason: 'ALREADY_APPLIED_BANNER' });
+          applications.push(app);
+          continue;
+        }
+
+        // 10. Autofill: match determinístico + respostas IA para unmatched
+        const inspected: InspectedField[] = page.fields.map((f) => ({
+          kind: f.kind as InspectedField['kind'],
+          label: f.label,
+          required: f.required,
+        }));
+        const { matched, unmatched } = matchFields(inspected, profile);
+        const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
+
+        const fill = await (page.dom
+          ? executeLiveFill(page, {
+              matched,
+              aiAnswers: assets.answers,
+              resumePath: assets.resumePath,
+              submitMode: route === 'AUTO_SEND' ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT',
+            })
+          : executeFill(page, {
+              matched,
+              aiAnswers: assets.answers,
+              resumePath: assets.resumePath,
+              submitMode: (route === 'AUTO_SEND'
+                ? 'AUTO_SUBMIT'
+                : 'PAUSE_BEFORE_SUBMIT') as SubmitMode,
+            }));
+
+        // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido
+        const signal = detectBlockingSignal(page, {
+          unmatchedRequiredLabels: unmatchedRequired.map((f) => f.label),
+        });
+        if (signal || fill.escalated) {
+          await escalate(
+            page,
+            signal ?? { kind: 'UNKNOWN_REQUIRED_FIELD', detail: 'bloqueio no preenchimento' },
+          );
+          stages.push('NEEDS_HUMAN_INPUT');
+          Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
+          applications.push(app);
+          continue;
+        }
+
+        if (fill.status === 'READY_TO_REVIEW') {
+          stages.push('READY_TO_REVIEW');
+          const approved = deps.humanApproval?.({ job: raw, fitScore: triage.fitScore }) ?? false;
+          if (!approved) {
+            Object.assign(app, { status: 'READY_TO_REVIEW' });
+            applications.push(app);
+            continue;
+          }
+          // Página real: a aprovação humana dispara o submit definitivo no DOM
+          if (page.dom && !(await submitLivePage(page))) {
+            stages.push('NEEDS_HUMAN_INPUT');
+            Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'SUBMIT_CLICK_FAILED' });
+            applications.push(app);
+            continue;
+          }
+          page.submitted = true;
+        }
+
+        await deps.repo.updateStatus(raw.url, 'APPLIED');
+        stages.push('APPLIED');
+        dailySent++;
+        Object.assign(app, { status: 'APPLIED' });
+        applications.push(app);
+      } finally {
+        await closeLivePage(page);
+      }
+    } catch (e) {
+      await deps.repo.updateStatus(raw.url, 'FAILED').catch(() => {});
+      stages.push('FAILED');
+      Object.assign(app, {
+        status: 'FAILED',
+        reason: e instanceof Error ? e.message.slice(0, 200) : String(e),
+      });
+      applications.push(app);
+    }
   }
 
   const result: PipelineResult = {

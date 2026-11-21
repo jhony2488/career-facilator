@@ -22,8 +22,7 @@ export interface PromoteResult {
 type AnyProfile = ExtractedProfile | MasterProfile;
 
 type ScalarField =
-  | 'fullName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio'
-  | 'location' | 'summary';
+  'fullName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio' | 'location' | 'summary';
 type NumericField = 'seniorityYears' | 'salaryExpectationBRL' | 'salaryExpectationUSD';
 
 /**

@@ -226,7 +226,8 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     enabled: true,
     url: 'https://weworkremotely.com/categories/remote-programming-jobs.rss',
     minDelayMs: 1500,
-    notes: 'RSS pública da categoria programming.',
+    notes:
+      'RSS pública (grátis p/ descobrir); aplicar exige conta de job seeker — maioria das vagas só com plano Pro pago, free só nas "Boosted".',
   },
   jobspresso: {
     category: 'global-api',

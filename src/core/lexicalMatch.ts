@@ -19,8 +19,24 @@ export interface LexicalFit {
 }
 
 const STOPWORDS = new Set([
-  'de', 'do', 'da', 'em', 'para', 'com', 'a', 'o', 'e', 'or', 'and', 'the',
-  'in', 'of', 'to', 'for', 'with', 'on',
+  'de',
+  'do',
+  'da',
+  'em',
+  'para',
+  'com',
+  'a',
+  'o',
+  'e',
+  'or',
+  'and',
+  'the',
+  'in',
+  'of',
+  'to',
+  'for',
+  'with',
+  'on',
 ]);
 
 function norm(t: string): string {
@@ -28,7 +44,9 @@ function norm(t: string): string {
 }
 
 /** Termos de fit vindos do perfil: coreStack + títulos das experiências (se houver). */
-export function profileFitTerms(profile: MasterProfileLike & { experiences?: { role: string }[] }): string[] {
+export function profileFitTerms(
+  profile: MasterProfileLike & { experiences?: { role: string }[] },
+): string[] {
   const terms = new Set<string>();
   for (const s of profile.coreStack) terms.add(norm(s));
   for (const e of profile.experiences ?? []) {

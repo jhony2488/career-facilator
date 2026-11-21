@@ -24,8 +24,7 @@ export function smtpCredentialFromEnv(
   const user = env.SMTP_USER?.trim();
   const pass = env.SMTP_PASS;
   if (!user || !pass) return null;
-  const secure =
-    env.SMTP_SECURE === 'true' || env.SMTP_SECURE === '1' || env.SMTP_PORT === '465';
+  const secure = env.SMTP_SECURE === 'true' || env.SMTP_SECURE === '1' || env.SMTP_PORT === '465';
   return {
     host: env.SMTP_HOST?.trim() || 'smtp.gmail.com',
     port: Number(env.SMTP_PORT) || (secure ? 465 : 587),
@@ -48,13 +47,15 @@ export interface SmtpTransportDeps {
  * nenhuma senha passa por config, env de texto claro ou log.
  */
 export function createSmtpTransport(deps: SmtpTransportDeps): SmtpTransport {
-  const factory = deps.transportFactory ?? ((cred: SmtpCredential) =>
-    createTransport({
-      host: cred.host,
-      port: cred.port,
-      secure: cred.secure,
-      auth: { user: cred.user, pass: cred.pass },
-    }));
+  const factory =
+    deps.transportFactory ??
+    ((cred: SmtpCredential) =>
+      createTransport({
+        host: cred.host,
+        port: cred.port,
+        secure: cred.secure,
+        auth: { user: cred.user, pass: cred.pass },
+      }));
 
   return {
     async sendMail(message) {
