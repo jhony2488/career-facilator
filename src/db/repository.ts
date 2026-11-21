@@ -220,9 +220,7 @@ export class JobRepository {
       return;
     }
     this.db
-      .prepare(
-        `INSERT INTO applications (job_id, status, channel, sent_at) VALUES (?, ?, ?, ?)`,
-      )
+      .prepare(`INSERT INTO applications (job_id, status, channel, sent_at) VALUES (?, ?, ?, ?)`)
       .run(jobId, status, channel, new Date().toISOString());
   }
 

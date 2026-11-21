@@ -1002,6 +1002,7 @@ async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
         `— 'e' marca APPLIED só depois de concluir o envio no navegador.`,
     );
     for (const j of pending) {
+      if (ctx.signal?.aborted) break;
       console.log(`\n  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
       const q = queueByJob.get(j.id);
       if (q) {
@@ -1412,21 +1413,51 @@ async function repl(): Promise<void> {
     `CareerFacilator AI — shell interativo. 'help' lista comandos, 'exit' sai. Ctrl+C cancela.`,
   );
   rl.prompt();
-  rl.on('line', (line) => {
+  // Linha digitada com pergunta pendente é a resposta — não um comando novo.
+  // E comando em curso enfileira a entrada: respostas pré-digitadas chegam à
+  // pergunta seguinte e Ctrl+C continua abortando o comando certo.
+  let pendingAsk: ((answer: string) => void) | null = null;
+  let busy = false;
+  const inputQueue: string[] = [];
+  const drainInput = () => {
+    while (inputQueue.length && !pendingAsk && !busy && !closed)
+      runLine(inputQueue.shift() as string);
+  };
+  const runLine = (line: string): void => {
     const [cmd, ...cmdArgs] = line.trim().split(/\s+/).filter(Boolean);
+    if (!cmd) return;
+    if (cmd === 'exit' || cmd === 'quit' || cmd === 'q') {
+      rl.close();
+      return;
+    }
+    if (cmd === 'help' || cmd === '?') {
+      console.log(HELP);
+      return;
+    }
+    busy = true;
     void (async () => {
-      if (!cmd) return;
-      if (cmd === 'exit' || cmd === 'quit' || cmd === 'q') {
-        rl.close();
-        return;
-      }
-      if (cmd === 'help' || cmd === '?') {
-        console.log(HELP);
-        return;
-      }
       const ctrl = new AbortController();
       current = ctrl;
-      const ask = (q: string) => new Promise<string>((res) => rl.question(q, res));
+      const ask = (q: string) =>
+        new Promise<string>((res) => {
+          process.stdout.write(q);
+          const pretyped = inputQueue.shift();
+          if (pretyped !== undefined) {
+            res(pretyped);
+            return;
+          }
+          pendingAsk = res;
+          ctrl.signal.addEventListener(
+            'abort',
+            () => {
+              if (pendingAsk === res) {
+                pendingAsk = null;
+                res('');
+              }
+            },
+            { once: true },
+          );
+        });
       try {
         if (!(await dispatch(cmd, cmdArgs, { signal: ctrl.signal, ask }))) {
           console.log(`Comando desconhecido: ${cmd} — 'help' lista os comandos.`);
@@ -1437,8 +1468,23 @@ async function repl(): Promise<void> {
         if (current === ctrl) current = null;
       }
     })().finally(() => {
+      busy = false;
       if (!closed) rl.prompt();
+      drainInput();
     });
+  };
+  rl.on('line', (line) => {
+    if (pendingAsk) {
+      const resolve = pendingAsk;
+      pendingAsk = null;
+      resolve(line);
+      return;
+    }
+    if (busy) {
+      inputQueue.push(line);
+      return;
+    }
+    runLine(line);
   });
   await new Promise<void>((resolvePromise) => rl.on('close', resolvePromise));
 }
