@@ -103,3 +103,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 18 | Repos GitHub de vagas BR | Issues abertas via API pi (1 request/repo); labels mapeiam workModel/contractType; PRs ignorados |
 
 | 19 | Providers remotos de IA | Adapter unico OpenAI-compatible (openaiCompatibleClient) cobre deepseek/groq/openai/kimi/openrouter/together + qualquer BASE_URL custom; Anthropic/Gemini nativos seguem sem adapter (Gemini func via endpoint compat do Google) |
+
+| 20 | Link de candidatura com texto genérico | pickApplyTarget tambem avalia o path da URL (segmento /apply, /bewerben, /postul…) — portais 'company portal' viram canal web; iframe lazy ganha re-inspect pós-networkidle; tailor recebe resumeLanguage do scope (INTERNATIONAL → en-US) |
