@@ -251,6 +251,8 @@ export interface CareerOpsConfig {
     useGenericHtmlFallback: boolean;
     genericExtractionModel: string;
     browserProfileDir?: string;
+    /** ATS boards por provedor — env DISCOVERY_ATS_BOARDS (provider:slug). */
+    atsBoards?: Record<string, string[]>;
     respectRobotsTxt: boolean;
   };
   ai: {
