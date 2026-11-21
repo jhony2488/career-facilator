@@ -75,6 +75,7 @@ npm run cli -- vault set smtp-main  # grava credencial SMTP cifrada (interativo 
 npm run cli -- vault list           # refs gravadas no cofre (sem expor segredos)
 npm run cli -- whatsapp setup       # cria instância Evolution API + QR no terminal p/ parear
 npm run cli -- whatsapp status      # estado da conexão WhatsApp
+npm run cli -- login <url|portal>   # browser visível p/ login manual (gupy|linkedin|indeed|vagas|infojobs|catho)
 npm run cli -- help                 # help completo por seção (no shell: 'help')
 
 npm run build     # compila TypeScript para dist/
