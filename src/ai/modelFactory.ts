@@ -1,4 +1,5 @@
 import { createOllamaClient, type OllamaClient, type OllamaMessage } from './ollamaClient';
+import { createOpenAIClient, type OpenAICompatibleClient } from './openaiCompatibleClient';
 import { generateStructured } from './jsonRepair';
 import { resolveModel } from './router';
 import type { TriageModel, JobTriageResult } from './triageAgent';
@@ -39,6 +40,8 @@ export interface ModelFactoryOptions {
   signal?: AbortSignal;
   /** Overrides do ollamaClient (baseUrl, keepAlive, fetchImpl p/ testes). */
   ollama?: Parameters<typeof createOllamaClient>[0];
+  /** Overrides do client OpenAI-compatible (fetchImpl p/ testes). */
+  openai?: Parameters<typeof createOpenAIClient>[0];
   /** Roteamento efetivo por tier (ex.: fallback escolhido no preflight) — sobrescreve config.ai. */
   overrides?: Partial<Record<'local' | 'fast' | 'smart', ModelRouting>>;
 }
@@ -100,10 +103,13 @@ function callOptions(
   };
 }
 
+/** Superfície de chat consumida pelo factory — Ollama e OpenAI-compatíveis. */
+type ChatClient = OllamaClient | OpenAICompatibleClient;
+
 /**
  * Fábrica de adapters de modelo por provider/tier (doc 02/03).
  * Ollama: client real com format:'json' + jsonRepair + streaming via onToken.
- * Demais providers: erro explícito — metadados do router já resolvidos.
+ * Demais providers: client OpenAI-compatible genérico (chat/completions).
  */
 export function createModelClients(
   config: CareerOpsConfig,
@@ -113,21 +119,34 @@ export function createModelClients(
   const local = opts.overrides?.local ?? resolveModel('LOCAL', config);
   const smart = opts.overrides?.smart ?? resolveModel('SMART', config);
 
-  const ollamaFor = (
-    routing: { provider: string; baseUrl?: string },
+  const clientFor = (
+    routing: { provider: string; baseUrl?: string; apiKeyEnv?: string },
     tier: string,
-  ): OllamaClient => {
-    if (routing.provider !== 'ollama')
-      throw new ProviderNotImplementedError(routing.provider, tier);
-    return createOllamaClient({
-      baseUrl: routing.baseUrl,
-      keepAlive: env.OLLAMA_KEEP_ALIVE,
-      ...opts.ollama,
-    });
+  ): ChatClient => {
+    if (routing.provider === 'ollama') {
+      return createOllamaClient({
+        baseUrl: routing.baseUrl,
+        keepAlive: env.OLLAMA_KEEP_ALIVE,
+        ...opts.ollama,
+      });
+    }
+    try {
+      return createOpenAIClient({
+        provider: routing.provider,
+        baseUrl: routing.baseUrl,
+        apiKey: routing.apiKeyEnv ? env[routing.apiKeyEnv] : undefined,
+        ...opts.openai,
+      });
+    } catch (e) {
+      throw new ProviderNotImplementedError(
+        routing.provider,
+        `${tier}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   };
 
   const chatText = async (
-    client: OllamaClient,
+    client: ChatClient,
     modelId: string,
     prompt: string,
     extra: { format?: 'json' | Record<string, unknown>; numPredict: number },
@@ -176,116 +195,103 @@ export function createModelClients(
     return content;
   };
 
-  const triageModel: TriageModel =
-    local.provider === 'ollama'
-      ? (() => {
-          const client = ollamaFor(local, 'LOCAL');
-          return {
-            generate: (prompt: string) =>
-              generateStructured(
-                (p) =>
-                  chatText(
-                    client,
-                    local.modelId,
-                    p,
-                    {
-                      format: TRIAGE_JSON_SCHEMA,
-                      numPredict: NUM_PREDICT_DEFAULTS.triage,
-                    },
-                    'triage',
-                    local.provider,
-                  ),
-                prompt,
-                JobTriageSchema,
-              ) as Promise<JobTriageResult>,
-          };
-        })()
-      : {
-          generate: () => Promise.reject(new ProviderNotImplementedError(local.provider, 'LOCAL')),
-        };
+  const triageModel: TriageModel = (() => {
+    const client = clientFor(local, 'LOCAL');
+    return {
+      generate: (prompt: string) =>
+        generateStructured(
+          (p) =>
+            chatText(
+              client,
+              local.modelId,
+              p,
+              {
+                format: TRIAGE_JSON_SCHEMA,
+                numPredict: NUM_PREDICT_DEFAULTS.triage,
+              },
+              'triage',
+              local.provider,
+            ),
+          prompt,
+          JobTriageSchema,
+        ) as Promise<JobTriageResult>,
+    };
+  })();
 
-  const structurerModel: StructurerModel =
-    smart.provider === 'ollama'
-      ? (() => {
-          const client = ollamaFor(smart, 'SMART');
-          return {
-            generate: (prompt: string) =>
-              generateStructured(
-                (p) =>
-                  chatText(
-                    client,
-                    smart.modelId,
-                    p,
-                    {
-                      format: PROFILE_JSON_SCHEMA,
-                      numPredict: NUM_PREDICT_DEFAULTS.structurer,
-                    },
-                    'structurer',
-                    smart.provider,
-                  ),
-                prompt,
-                MasterProfileSchema,
-              ),
-            /**
-             * Saída parcial por seção — o adapter traduz `jsonSchema` para o
-             * "structured output" do provider (Ollama: format; OpenAI:
-             * response_format.json_schema; Anthropic: tool/schema).
-             */
-            generatePart: (prompt: string, jsonSchema: Record<string, unknown>) =>
-              generateStructured(
-                (p) =>
-                  chatText(
-                    client,
-                    smart.modelId,
-                    p,
-                    {
-                      format: jsonSchema,
-                      numPredict: NUM_PREDICT_DEFAULTS.structurer,
-                    },
-                    'structurer',
-                    smart.provider,
-                  ),
-                prompt,
-                z.unknown(),
-              ),
-          };
-        })()
-      : {
-          generate: () => Promise.reject(new ProviderNotImplementedError(smart.provider, 'SMART')),
-        };
+  const structurerModel: StructurerModel = (() => {
+    const client = clientFor(smart, 'SMART');
+    return {
+      generate: (prompt: string) =>
+        generateStructured(
+          (p) =>
+            chatText(
+              client,
+              smart.modelId,
+              p,
+              {
+                format: PROFILE_JSON_SCHEMA,
+                numPredict: NUM_PREDICT_DEFAULTS.structurer,
+              },
+              'structurer',
+              smart.provider,
+            ),
+          prompt,
+          MasterProfileSchema,
+        ),
+      /**
+       * Saída parcial por seção — o adapter traduz `jsonSchema` para o
+       * "structured output" do provider (Ollama: format; OpenAI:
+       * response_format.json_schema; Anthropic: tool/schema).
+       */
+      generatePart: (prompt: string, jsonSchema: Record<string, unknown>) =>
+        generateStructured(
+          (p) =>
+            chatText(
+              client,
+              smart.modelId,
+              p,
+              {
+                format: jsonSchema,
+                numPredict: NUM_PREDICT_DEFAULTS.structurer,
+              },
+              'structurer',
+              smart.provider,
+            ),
+          prompt,
+          z.unknown(),
+        ),
+    };
+  })();
 
-  const tailorModel: TailorModel =
-    smart.provider === 'ollama'
-      ? (() => {
-          const client = ollamaFor(smart, 'SMART');
-          return {
-            tailor: async (prompt: string) => {
-              const guided = [
-                prompt,
-                '',
-                'Respond with a JSON object only:',
-                '{"resumeMarkdown": "<markdown completo do currículo>", "answers": {"<pergunta>": "<resposta>"}}',
-              ].join('\n');
-              return generateStructured(
-                (p) =>
-                  chatText(
-                    client,
-                    smart.modelId,
-                    p,
-                    {
-                      format: TAILOR_JSON_SCHEMA,
-                      numPredict: NUM_PREDICT_DEFAULTS.tailor,
-                    },
-                    'tailor',
-                    smart.provider,
-                  ),
-                guided,
-                TailorOutputSchema,
-              );
-            },
-          };
-        })()
-      : { tailor: () => Promise.reject(new ProviderNotImplementedError(smart.provider, 'SMART')) };
+  const tailorModel: TailorModel = (() => {
+    const client = clientFor(smart, 'SMART');
+    return {
+      tailor: async (prompt: string) => {
+        const guided = [
+          prompt,
+          '',
+          'Respond with a JSON object only:',
+          '{"resumeMarkdown": "<markdown completo do currículo>", "answers": {"<pergunta>": "<resposta>"}}',
+        ].join('\n');
+        return generateStructured(
+          (p) =>
+            chatText(
+              client,
+              smart.modelId,
+              p,
+              {
+                format: TAILOR_JSON_SCHEMA,
+                numPredict: NUM_PREDICT_DEFAULTS.tailor,
+              },
+              'tailor',
+              smart.provider,
+            ),
+          guided,
+          TailorOutputSchema,
+        );
+      },
+    };
+  })();
 
   return { triageModel, tailorModel, structurerModel };
 }

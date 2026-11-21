@@ -27,7 +27,19 @@ export interface PreflightDeps {
   signal?: AbortSignal;
 }
 
-const GENERATION_ADAPTERS = new Set(['ollama']);
+import { OPENAI_COMPAT_BASE_URLS } from './openaiCompatibleClient';
+
+/**
+ * Providers com adapter de geração implementado: 'ollama' + qualquer um
+ * OpenAI-compatível (endpoint default conhecido ou baseUrl custom).
+ */
+function hasGenerationAdapter(routing: ModelRouting): boolean {
+  return (
+    routing.provider === 'ollama' ||
+    routing.provider in OPENAI_COMPAT_BASE_URLS ||
+    Boolean(routing.baseUrl)
+  );
+}
 
 /** Endpoint de listagem de modelos + auth por provider conhecido. */
 const DEFAULT_ENDPOINTS: Record<
@@ -56,6 +68,21 @@ const DEFAULT_ENDPOINTS: Record<
   },
   moonshot: {
     base: 'https://api.moonshot.ai',
+    path: '/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+  },
+  deepseek: {
+    base: 'https://api.deepseek.com',
+    path: '/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+  },
+  openrouter: {
+    base: 'https://openrouter.ai/api',
+    path: '/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+  },
+  together: {
+    base: 'https://api.together.xyz',
     path: '/v1/models',
     headers: (k) => ({ Authorization: `Bearer ${k}` }),
   },
@@ -117,7 +144,7 @@ export async function checkProvider(
     tier,
     routing,
     status: 'skipped',
-    adapterImplemented: GENERATION_ADAPTERS.has(routing.provider),
+    adapterImplemented: hasGenerationAdapter(routing),
   };
   if (deps.enabled === false) return base;
 

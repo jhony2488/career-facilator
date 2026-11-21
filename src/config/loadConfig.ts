@@ -22,6 +22,9 @@ export const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
   moonshot: 'moonshot-v1-8k',
   gemini: 'gemini-2.0-flash',
   google: 'gemini-2.0-flash',
+  deepseek: 'deepseek-chat',
+  openrouter: 'openai/gpt-4o-mini',
+  together: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
 };
 
 export type EnvMap = Record<string, string | undefined>;
