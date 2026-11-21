@@ -81,6 +81,12 @@ export async function getJobBrowserContext(
     browser = launched;
     context = await launched.newContext({ viewport });
   }
+  // Sob tsx/esbuild (keepNames) o corpo de funções passadas a evaluate() pode
+  // referenciar o helper `__name`, ausente na página — stub identidade no
+  // contexto p/ evaluate(serialized-fn) funcionar (pageInspector/humanSim).
+  await context.addInitScript({
+    content: 'window.__name = function (f) { return f; };',
+  });
   return context;
 }
 

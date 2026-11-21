@@ -87,6 +87,9 @@ export const apiAdapter: SourceAdapter = {
         case 'ghreactbr':
           jobs = await githubIssues(ctx);
           break;
+        case 'gupy':
+          jobs = await gupy(ctx);
+          break;
         default:
           return {
             jobs: [],
@@ -250,6 +253,60 @@ async function jobicy(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
         source.id,
       ),
     );
+    if (out.length >= ctx.maxJobs) break;
+  }
+  return out;
+}
+
+async function gupy(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
+  const { source, fetcher, config } = ctx;
+  const out: DiscoveryJob[] = [];
+  const seen = new Set<number>();
+  // A API pagina limit/offset (50/página) e filtra jobName server-side —
+  // uma busca por título-alvo evita varrer o catálogo inteiro (~80k vagas).
+  // Sem título-alvo configurado, varre as páginas mais recentes no geral.
+  const titles = config.discovery.targetTitles.length ? config.discovery.targetTitles : [''];
+  for (const title of titles) {
+    for (let offset = 0; out.length < ctx.maxJobs && offset < 500; offset += 50) {
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: String(offset),
+        sortBy: 'publishedDate',
+      });
+      if (title) params.set('jobName', title);
+      const res = await fetcher.fetchJson<{ data?: unknown[] }>(
+        `${source.apiEndpoint!}?${params.toString()}`,
+      );
+      if (res.status !== 200) throw new Error(`Gupy returned ${res.status}`);
+      const arr = Array.isArray(res.data?.data) ? res.data.data! : [];
+      if (!arr.length) break;
+      for (const item of arr) {
+        if (!item || typeof item !== 'object') continue;
+        const it = item as Record<string, unknown>;
+        const id = Number(it.id ?? 0);
+        const name = String(it.name ?? '');
+        const url = String(it.jobUrl ?? '');
+        if (!name || !url || seen.has(id)) continue;
+        if (!matchesTargetTitles(name, config.discovery.targetTitles)) continue;
+        seen.add(id);
+        out.push(
+          rawJobFromNormalized(
+            {
+              url,
+              title: name,
+              company: String(it.careerPageName ?? ''),
+              location: [it.city, it.state, it.workplaceType].filter(Boolean).join(' · '),
+              descriptionHtml: String(it.description ?? ''),
+              postedAt: it.publishedDate ? String(it.publishedDate) : undefined,
+            },
+            source.name,
+            source.id,
+          ),
+        );
+        if (out.length >= ctx.maxJobs) break;
+      }
+      if (arr.length < 50) break; // última página
+    }
     if (out.length >= ctx.maxJobs) break;
   }
   return out;
