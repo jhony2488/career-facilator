@@ -58,7 +58,9 @@ export class ProviderNotImplementedError extends Error {
   }
 }
 
-function ollamaOptions(env: Record<string, string | undefined>): Record<string, unknown> | undefined {
+function ollamaOptions(
+  env: Record<string, string | undefined>,
+): Record<string, unknown> | undefined {
   const opts: Record<string, unknown> = {};
   const temperature = Number(env.AI_TEMPERATURE);
   const numPredict = Number(env.AI_NUM_PREDICT);
@@ -111,8 +113,12 @@ export function createModelClients(
   const local = opts.overrides?.local ?? resolveModel('LOCAL', config);
   const smart = opts.overrides?.smart ?? resolveModel('SMART', config);
 
-  const ollamaFor = (routing: { provider: string; baseUrl?: string }, tier: string): OllamaClient => {
-    if (routing.provider !== 'ollama') throw new ProviderNotImplementedError(routing.provider, tier);
+  const ollamaFor = (
+    routing: { provider: string; baseUrl?: string },
+    tier: string,
+  ): OllamaClient => {
+    if (routing.provider !== 'ollama')
+      throw new ProviderNotImplementedError(routing.provider, tier);
     return createOllamaClient({
       baseUrl: routing.baseUrl,
       keepAlive: env.OLLAMA_KEEP_ALIVE,
@@ -178,16 +184,25 @@ export function createModelClients(
             generate: (prompt: string) =>
               generateStructured(
                 (p) =>
-                  chatText(client, local.modelId, p, {
-                    format: TRIAGE_JSON_SCHEMA,
-                    numPredict: NUM_PREDICT_DEFAULTS.triage,
-                  }, 'triage', local.provider),
+                  chatText(
+                    client,
+                    local.modelId,
+                    p,
+                    {
+                      format: TRIAGE_JSON_SCHEMA,
+                      numPredict: NUM_PREDICT_DEFAULTS.triage,
+                    },
+                    'triage',
+                    local.provider,
+                  ),
                 prompt,
                 JobTriageSchema,
               ) as Promise<JobTriageResult>,
           };
         })()
-      : { generate: () => Promise.reject(new ProviderNotImplementedError(local.provider, 'LOCAL')) };
+      : {
+          generate: () => Promise.reject(new ProviderNotImplementedError(local.provider, 'LOCAL')),
+        };
 
   const structurerModel: StructurerModel =
     smart.provider === 'ollama'
@@ -197,10 +212,17 @@ export function createModelClients(
             generate: (prompt: string) =>
               generateStructured(
                 (p) =>
-                  chatText(client, smart.modelId, p, {
-                    format: PROFILE_JSON_SCHEMA,
-                    numPredict: NUM_PREDICT_DEFAULTS.structurer,
-                  }, 'structurer', smart.provider),
+                  chatText(
+                    client,
+                    smart.modelId,
+                    p,
+                    {
+                      format: PROFILE_JSON_SCHEMA,
+                      numPredict: NUM_PREDICT_DEFAULTS.structurer,
+                    },
+                    'structurer',
+                    smart.provider,
+                  ),
                 prompt,
                 MasterProfileSchema,
               ),
@@ -212,16 +234,25 @@ export function createModelClients(
             generatePart: (prompt: string, jsonSchema: Record<string, unknown>) =>
               generateStructured(
                 (p) =>
-                  chatText(client, smart.modelId, p, {
-                    format: jsonSchema,
-                    numPredict: NUM_PREDICT_DEFAULTS.structurer,
-                  }, 'structurer', smart.provider),
+                  chatText(
+                    client,
+                    smart.modelId,
+                    p,
+                    {
+                      format: jsonSchema,
+                      numPredict: NUM_PREDICT_DEFAULTS.structurer,
+                    },
+                    'structurer',
+                    smart.provider,
+                  ),
                 prompt,
                 z.unknown(),
               ),
           };
         })()
-      : { generate: () => Promise.reject(new ProviderNotImplementedError(smart.provider, 'SMART')) };
+      : {
+          generate: () => Promise.reject(new ProviderNotImplementedError(smart.provider, 'SMART')),
+        };
 
   const tailorModel: TailorModel =
     smart.provider === 'ollama'
@@ -237,10 +268,17 @@ export function createModelClients(
               ].join('\n');
               return generateStructured(
                 (p) =>
-                  chatText(client, smart.modelId, p, {
-                    format: TAILOR_JSON_SCHEMA,
-                    numPredict: NUM_PREDICT_DEFAULTS.tailor,
-                  }, 'tailor', smart.provider),
+                  chatText(
+                    client,
+                    smart.modelId,
+                    p,
+                    {
+                      format: TAILOR_JSON_SCHEMA,
+                      numPredict: NUM_PREDICT_DEFAULTS.tailor,
+                    },
+                    'tailor',
+                    smart.provider,
+                  ),
                 guided,
                 TailorOutputSchema,
               );

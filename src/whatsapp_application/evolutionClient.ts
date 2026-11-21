@@ -41,8 +41,7 @@ export function createEvolutionClient(deps: EvolutionClientDeps): EvolutionTrans
   }
 
   return {
-    sendText: (number, text) =>
-      post(`/message/sendText/${deps.instance}`, { number, text }),
+    sendText: (number, text) => post(`/message/sendText/${deps.instance}`, { number, text }),
 
     sendDocument: (number, pdfBase64, fileName, caption) =>
       post(`/message/sendMedia/${deps.instance}`, {

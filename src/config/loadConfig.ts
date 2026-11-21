@@ -66,8 +66,7 @@ const providerEnvKey = (provider: string): string =>
 function resolveTier(key: 'local' | 'fast' | 'smart', env: EnvMap): ModelRouting {
   const T = key.toUpperCase();
   const provider =
-    (env[`AI_${T}_PROVIDER`] ?? '').trim().toLowerCase() ||
-    defaultCareerOpsConfig.ai[key].provider;
+    (env[`AI_${T}_PROVIDER`] ?? '').trim().toLowerCase() || defaultCareerOpsConfig.ai[key].provider;
   const P = providerEnvKey(provider);
   const modelId =
     env[`AI_${T}_MODEL`] ??
@@ -116,8 +115,6 @@ function resolveFallback(
   if (raw) return routingForSpec(raw, env);
   return key === 'fast' ? 'off' : tiers.fast;
 }
-
-
 
 /** Caminho absoluto passa direto; relativo resolve sob careerHome. */
 function resolveHomePath(rel: string, home: string): string {
@@ -182,19 +179,26 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       ...(Number.isFinite(fitAuto) ? { minScoreForFullAuto: fitAuto } : {}),
     },
     discovery: {
-      targetTitles:
-        titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
+      targetTitles: titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
       sources: env.DISCOVERY_SOURCES
-        ? env.DISCOVERY_SOURCES.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        ? env.DISCOVERY_SOURCES.split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
         : defaultCareerOpsConfig.discovery.sources,
       excludeSources: env.DISCOVERY_EXCLUDE_SOURCES
-        ? env.DISCOVERY_EXCLUDE_SOURCES.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        ? env.DISCOVERY_EXCLUDE_SOURCES.split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
         : defaultCareerOpsConfig.discovery.excludeSources,
       regions: env.DISCOVERY_REGIONS
-        ? env.DISCOVERY_REGIONS.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+        ? env.DISCOVERY_REGIONS.split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
         : defaultCareerOpsConfig.discovery.regions,
       workModels: env.DISCOVERY_WORK_MODELS
-        ? env.DISCOVERY_WORK_MODELS.split(/[,;]/).map((s) => s.trim().toUpperCase() as WorkModel).filter(Boolean)
+        ? env.DISCOVERY_WORK_MODELS.split(/[,;]/)
+            .map((s) => s.trim().toUpperCase() as WorkModel)
+            .filter(Boolean)
         : defaultCareerOpsConfig.discovery.workModels,
       maxJobsPerSource: env.DISCOVERY_MAX_JOBS_PER_SOURCE
         ? Number(env.DISCOVERY_MAX_JOBS_PER_SOURCE)
@@ -205,22 +209,26 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       perDomainDelayMs: env.DISCOVERY_PER_DOMAIN_DELAY_MS
         ? Number(env.DISCOVERY_PER_DOMAIN_DELAY_MS)
         : defaultCareerOpsConfig.discovery.perDomainDelayMs,
-      searchEngine: (env.DISCOVERY_SEARCH_ENGINE as SearchEngine | undefined)
-        ?? defaultCareerOpsConfig.discovery.searchEngine,
+      searchEngine:
+        (env.DISCOVERY_SEARCH_ENGINE as SearchEngine | undefined) ??
+        defaultCareerOpsConfig.discovery.searchEngine,
       searchResultLimit: env.DISCOVERY_SEARCH_RESULT_LIMIT
         ? Number(env.DISCOVERY_SEARCH_RESULT_LIMIT)
         : defaultCareerOpsConfig.discovery.searchResultLimit,
-      useGenericHtmlFallback: env.DISCOVERY_USE_GENERIC_FALLBACK !== undefined
-        ? env.DISCOVERY_USE_GENERIC_FALLBACK === 'true' || env.DISCOVERY_USE_GENERIC_FALLBACK === '1'
-        : defaultCareerOpsConfig.discovery.useGenericHtmlFallback,
+      useGenericHtmlFallback:
+        env.DISCOVERY_USE_GENERIC_FALLBACK !== undefined
+          ? env.DISCOVERY_USE_GENERIC_FALLBACK === 'true' ||
+            env.DISCOVERY_USE_GENERIC_FALLBACK === '1'
+          : defaultCareerOpsConfig.discovery.useGenericHtmlFallback,
       genericExtractionModel:
         env.DISCOVERY_GENERIC_MODEL ?? defaultCareerOpsConfig.discovery.genericExtractionModel,
       browserProfileDir: env.DISCOVERY_BROWSER_PROFILE_DIR
         ? homePath(env.DISCOVERY_BROWSER_PROFILE_DIR)
         : defaultCareerOpsConfig.discovery.browserProfileDir,
-      respectRobotsTxt: env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
-        ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'
-        : defaultCareerOpsConfig.discovery.respectRobotsTxt,
+      respectRobotsTxt:
+        env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
+          ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'
+          : defaultCareerOpsConfig.discovery.respectRobotsTxt,
     },
     salary: (() => {
       const d = defaultCareerOpsConfig.salary;
@@ -234,9 +242,18 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
             ? d.adaptToJobRange
             : env.SALARY_ADAPT_TO_RANGE === 'true' || env.SALARY_ADAPT_TO_RANGE === '1',
         byLevel: {
-          JUNIOR: { brl: num('SALARY_BRL_JUNIOR', d.byLevel.JUNIOR.brl), usd: num('SALARY_USD_JUNIOR', d.byLevel.JUNIOR.usd) },
-          PLENO: { brl: num('SALARY_BRL_PLENO', d.byLevel.PLENO.brl), usd: num('SALARY_USD_PLENO', d.byLevel.PLENO.usd) },
-          SENIOR: { brl: num('SALARY_BRL_SENIOR', d.byLevel.SENIOR.brl), usd: num('SALARY_USD_SENIOR', d.byLevel.SENIOR.usd) },
+          JUNIOR: {
+            brl: num('SALARY_BRL_JUNIOR', d.byLevel.JUNIOR.brl),
+            usd: num('SALARY_USD_JUNIOR', d.byLevel.JUNIOR.usd),
+          },
+          PLENO: {
+            brl: num('SALARY_BRL_PLENO', d.byLevel.PLENO.brl),
+            usd: num('SALARY_USD_PLENO', d.byLevel.PLENO.usd),
+          },
+          SENIOR: {
+            brl: num('SALARY_BRL_SENIOR', d.byLevel.SENIOR.brl),
+            usd: num('SALARY_USD_SENIOR', d.byLevel.SENIOR.usd),
+          },
         },
       };
     })(),
@@ -300,9 +317,7 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       compiledPath: homePath(
         env.PROFILE_COMPILED_PATH ?? defaultCareerOpsConfig.profile.compiledPath,
       ),
-      historyDir: homePath(
-        env.PROFILE_HISTORY_DIR ?? defaultCareerOpsConfig.profile.historyDir,
-      ),
+      historyDir: homePath(env.PROFILE_HISTORY_DIR ?? defaultCareerOpsConfig.profile.historyDir),
     },
     email: {
       ...defaultCareerOpsConfig.email,
@@ -323,14 +338,15 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
         ? { recipientCooldownDays: Number(env.EMAIL_COOLDOWN_DAYS) }
         : {}),
       ...(env.EMAIL_RETRY_MAX ? { maxRetries: Number(env.EMAIL_RETRY_MAX) } : {}),
-      ...(env.EMAIL_RETRY_BACKOFF_MS
-        ? { retryBackoffMs: Number(env.EMAIL_RETRY_BACKOFF_MS) }
-        : {}),
+      ...(env.EMAIL_RETRY_BACKOFF_MS ? { retryBackoffMs: Number(env.EMAIL_RETRY_BACKOFF_MS) } : {}),
       ...(env.EMAIL_TEMPLATE_PATH
         ? { bodyTemplatePath: homePath(env.EMAIL_TEMPLATE_PATH) }
         : { bodyTemplatePath: homePath(defaultCareerOpsConfig.email.bodyTemplatePath) }),
       ...(env.EMAIL_INCLUDE_SALARY !== undefined
-        ? { includeSalaryExpectation: env.EMAIL_INCLUDE_SALARY === 'true' || env.EMAIL_INCLUDE_SALARY === '1' }
+        ? {
+            includeSalaryExpectation:
+              env.EMAIL_INCLUDE_SALARY === 'true' || env.EMAIL_INCLUDE_SALARY === '1',
+          }
         : {}),
     },
     whatsapp: {
@@ -346,7 +362,10 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
         ? { recipientCooldownDays: Number(env.WHATSAPP_COOLDOWN_DAYS) }
         : {}),
       ...(env.WHATSAPP_ATTACH_RESUME !== undefined
-        ? { attachResume: env.WHATSAPP_ATTACH_RESUME === 'true' || env.WHATSAPP_ATTACH_RESUME === '1' }
+        ? {
+            attachResume:
+              env.WHATSAPP_ATTACH_RESUME === 'true' || env.WHATSAPP_ATTACH_RESUME === '1',
+          }
         : {}),
       ...(env.WHATSAPP_RETRY_MAX ? { maxRetries: Number(env.WHATSAPP_RETRY_MAX) } : {}),
       ...(env.WHATSAPP_RETRY_BACKOFF_MS

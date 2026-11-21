@@ -3,7 +3,11 @@ import { basename } from 'node:path';
 import type { JobStatus } from '../db/repository';
 import type { CareerOpsConfig } from '../config/careerOps.config';
 import { resolveWhatsappRecipient } from './whatsappResolver';
-import { composeWhatsapp, type WhatsappComposeInput, type WhatsappMessage } from './whatsappComposer';
+import {
+  composeWhatsapp,
+  type WhatsappComposeInput,
+  type WhatsappMessage,
+} from './whatsappComposer';
 import type { EvolutionTransport } from './evolutionClient';
 
 export interface WhatsappApplyDeps {

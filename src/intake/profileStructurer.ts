@@ -168,10 +168,7 @@ export async function structureProfile(
   // schema completo. Sem seções → chamada única sobre o documento inteiro.
   if (sections) {
     const merged = makeEmptyProfile();
-    const header = input.documentText.slice(
-      0,
-      input.documentText.indexOf(sections.firstHeader),
-    );
+    const header = input.documentText.slice(0, input.documentText.indexOf(sections.firstHeader));
 
     interface Part {
       body: string;
@@ -182,21 +179,31 @@ export async function structureProfile(
     }
     const parts: Part[] = [
       {
-        body: header + (sections.summary ?? '') + (sections.skills ?? '') +
+        body:
+          header +
+          (sections.summary ?? '') +
+          (sections.skills ?? '') +
           (sections.certifications ?? ''),
         fields:
           'fullName, email, phone, linkedin, github, portfolio, location, summary, ' +
           'seniorityYears, salaryExpectationBRL, salaryExpectationUSD, ' +
           'coreStack, languages, certifications, blockedKeywords',
         schema: z.object({
-          fullName: z.string(), email: z.string(), phone: z.string(),
-          linkedin: z.string(), github: z.string(), portfolio: z.string(),
-          location: z.string(), summary: z.string(),
+          fullName: z.string(),
+          email: z.string(),
+          phone: z.string(),
+          linkedin: z.string(),
+          github: z.string(),
+          portfolio: z.string(),
+          location: z.string(),
+          summary: z.string(),
           seniorityYears: z.number().nullable(),
           salaryExpectationBRL: z.number().nullable(),
           salaryExpectationUSD: z.number().nullable(),
-          coreStack: z.array(z.string()), languages: z.array(z.string()),
-          certifications: z.array(z.string()), blockedKeywords: z.array(z.string()),
+          coreStack: z.array(z.string()),
+          languages: z.array(z.string()),
+          certifications: z.array(z.string()),
+          blockedKeywords: z.array(z.string()),
         }),
         expected: 0,
       },
@@ -213,9 +220,7 @@ export async function structureProfile(
           projects: MasterProfileSchema.shape.projects,
           openSourceProjects: MasterProfileSchema.shape.openSourceProjects,
         }),
-        expected: countTitleLines(
-          (sections.projects ?? '') + '\n' + (sections.openSource ?? ''),
-        ),
+        expected: countTitleLines((sections.projects ?? '') + '\n' + (sections.openSource ?? '')),
       },
       {
         body: (sections.education ?? '') + '\n' + (sections.languages ?? ''),
@@ -287,23 +292,69 @@ const extractSeniorityYears = (t: string): number | null => {
  * estão espalhadas nas experiências e projetos. Lista fechada.
  */
 const TECH_LEXICON = [
-  'JavaScript', 'TypeScript', 'Python', 'PHP', 'HTML', 'CSS',
-  'React.js', 'React Native', 'Next.js', 'Vue.js', 'Nuxt.js', 'PWA',
-  'Node.js', 'NestJS', 'Express.js', 'Adonis.js', 'Flask', 'Laravel',
-  'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Prisma',
-  'Jest', 'Cypress', 'Detox', 'Playwright', 'React Testing Library', 'TDD',
-  'Docker', 'Azure', 'AWS', 'CI/CD', 'GitHub Actions', 'Git', 'GitHub',
-  'GitLab', 'Scrum', 'Kanban', 'Jira', 'REST', 'microsserviços', 'SOLID',
-  'SEO', 'LLM', 'RAG', 'WebLLM', 'WebGPU', 'ChatGPT', 'Gemini', 'Claude',
-  'DeepSeek', 'Groq', 'Ollama', 'WordPress', 'Wix',
+  'JavaScript',
+  'TypeScript',
+  'Python',
+  'PHP',
+  'HTML',
+  'CSS',
+  'React.js',
+  'React Native',
+  'Next.js',
+  'Vue.js',
+  'Nuxt.js',
+  'PWA',
+  'Node.js',
+  'NestJS',
+  'Express.js',
+  'Adonis.js',
+  'Flask',
+  'Laravel',
+  'PostgreSQL',
+  'MySQL',
+  'MongoDB',
+  'Redis',
+  'Prisma',
+  'Jest',
+  'Cypress',
+  'Detox',
+  'Playwright',
+  'React Testing Library',
+  'TDD',
+  'Docker',
+  'Azure',
+  'AWS',
+  'CI/CD',
+  'GitHub Actions',
+  'Git',
+  'GitHub',
+  'GitLab',
+  'Scrum',
+  'Kanban',
+  'Jira',
+  'REST',
+  'microsserviços',
+  'SOLID',
+  'SEO',
+  'LLM',
+  'RAG',
+  'WebLLM',
+  'WebGPU',
+  'ChatGPT',
+  'Gemini',
+  'Claude',
+  'DeepSeek',
+  'Groq',
+  'Ollama',
+  'WordPress',
+  'Wix',
 ];
 
 const extractCoreStack = (text: string): string[] =>
   TECH_LEXICON.filter((term) =>
-    new RegExp(
-      `(?<![\\w.])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.])`,
-      'i',
-    ).test(text),
+    new RegExp(`(?<![\\w.])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.])`, 'i').test(
+      text,
+    ),
   );
 
 /** Itens "Título + período + bullets" de uma seção (projetos/OSS). */
@@ -320,9 +371,7 @@ function parseNamedItems(section: string): { name: string; bullets: string[] }[]
       continue;
     }
     if (/^[-•*·]/.test(line)) {
-      (cur ??= { name: '', bullets: [] }).bullets.push(
-        line.replace(/^[-•*·]\s*/, ''),
-      );
+      (cur ??= { name: '', bullets: [] }).bullets.push(line.replace(/^[-•*·]\s*/, ''));
       lastWasBullet = true;
       continue;
     }
@@ -368,7 +417,10 @@ function applyDeterministicBackstops(
   if (!p.languages.length && sections?.languages) {
     // "• Português: nativo." → "Português: nativo"
     for (const raw of sections.languages.split('\n')) {
-      const line = raw.trim().replace(/^[-•*·]\s*/, '').replace(/\.$/, '');
+      const line = raw
+        .trim()
+        .replace(/^[-•*·]\s*/, '')
+        .replace(/\.$/, '');
       if (line && !isHeaderLine(line) && !/\b(19|20)\d{2}\b/.test(line)) {
         p.languages.push(line);
       }
@@ -405,13 +457,8 @@ function countTitleLines(body: string): number {
   return body
     .split('\n')
     .map((l) => l.trim())
-    .filter(
-      (l) =>
-        l.length >= 5 &&
-        l.length <= 80 &&
-        !/^[-•*·]/.test(l) &&
-        !isHeaderLine(l),
-    ).length;
+    .filter((l) => l.length >= 5 && l.length <= 80 && !/^[-•*·]/.test(l) && !isHeaderLine(l))
+    .length;
 }
 
 /** Chamada de parte via generatePart: schema mínimo + retry se faltar item. */
@@ -517,18 +564,29 @@ function scopedPrompt(fields: string, body: string): string {
 /** Copia do partial pro merged só o que o modelo realmente preencheu. */
 function copyFilledFields(dst: ExtractedProfile, src: ExtractedProfile): void {
   for (const k of [
-    'fullName', 'email', 'phone', 'linkedin', 'github', 'portfolio', 'location', 'summary',
+    'fullName',
+    'email',
+    'phone',
+    'linkedin',
+    'github',
+    'portfolio',
+    'location',
+    'summary',
   ] as const) {
     if (src[k] !== NOT_INFORMED && src[k] !== '') dst[k] = src[k];
   }
-  for (const k of [
-    'seniorityYears', 'salaryExpectationBRL', 'salaryExpectationUSD',
-  ] as const) {
+  for (const k of ['seniorityYears', 'salaryExpectationBRL', 'salaryExpectationUSD'] as const) {
     if (src[k] !== null) dst[k] = src[k];
   }
   for (const k of [
-    'coreStack', 'languages', 'certifications', 'blockedKeywords',
-    'experiences', 'projects', 'openSourceProjects', 'education',
+    'coreStack',
+    'languages',
+    'certifications',
+    'blockedKeywords',
+    'experiences',
+    'projects',
+    'openSourceProjects',
+    'education',
   ] as const) {
     dedupePush(dst[k] as unknown[], src[k] as unknown[]);
   }
@@ -537,7 +595,9 @@ function copyFilledFields(dst: ExtractedProfile, src: ExtractedProfile): void {
 /** Item-lixo que o modelo emite pra "preencher" array (todos os campos = NÃO_INFORMADO). */
 const isPlaceholderItem = (item: unknown): boolean => {
   const empty = (v: unknown): boolean =>
-    v === NOT_INFORMED || v === '' || v === null ||
+    v === NOT_INFORMED ||
+    v === '' ||
+    v === null ||
     (typeof v === 'string' && /^(n\/?a|none|-)$/i.test(v.trim())) ||
     (Array.isArray(v) && v.every(empty));
   if (typeof item === 'string') return empty(item);
@@ -550,15 +610,19 @@ const isPlaceholderItem = (item: unknown): boolean => {
 /** Algum campo preenchido de verdade (não-placeholder)? */
 const hasUsefulContent = (p: ExtractedProfile): boolean =>
   [
-    p.coreStack, p.languages, p.certifications, p.blockedKeywords,
-    p.experiences, p.projects, p.openSourceProjects, p.education,
+    p.coreStack,
+    p.languages,
+    p.certifications,
+    p.blockedKeywords,
+    p.experiences,
+    p.projects,
+    p.openSourceProjects,
+    p.education,
   ].some((arr) => arr.some((i) => !isPlaceholderItem(i))) ||
-  [
-    p.fullName, p.email, p.phone, p.linkedin, p.github, p.portfolio, p.summary,
-  ].some((v) => v !== NOT_INFORMED && v !== '') ||
-  [p.seniorityYears, p.salaryExpectationBRL, p.salaryExpectationUSD].some(
-    (v) => v !== null,
-  );
+  [p.fullName, p.email, p.phone, p.linkedin, p.github, p.portfolio, p.summary].some(
+    (v) => v !== NOT_INFORMED && v !== '',
+  ) ||
+  [p.seniorityYears, p.salaryExpectationBRL, p.salaryExpectationUSD].some((v) => v !== null);
 
 /** Empurra itens reais, deduplicando (mesmo item pode vir de 2 seções). */
 function dedupePush(dst: unknown[], items: unknown[]): void {

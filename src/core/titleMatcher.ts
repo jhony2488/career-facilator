@@ -116,10 +116,7 @@ const maxDistance = (len: number) => Math.max(1, Math.floor(len / 5));
  * Containment exige ≥1 token distintivo no alvo — alvo todo-genérico
  * ("Software Engineer") cai para Levenshtein/squashed.
  */
-export function matchTargetTitle(
-  jobTitle: string,
-  targetTitles: string[],
-): TitleMatch | null {
+export function matchTargetTitle(jobTitle: string, targetTitles: string[]): TitleMatch | null {
   if (!jobTitle.trim() || !targetTitles.length) return null;
   const nj = normalizeTitle(jobTitle);
   const cj = canonical(jobTitle);

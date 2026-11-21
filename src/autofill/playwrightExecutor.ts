@@ -1,0 +1,181 @@
+import type { Page } from 'playwright';
+import type {
+  ExecuteFillOptions,
+  ExecuteFillResult,
+  PageFieldState,
+  PageStateLike,
+} from './formExecutor';
+import { inspectDom } from '../scraper/pageInspector';
+
+const MAX_STEPS = 8;
+
+/** Botões de avanço de wizard (multi-etapas — feature/06). */
+const NEXT_RE =
+  /next|continue|pr[óo]ximo|avan[çc]ar|continuar|save and continue|salvar e continuar/i;
+/** Botões de envio definitivo — nunca clicados em modo PAUSE_BEFORE_SUBMIT. */
+const SUBMIT_RE =
+  /apply|submit|send( application)?|enviar( candidatura)?|candidatar(-se)?|finalizar/i;
+/** "Apply" no próprio botão de abertura do form — evita tratar nav como submit. */
+const AMBIGUOUS_RE = /apply( now)?( for this (job|position))?/i;
+
+async function fillDomField(dom: Page, field: PageFieldState, value: string): Promise<boolean> {
+  const locator = field.selector
+    ? dom.locator(field.selector)
+    : dom.getByLabel(field.label, { exact: false });
+  const el = locator.first();
+  try {
+    if (field.kind === 'select') {
+      try {
+        await el.selectOption({ label: value }, { timeout: 3000 });
+      } catch {
+        await el.selectOption(value, { timeout: 3000 });
+      }
+      return true;
+    }
+    const type = ((await el.getAttribute('type')) || '').toLowerCase();
+    if (type === 'checkbox' || type === 'radio') {
+      if (value && !/^(no|não|nao|false|0)$/i.test(value)) await el.check({ timeout: 3000 });
+      else await el.uncheck({ timeout: 3000 });
+      return true;
+    }
+    // fill() dispara input+change — o que SPAs (React/Vue) esperam pra validar
+    await el.fill(value, { timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Clica "Next/Continue" de wizard; retorna false quando não achou botão. */
+async function clickNext(dom: Page): Promise<boolean> {
+  const btn = dom.getByRole('button', { name: NEXT_RE }).first();
+  try {
+    await btn.click({ timeout: 3000 });
+    await dom.waitForTimeout(700);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Botão de submit definitivo — ignora o 'Apply' que ABRE o form. */
+async function clickSubmit(dom: Page): Promise<boolean> {
+  const native = dom.locator('button[type="submit"], input[type="submit"]').first();
+  const candidates = [native, dom.getByRole('button', { name: SUBMIT_RE }).first()];
+  for (const btn of candidates) {
+    try {
+      const text = ((await btn.innerText()) || (await btn.getAttribute('value')) || '').trim();
+      if (AMBIGUOUS_RE.test(text) && !SUBMIT_RE.test(text)) continue;
+      await btn.click({ timeout: 4000 });
+      return true;
+    } catch {
+      // próximo candidato
+    }
+  }
+  return false;
+}
+
+/**
+ * Executor real de formulário web (feature/06): preenche via DOM — determinístico
+ * primeiro, respostas IA nos unmatched — anexa PDF, navega multi-etapas e envia
+ * ou pausa conforme submitMode. CAPTCHA/OTP/erro de validação → NEEDS_HUMAN_INPUT
+ * com progresso preservado (a página não é fechada aqui — quem chama fecha).
+ */
+export async function executeLiveFill(
+  live: PageStateLike,
+  opts: ExecuteFillOptions,
+): Promise<ExecuteFillResult> {
+  const dom = live.dom as Page | undefined;
+  if (!dom) throw new Error('executeLiveFill: live.dom ausente (use executeFill para mocks)');
+
+  const { matched = [], aiAnswers = {}, resumePath, submitMode } = opts;
+  const matchedByLabel = new Map(matched.map((m) => [m.field.label, m.value]));
+  let fieldsFilled = 0;
+  let resumeAttached = false;
+  const aiAnswersUsed = new Set<string>();
+
+  for (let step = 0; step < MAX_STEPS; step++) {
+    for (const field of live.fields) {
+      if (field.kind === 'file' || !field.selector) continue;
+      const det = matchedByLabel.get(field.label);
+      const value = det ?? aiAnswers[field.label];
+      if (value === undefined) continue;
+      if (await fillDomField(dom, field, value)) {
+        fieldsFilled++;
+        if (det === undefined) aiAnswersUsed.add(field.label);
+      }
+    }
+
+    const fileField = live.fields.find((f) => f.kind === 'file' && f.selector);
+    if (fileField && resumePath && !resumeAttached) {
+      try {
+        await dom.locator(fileField.selector!).setInputFiles(resumePath, { timeout: 3000 });
+        resumeAttached = true;
+      } catch {
+        // upload invisível/iframe — segue; erro de validação (se houver) escalona abaixo
+      }
+    }
+
+    if (live.hasCaptcha || live.requiresEmailOtp || live.validationErrors.length > 0) {
+      return {
+        fieldsFilled,
+        resumeAttached,
+        submitted: false,
+        aiAnswersUsed: [...aiAnswersUsed],
+        status: 'NEEDS_HUMAN_INPUT',
+        unmatchedHandled: true,
+        escalated: true,
+      };
+    }
+
+    if (live.currentStep >= live.totalSteps) break;
+    if (!(await clickNext(dom))) break; // sem botão de avanço — tenta o que tem
+    const refreshed = await inspectDom(dom).catch(() => null);
+    if (!refreshed) break;
+    Object.assign(live, refreshed);
+  }
+
+  if (submitMode === 'AUTO_SUBMIT') {
+    if (await clickSubmit(dom)) {
+      live.submitted = true;
+      return {
+        fieldsFilled,
+        resumeAttached,
+        submitted: true,
+        aiAnswersUsed: [...aiAnswersUsed],
+        status: 'APPLIED',
+      };
+    }
+    return {
+      fieldsFilled,
+      resumeAttached,
+      submitted: false,
+      aiAnswersUsed: [...aiAnswersUsed],
+      status: 'NEEDS_HUMAN_INPUT',
+      unmatchedHandled: true,
+      escalated: true,
+    };
+  }
+
+  return {
+    fieldsFilled,
+    resumeAttached,
+    submitted: false,
+    aiAnswersUsed: [...aiAnswersUsed],
+    status: 'READY_TO_REVIEW',
+    unmatchedHandled: true,
+  };
+}
+
+/** Submit disparado após aprovação humana num READY_TO_REVIEW — mesma página viva. */
+export async function submitLivePage(live: PageStateLike): Promise<boolean> {
+  const dom = live.dom as Page | undefined;
+  if (!dom) return false;
+  return clickSubmit(dom);
+}
+
+/** Fecha a página real se existir — no-op em mocks. */
+export async function closeLivePage(live: { dom?: unknown }): Promise<void> {
+  const dom = live.dom as { close?: () => Promise<void> } | undefined;
+  await dom?.close?.().catch(() => {});
+}

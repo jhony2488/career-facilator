@@ -47,8 +47,31 @@ const DEFAULT_TOP_K = 4;
 export const ALWAYS_INCLUDE = ['personal', 'coreStack', 'standardAnswers'];
 
 const STOPWORDS = new Set([
-  'a', 'o', 'e', 'de', 'do', 'da', 'em', 'um', 'uma', 'para', 'com', 'the', 'and',
-  'or', 'of', 'to', 'in', 'for', 'with', 'on', 'at', 'is', 'are', 'we', 'you',
+  'a',
+  'o',
+  'e',
+  'de',
+  'do',
+  'da',
+  'em',
+  'um',
+  'uma',
+  'para',
+  'com',
+  'the',
+  'and',
+  'or',
+  'of',
+  'to',
+  'in',
+  'for',
+  'with',
+  'on',
+  'at',
+  'is',
+  'are',
+  'we',
+  'you',
 ]);
 
 function tokenize(text: string): Set<string> {
@@ -199,10 +222,15 @@ export async function retrieveHybrid(
 
   let embedded: ProfileChunk[];
   try {
-    embedded = await retrieveByEmbedding(chunks, query.jobText ?? query.keywords.join(' '), embedder, {
-      ...opts,
-      topK: chunks.length,
-    });
+    embedded = await retrieveByEmbedding(
+      chunks,
+      query.jobText ?? query.keywords.join(' '),
+      embedder,
+      {
+        ...opts,
+        topK: chunks.length,
+      },
+    );
   } catch {
     return lexical;
   }

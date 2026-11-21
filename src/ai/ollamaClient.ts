@@ -98,20 +98,23 @@ export function createOllamaClient(deps: OllamaClientDeps = {}): OllamaClient {
     const stream = opts.stream ?? opts.onToken !== undefined;
     const signals = [AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)];
     if (opts.signal) signals.push(opts.signal);
-    const res = await fetchImpl(`${baseUrl}/api/chat`, withDispatcher({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.any(signals),
-      body: JSON.stringify({
-        model,
-        messages,
-        stream,
-        keep_alive: normalizeKeepAlive(opts.keepAlive ?? keepAlive),
-        ...(opts.think ? { think: true } : {}),
-        ...(opts.format !== undefined ? { format: opts.format } : {}),
-        ...(opts.options ? { options: opts.options } : {}),
+    const res = await fetchImpl(
+      `${baseUrl}/api/chat`,
+      withDispatcher({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.any(signals),
+        body: JSON.stringify({
+          model,
+          messages,
+          stream,
+          keep_alive: normalizeKeepAlive(opts.keepAlive ?? keepAlive),
+          ...(opts.think ? { think: true } : {}),
+          ...(opts.format !== undefined ? { format: opts.format } : {}),
+          ...(opts.options ? { options: opts.options } : {}),
+        }),
       }),
-    }));
+    );
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');

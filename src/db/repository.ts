@@ -252,7 +252,12 @@ export class JobRepository {
 
   /** Fila manual de WhatsApp (doc 15): número + mensagem + PDF p/ envio na mão. */
   async listWhatsappQueue(): Promise<
-    Array<{ jobId: string; recipient: string; subject: string | null; attachmentPath: string | null }>
+    Array<{
+      jobId: string;
+      recipient: string;
+      subject: string | null;
+      attachmentPath: string | null;
+    }>
   > {
     const rows = this.db
       .prepare(

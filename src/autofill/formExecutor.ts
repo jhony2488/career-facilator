@@ -8,6 +8,10 @@ export interface PageFieldState {
   label: string;
   required: boolean;
   value?: string;
+  /** Seletor CSS do elemento (páginas reais via pageInspector). */
+  selector?: string;
+  /** name/placeholder do input — ajuda a distinguir labels genéricas. */
+  name?: string;
 }
 
 /** Visão serializável da página — o que o executor enxerga do navegador. */
@@ -22,6 +26,12 @@ export interface PageStateLike {
   totalSteps: number;
   isShadowDom: boolean;
   submitted: boolean;
+  /**
+   * Handle da página real (Playwright Page, opaco). Presente só em páginas
+   * vivas criadas pelo pageInspector — executores usam-na p/ agir no DOM.
+   * `unknown` de propósito: pipeline/testes nunca importam playwright.
+   */
+  dom?: unknown;
 }
 
 export interface ExecuteFillOptions {

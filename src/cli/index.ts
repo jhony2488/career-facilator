@@ -49,6 +49,8 @@ import {
   createEvolutionSetup,
 } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
+import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
+import { inspectPage } from '../scraper/pageInspector';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
@@ -533,13 +535,35 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     submitted: false,
   });
 
+  // Formulário web real (feature/06): Chromium lazy — só abre na 1ª vaga com
+  // form. Falha de navegação → emptyPage → cai no canal de mensagem como antes.
+  // AUTOFILL_HEADLESS=false mostra o navegador; AUTOFILL_PROFILE_DIR reaproveita
+  // logins do usuário via contexto persistente.
+  const pageFactory = async (url: string): Promise<PageStateLike> => {
+    try {
+      const ctx = await getJobBrowserContext({
+        headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
+        profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+      });
+      const page = await ctx.newPage();
+      try {
+        return await inspectPage(page, url);
+      } catch {
+        await page.close().catch(() => {});
+        return emptyPage(url);
+      }
+    } catch {
+      return emptyPage(url);
+    }
+  };
+
   // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) — docs 11/15.
   // Sem credencial/endpoint configurado o pipeline deixa a vaga em NEEDS_HUMAN_INPUT.
   const channelDeps: Parameters<typeof runApplicationPipeline>[1] = {
     repo,
     triageModel: clients.triageModel,
     tailorModel: clients.tailorModel,
-    pageFactory: () => emptyPage(''),
+    pageFactory,
     skills,
     retriever: (chunks, keywords, jobText) =>
       retrieveHybrid(chunks, { keywords, jobText }, embedder),
@@ -597,6 +621,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   try {
     result = await runApplicationPipeline({ rawJobs, profile, config, dryRun }, channelDeps);
   } finally {
+    await closeJobBrowser();
     repo.close();
   }
 
