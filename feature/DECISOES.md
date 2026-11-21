@@ -58,6 +58,7 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 ### 12-tracking-e-dry-run.feature
 - [x] Monitoramento de e-mail é opt-in ou opt-out? Escopos de acesso. **Decisão:** **opt-in**, acesso somente leitura (IMAP/Gmail read-only).
 - [x] Mecanismo de classificação de respostas e confiança mínima. **Decisão:** heurística primeiro → LLM leve para ambíguos; confiança mínima **0.8** para mudar status automaticamente.
+- [x] Desfecho recebido fora do monitoramento / pendência resolvida por fora do funil. **Decisão:** **marcação manual** — o usuário resolve pendências e registra resultados (`APPLIED`/`APPLIED_VIA_*`/`SKIPPED`/`FAILED`, desfechos `REJECTED`/`INTERVIEW`/`ASSESSMENT_INVITED`) e remove registros do histórico (URL volta a ser elegível no run).
 
 ### 13-ingestao-de-perfil.feature
 - [x] Confiança mínima da extração. **Decisão:** trechos de baixa confiança entram no rascunho marcados para revisão.
@@ -69,6 +70,7 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 - [x] Modo padrão para vagas com candidatura por WhatsApp. **Decisão:** `MANUAL_QUEUE` — número + mensagem + PDF ficam na fila do `review` para envio manual; `EVOLUTION_API` exige configuração explícita.
 - [x] Precedência quando a vaga oferece e-mail e WhatsApp. **Decisão:** web > e-mail > WhatsApp — o primeiro canal alcançável vence.
 - [x] Falha no envio via Evolution API. **Decisão:** mesmo contrato do e-mail — retry transitório até 3× com backoff; esgotado → `NEEDS_HUMAN_INPUT`.
+- [x] Confirmação do envio manual da fila. **Decisão:** o usuário confirma ao trabalhar a fila ou por marcação direta — a candidatura vira `APPLIED_VIA_WHATSAPP` e o cooldown por número passa a valer.
 
 ## Nota sobre os testes (`__tests__/`)
 
@@ -106,4 +108,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 
 | 20 | Link de candidatura com texto genérico | pickApplyTarget tambem avalia o path da URL (segmento /apply, /bewerben, /postul…) — portais 'company portal' viram canal web; iframe lazy ganha re-inspect pós-networkidle; tailor recebe resumeLanguage do scope (INTERNATIONAL → en-US) |
 
-| 21 | Listagem SPA sem API publica | Fonte ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |
+| 21 | Listagem SPA sem API publica | Fonte 
+ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |

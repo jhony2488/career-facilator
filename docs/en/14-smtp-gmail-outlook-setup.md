@@ -57,7 +57,7 @@ Example: `career config set EMAIL_MAX_DAILY 30`.
 
 ## 14.5 Testing without sending
 
-- `review` — shows `READY_TO_REVIEW` (review mode) and `NEEDS_HUMAN_INPUT` (no reachable channel)
+- `review` — shows `READY_TO_REVIEW` (review mode) and `NEEDS_HUMAN_INPUT` (no reachable channel); in the interactive shell it marks each item — `mark <url|id> <status>` and `remove <url|id>` also work as direct commands
 - `run --dry-run` — simulates the whole pipeline without touching SMTP
 
 ---

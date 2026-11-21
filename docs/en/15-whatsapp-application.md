@@ -33,6 +33,8 @@ With no extra configuration, the pipeline:
     Attach: storage/generated_resumes/job-042.pdf
 ```
 
+After sending the message by hand, **confirm the send** to close the loop — in the interactive shell (`career` with no arguments) `review` asks item by item (`w` = sent via WhatsApp), or directly: `career mark <url|id> whatsapp`. The confirmation flips the queue row to `APPLIED_VIA_WHATSAPP` with `sent_at` — activating the per-number cooldown — and updates the job status. Without confirmation, the item stays pending until it expires (`reviewExpirationDays`).
+
 ## 15.3 `EVOLUTION_API` mode
 
 **Evolution API** is a self-hosted REST gateway for WhatsApp. Requirement: you run the server yourself (e.g. Docker `atendai/evolution-api`) and link the number via QR code — the CLI handles that pairing for you.

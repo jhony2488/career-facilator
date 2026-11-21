@@ -57,7 +57,7 @@ Exemplo: `career config set EMAIL_MAX_DAILY 30`.
 
 ## 14.5 Testar sem enviar
 
-- `review` — mostra `READY_TO_REVIEW` (modo revisão) e `NEEDS_HUMAN_INPUT` (vagas sem canal)
+- `review` — mostra `READY_TO_REVIEW` (modo revisão) e `NEEDS_HUMAN_INPUT` (vagas sem canal); no shell interativo marca cada item — `mark <url|id> <status>` e `remove <url|id>` funcionam como comandos diretos
 - `run --dry-run` — simula o pipeline inteiro sem tocar em SMTP
 
 ---

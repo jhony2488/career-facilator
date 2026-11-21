@@ -33,6 +33,8 @@ Sem nenhuma configuração extra, o pipeline:
     Anexar: storage/generated_resumes/job-042.pdf
 ```
 
+Após enviar a mensagem na mão, **confirme o envio** para fechar o ciclo — no shell interativo (`career` sem argumentos) o `review` pergunta item a item (`w` = enviei whatsapp), ou direto: `career mark <url|id> whatsapp`. A confirmação vira a linha da fila para `APPLIED_VIA_WHATSAPP` com `sent_at` — ativando o cooldown por número — e atualiza o status da vaga. Sem confirmação, o item fica pendente até expirar (`reviewExpirationDays`).
+
 ## 15.3 Modo `EVOLUTION_API`
 
 A **Evolution API** é um gateway REST self-hosted para WhatsApp. Requisito: você mesmo sobe o servidor (ex.: Docker `atendai/evolution-api`) e conecta o número via QR code — a CLI faz esse pareamento por você.
