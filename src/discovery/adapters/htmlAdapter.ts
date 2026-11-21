@@ -3,6 +3,7 @@ import type {
   SourceAdapterContext,
   DiscoveryResult,
   DiscoveryError,
+  ExtractedJob,
 } from '../types';
 import { rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
 
@@ -27,15 +28,27 @@ function fail(
   };
 }
 
-function listingUrl(source: SourceAdapterContext['source'], titles: string[]): string | undefined {
-  if (source.searchUrlTemplate) {
-    const query = encodeURIComponent(titles[0] ?? 'developer');
-    return source.searchUrlTemplate
-      .replace('{query}', query)
-      .replace('{page}', '1')
-      .replace('{location}', 'remote');
+/**
+ * URLs de listagem da fonte: com `{query}` no template, uma URL por título
+ * alvo (cap 3 — cada página custa uma extração LLM); sem `{query}`, uma só.
+ */
+function listingUrls(
+  source: SourceAdapterContext['source'],
+  titles: string[],
+): string[] {
+  const tpl = source.searchUrlTemplate;
+  if (!tpl) return source.url ? [source.url] : [];
+  if (!tpl.includes('{query}')) {
+    return [tpl.replace('{page}', '1').replace('{location}', 'remote')];
   }
-  return source.url;
+  const terms = titles.map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  const queries = terms.length ? terms : ['developer'];
+  return queries.map((q) =>
+    tpl
+      .replace('{query}', encodeURIComponent(q))
+      .replace('{page}', '1')
+      .replace('{location}', 'remote'),
+  );
 }
 
 export const htmlAdapter: SourceAdapter = {
@@ -44,8 +57,8 @@ export const htmlAdapter: SourceAdapter = {
     const start = Date.now();
     const { source, config, fetcher, maxJobs, extract } = ctx;
 
-    const targetUrl = listingUrl(source, config.discovery.targetTitles);
-    if (!targetUrl) {
+    const urls = listingUrls(source, config.discovery.targetTitles);
+    if (!urls.length) {
       return fail(ctx, 'unknown', `Source ${source.id} has no listing URL configured`, start);
     }
     if (!config.discovery.useGenericHtmlFallback || !extract) {
@@ -54,31 +67,45 @@ export const htmlAdapter: SourceAdapter = {
         'unknown',
         `Generic HTML scraping for ${source.name} requires DISCOVERY_USE_GENERIC_FALLBACK=true`,
         start,
-        targetUrl,
+        urls[0],
       );
     }
 
-    let page;
-    try {
-      page = await fetcher.fetchText(targetUrl);
-    } catch (e) {
-      return fail(ctx, 'connect', e instanceof Error ? e.message : String(e), start, targetUrl);
-    }
-    if (page.status !== 200) {
-      return fail(ctx, 'connect', `HTTP ${page.status} from ${targetUrl}`, start, targetUrl);
-    }
-
-    let extracted;
-    try {
-      extracted = await extract(page.text, page.url, maxJobs);
-    } catch (e) {
-      return fail(
-        ctx,
-        'parse',
-        `LLM extraction failed: ${e instanceof Error ? e.message : String(e)}`,
-        start,
-        targetUrl,
-      );
+    const errors: DiscoveryError[] = [];
+    const extracted: ExtractedJob[] = [];
+    for (const targetUrl of urls) {
+      if (extracted.length >= maxJobs || ctx.signal?.aborted) break;
+      let page;
+      try {
+        page = await fetcher.fetchText(targetUrl);
+      } catch (e) {
+        errors.push({
+          sourceId: source.id,
+          phase: 'connect',
+          message: e instanceof Error ? e.message : String(e),
+          url: targetUrl,
+        });
+        continue;
+      }
+      if (page.status !== 200) {
+        errors.push({
+          sourceId: source.id,
+          phase: 'connect',
+          message: `HTTP ${page.status} from ${targetUrl}`,
+          url: targetUrl,
+        });
+        continue;
+      }
+      try {
+        extracted.push(...(await extract(page.text, page.url, maxJobs - extracted.length)));
+      } catch (e) {
+        errors.push({
+          sourceId: source.id,
+          phase: 'parse',
+          message: `LLM extraction failed: ${e instanceof Error ? e.message : String(e)}`,
+          url: targetUrl,
+        });
+      }
     }
 
     const jobs = extracted
@@ -99,10 +126,10 @@ export const htmlAdapter: SourceAdapter = {
 
     return {
       jobs,
-      errors: [],
+      errors,
       meta: {
-        sourcesTried: 1,
-        sourcesSucceeded: 1,
+        sourcesTried: urls.length,
+        sourcesSucceeded: extracted.length > 0 ? 1 : 0,
         totalRaw: extracted.length,
         afterDedup: jobs.length,
         afterFilters: jobs.length,

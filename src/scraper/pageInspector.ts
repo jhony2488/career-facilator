@@ -230,6 +230,121 @@ export function mergeSnapshots(
   return merged;
 }
 
+/** Hosts de ATS conhecidos — link pra eles é quase certamente o form real. */
+const ATS_HOST_RE =
+  /greenhouse|lever\.co|ashbyhq|workable|workday|myworkday|gupy|smartrecruiters|breezy\.hr|recruitee|personio|teamtailor|rippling|icims|jobvite|taleo|eightfold|successfactors|bamboohr|pinpoint/i;
+
+/** Texto de link/botão de candidatura (EN/PT/ES/DE) — curto o bastante p/ ser CTA. */
+const APPLY_TEXT_RE =
+  /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|bewerb|enviar curr[ií]culo/i;
+
+const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
+
+/**
+ * Escolhe o destino de candidatura numa página de vaga sem formulário.
+ * Puro/testável: `candidates` vem do evaluate; retorna URL absoluta http(s)
+ * ou null. Link pra host de ATS conhecido ganha mesmo com texto genérico.
+ */
+export function pickApplyTarget(
+  candidates: Array<{ text: string; href: string }>,
+  baseUrl: string,
+): string | null {
+  let base: URL;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return null;
+  }
+  let atsHit: string | null = null;
+  let textHit: string | null = null;
+  for (const c of candidates) {
+    const href = c.href.trim();
+    if (!href || SKIP_HREF_RE.test(href)) continue;
+    let u: URL;
+    try {
+      u = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+    if (u.href === base.href) continue; // self-loop
+    const abs = u.href;
+    if (ATS_HOST_RE.test(u.hostname)) {
+      if (!atsHit) atsHit = abs;
+      continue;
+    }
+    const text = c.text.trim();
+    if (text && text.length <= 80 && APPLY_TEXT_RE.test(text)) {
+      if (!textHit) textHit = abs;
+    }
+  }
+  return atsHit ?? textHit;
+}
+
+/**
+ * Página de vaga sem form visível: procura link/botão "Apply/Candidate-se",
+ * navega 1 hop e re-inspeciona. Retorna o estado da página de destino se ela
+ * tiver campos — senão null (fluxo segue p/ canal de mensagem, como antes).
+ * Cobre href direto e botão que abre popup/target=_blank.
+ */
+export async function followApplyLink(page: Page): Promise<LivePageState | null> {
+  const found = await page
+    .evaluate(() => {
+      const out: { anchors: { text: string; href: string }[]; hasButton: boolean } = {
+        anchors: [],
+        hasButton: false,
+      };
+      const RE =
+        /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|bewerb|enviar curr[ií]culo/i;
+      // Todas as âncoras (o seletor decide por texto ou por host de ATS).
+      for (const el of Array.from(document.querySelectorAll('a[href]')).slice(0, 300)) {
+        const href = el.getAttribute('href') ?? '';
+        if (!href) continue;
+        const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
+        out.anchors.push({ text: t.slice(0, 80), href });
+      }
+      for (const el of Array.from(
+        document.querySelectorAll('button, [role="button"], a:not([href])'),
+      )) {
+        const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
+        if (t.length <= 80 && RE.test(t)) {
+          out.hasButton = true;
+          break;
+        }
+      }
+      return out;
+    })
+    .catch(() => null);
+  if (!found) return null;
+
+  const target = pickApplyTarget(found.anchors, page.url());
+  try {
+    if (target) {
+      await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const state = await inspectDom(page).catch(() => null);
+      return state && state.fields.length ? state : null;
+    }
+    if (!found.hasButton) return null;
+    // Botão JS: pode navegar na mesma aba ou abrir popup — cobre os dois.
+    const popup = page.context().waitForEvent('page', { timeout: 4000 }).catch(() => null);
+    const nav = page
+      .waitForNavigation({ timeout: 4000 })
+      .then(() => page)
+      .catch(() => null);
+    const btn = page
+      .getByRole('button', { name: /apply|candidat|aplicar|inscrev|postular|bewerb/i })
+      .first();
+    await btn.click({ timeout: 3000 }).catch(() => {});
+    const winner = await Promise.race([popup, nav]);
+    if (!winner) return null;
+    const state = await inspectDom(winner).catch(() => null);
+    if (winner !== page) await page.close().catch(() => {});
+    return state && state.fields.length ? state : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Re-inspect após 'Next' em wizard — atualiza o estado com o DOM corrente.
  * Roda o snapshot em TODOS os frames (evaluate por frame atravessa

@@ -76,6 +76,9 @@ export const apiAdapter: SourceAdapter = {
         case 'himalayas':
           jobs = await himalayas(ctx);
           break;
+        case 'hnhiring':
+          jobs = await hnHiring(ctx);
+          break;
         default:
           return {
             jobs: [],
@@ -281,6 +284,72 @@ async function workingnomads(ctx: SourceAdapterContext): Promise<DiscoveryJob[]>
           location: String(it.location ?? ''),
           descriptionHtml: String(it.description ?? ''),
           postedAt: it.pub_date ? String(it.pub_date) : undefined,
+        },
+        source.name,
+        source.id,
+      ),
+    );
+    if (out.length >= ctx.maxJobs) break;
+  }
+  return out;
+}
+
+const stripHtmlLite = (h: string) =>
+  h
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#x27;|&#39;|&quot;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * HN "Who is hiring" posts começam "Empresa | Cargo | Local | …" ou
+ * "Empresa – Cargo". Pega o segmento com palavra de função; fallback 1ª linha.
+ */
+function hnTitleFromText(html: string): string {
+  const first = stripHtmlLite(html.split(/<p>/i)[0] ?? html).slice(0, 160);
+  const parts = first.split(/\s*\|\s*|\s+[—–-]\s+/).filter(Boolean);
+  const roleRe =
+    /engineer|developer|dev\b|designer|architect|manager|lead|scientist|analyst|sre|programador|desenvolvedor|engenheiro|dados|security/i;
+  const role = parts.find((p) => roleRe.test(p));
+  return (role ?? parts[1] ?? parts[0] ?? '').slice(0, 120);
+}
+
+/**
+ * Hacker News — thread mensal "Ask HN: Who is hiring?". Cada comentário é um
+ * post de vaga com contato direto (e-mail) no corpo — alto rendimento de
+ * candidaturas por canal de mensagem. Algolia API pública, sem chave.
+ */
+async function hnHiring(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> {
+  const { source, fetcher, config } = ctx;
+  const api = source.apiEndpoint!.replace(/\/$/, '');
+  const search = await fetcher.fetchJson<{ hits?: Array<{ objectID?: string }> }>(
+    `${api}/search?tags=story&query=${encodeURIComponent('Ask HN: Who is hiring?')}`,
+  );
+  if (search.status !== 200) throw new Error(`HN Algolia search returned ${search.status}`);
+  const storyId = search.data?.hits?.find((h) => h.objectID)?.objectID;
+  if (!storyId) return [];
+  const thread = await fetcher.fetchJson<{ children?: unknown[] }>(`${api}/items/${storyId}`);
+  if (thread.status !== 200) throw new Error(`HN Algolia items returned ${thread.status}`);
+  const comments = Array.isArray(thread.data?.children) ? thread.data.children : [];
+  const out: DiscoveryJob[] = [];
+  for (const c of comments) {
+    if (!c || typeof c !== 'object') continue;
+    const it = c as Record<string, unknown>;
+    const text = String(it.text ?? '');
+    const id = it.id;
+    if (!text.trim() || id == null) continue;
+    const title = hnTitleFromText(text);
+    // O title-match vê título + início do corpo — posts sem cargo na 1ª
+    // linha ainda passam quando a função aparece logo no texto.
+    const matchText = `${title} ${stripHtmlLite(text).slice(0, 160)}`;
+    if (!matchesTargetTitles(matchText, config.discovery.targetTitles)) continue;
+    out.push(
+      rawJobFromNormalized(
+        {
+          url: `https://news.ycombinator.com/item?id=${id}`,
+          title: title || 'Hiring post',
+          descriptionHtml: `<p>${text}</p>`,
         },
         source.name,
         source.id,

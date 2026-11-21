@@ -50,7 +50,7 @@ import {
 } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
-import { inspectPage } from '../scraper/pageInspector';
+import { followApplyLink, inspectPage } from '../scraper/pageInspector';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
@@ -549,7 +549,14 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       });
       const page = await ctx.newPage();
       try {
-        return await inspectPage(page, url);
+        const state = await inspectPage(page, url);
+        // Página de empresa sem form: o "Apply" costuma levar ao ATS real —
+        // 1 hop antes de declarar NO_CHANNEL.
+        if (state.fields.length === 0) {
+          const followed = await followApplyLink(page);
+          if (followed) return followed;
+        }
+        return state;
       } catch {
         await page.close().catch(() => {});
         return emptyPage(url);

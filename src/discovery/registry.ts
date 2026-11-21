@@ -245,14 +245,6 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     url: 'https://justremote.co',
     notes: 'Sem API conhecida.',
   },
-  euremotejobs: {
-    category: 'remote-rss',
-    name: 'EU Remote Jobs',
-    adapter: 'rss',
-    enabled: false,
-    url: 'https://euremotejobs.com/feed',
-    notes: 'RSS/Atom.',
-  },
   remoteco: {
     category: 'global-api',
     name: 'Remote.co',
@@ -269,6 +261,49 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     apiEndpoint: 'https://www.themuse.com/api/public/jobs',
     risky: true,
     notes: 'Cloudflare/bloqueio comum; desabilitado por padrão.',
+  },
+  hnhiring: {
+    category: 'global-api',
+    name: 'Hacker News — Who is hiring',
+    adapter: 'api',
+    enabled: true,
+    apiEndpoint: 'https://hn.algolia.com/api/v1',
+    minDelayMs: 1200,
+    notes:
+      'Thread mensal HN; comentários = vagas com contato direto (e-mail) no corpo. Alto rendimento por canal de mensagem.',
+  },
+  euremotejobs: {
+    category: 'remote-rss',
+    name: 'EU Remote Jobs',
+    adapter: 'rss',
+    enabled: true,
+    url: 'https://euremotejobs.com/feed',
+    notes: 'RSS/Atom pública.',
+  },
+  trampos: {
+    category: 'brasil',
+    name: 'trampos.co',
+    adapter: 'html',
+    enabled: true,
+    url: 'https://trampos.co/oportunidades',
+    notes: 'Listagem pública; extrai via fallback genérico HTML+LLM.',
+  },
+  programathor: {
+    category: 'brasil',
+    name: 'ProgramaThor',
+    adapter: 'html',
+    enabled: true,
+    url: 'https://programathor.com.br/jobs',
+    notes: 'Listagem pública; extrai via fallback genérico HTML+LLM.',
+  },
+  getonbrd: {
+    category: 'latam',
+    name: 'Get on Board',
+    adapter: 'html',
+    enabled: true,
+    url: 'https://www.getonbrd.com/empleos',
+    searchUrlTemplate: 'https://www.getonbrd.com/empleos?query={query}',
+    notes: 'Busca pública com ?query=; extrai via fallback genérico HTML+LLM.',
   },
 
   linkedin: {
@@ -370,6 +405,7 @@ const GROUPS: Record<string, string[]> = {
     'euremotejobs',
     'remoteco',
     'themuse',
+    'hnhiring',
   ],
   ats: [
     'greenhouse',
