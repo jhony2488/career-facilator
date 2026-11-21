@@ -1,5 +1,7 @@
 import {
   mergeSnapshots,
+  pickApplyTarget,
+  followApplyLink,
   snapshotToState,
   type PageSnapshot,
 } from '../../../src/scraper/pageInspector';
@@ -104,5 +106,101 @@ describe('mergeSnapshots — multi-frame inspection', () => {
     ]);
     expect(merged.currentStep).toBe(2);
     expect(merged.totalSteps).toBe(3);
+  });
+});
+
+describe('pickApplyTarget — apply link selection', () => {
+  const base = 'https://company.example/jobs/dev';
+
+  it('prefers a link pointing at a known ATS host over generic text', () => {
+    const target = pickApplyTarget(
+      [
+        { text: 'Apply for this job', href: 'https://company.example/form' },
+        { text: 'Careers', href: 'https://boards.greenhouse.io/acme/jobs/123' },
+      ],
+      base,
+    );
+    expect(target).toBe('https://boards.greenhouse.io/acme/jobs/123');
+  });
+
+  it('follows a PT apply link on a non-ATS host', () => {
+    const target = pickApplyTarget(
+      [{ text: 'Candidate-se', href: '/inscricao/123' }],
+      base,
+    );
+    expect(target).toBe('https://company.example/inscricao/123');
+  });
+
+  it('skips mailto/self/javascript links and returns null', () => {
+    const target = pickApplyTarget(
+      [
+        { text: 'Apply by email', href: 'mailto:jobs@acme.com' },
+        { text: 'Apply', href: 'javascript:void(0)' },
+        { text: 'Apply', href: base },
+      ],
+      base,
+    );
+    expect(target).toBeNull();
+  });
+});
+
+describe('followApplyLink — one-hop apply navigation', () => {
+  function fakePage(opts: {
+    anchors: { text: string; href: string }[];
+    snap?: PageSnapshot;
+  }) {
+    const frame = {
+      evaluate: jest.fn(async () => opts.snap ?? emptySnap()),
+    };
+    return {
+      url: () => 'https://company.example/jobs/dev',
+      evaluate: jest.fn(async () => ({ anchors: opts.anchors, hasButton: false })),
+      goto: jest.fn(async () => {}),
+      frames: () => [frame],
+      context: () => ({ waitForEvent: jest.fn() }),
+      getByRole: jest.fn(() => ({ first: () => ({ click: jest.fn() }) })),
+      waitForNavigation: jest.fn(async () => {
+        throw new Error('timeout');
+      }),
+      close: jest.fn(async () => {}),
+    };
+  }
+  const emptySnap = (): PageSnapshot => ({
+    fields: [],
+    hasCaptcha: false,
+    requiresEmailOtp: false,
+    alreadyAppliedBanner: false,
+    validationErrors: [],
+    currentStep: 1,
+    totalSteps: 1,
+    isShadowDom: false,
+  });
+  const formSnap = (): PageSnapshot => ({
+    ...emptySnap(),
+    fields: [
+      { kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' },
+    ],
+  });
+
+  it('navigates to the ATS link and returns the destination state when it has fields', async () => {
+    const page = fakePage({
+      anchors: [{ text: 'Apply', href: 'https://jobs.lever.co/acme/abc' }],
+      snap: formSnap(),
+    });
+    const state = await followApplyLink(page as never);
+    expect(page.goto).toHaveBeenCalledWith(
+      'https://jobs.lever.co/acme/abc',
+      expect.objectContaining({ waitUntil: 'domcontentloaded' }),
+    );
+    expect(state?.fields).toHaveLength(1);
+  });
+
+  it('returns null when the destination has no form fields', async () => {
+    const page = fakePage({
+      anchors: [{ text: 'Apply', href: 'https://jobs.lever.co/acme/abc' }],
+      snap: emptySnap(),
+    });
+    const state = await followApplyLink(page as never);
+    expect(state).toBeNull();
   });
 });

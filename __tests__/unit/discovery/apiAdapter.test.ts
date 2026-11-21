@@ -58,6 +58,41 @@ describe('apiAdapter', () => {
     expect(result.jobs[0].sourceId).toBe('remoteok');
   });
 
+  // feature/01: vagas de thread HN vêm como comentários com contato no corpo
+  it('collects HN "Who is hiring" comments as jobs with permalink URLs', async () => {
+    const source = sourceById('hnhiring')!;
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async () => ({ url: '', text: '', status: 200 })),
+      fetchJson: (async <T = unknown>(url: string) => ({
+        url,
+        data: (
+          url.includes('/search?')
+            ? { hits: [{ objectID: '424242', title: 'Ask HN: Who is hiring? (December 2025)' }] }
+            : {
+                children: [
+                  {
+                    id: 777,
+                    text: 'Acme Corp | Senior Backend Developer | Remote | jobs@acme.com<p>We build APIs.</p>',
+                  },
+                  { id: 778, text: 'Just a marketing blurb, no role here.' },
+                ],
+              }
+        ) as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
+    };
+
+    const result = await apiAdapter.discover({ config, source, fetcher, maxJobs: 10 });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0].raw.url).toBe('https://news.ycombinator.com/item?id=777');
+    expect(result.jobs[0].raw.html).toContain('jobs@acme.com');
+    expect(result.jobs[0].raw.html).toContain('Backend Developer');
+  });
+
   // feature/01: "Fonte temporariamente indisponível não interrompe o ciclo"
   it('returns a controlled error when the source responds with a non-200 status', async () => {
     const source = sourceById('remoteok')!;

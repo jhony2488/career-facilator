@@ -69,6 +69,66 @@ describe('htmlAdapter', () => {
     expect(result.errors[0].message).toContain('DISCOVERY_USE_GENERIC_FALLBACK');
   });
 
+  it('fans out to one listing page per target title when the template has {query}', async () => {
+    const fetchedUrls: string[] = [];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async (url: string) => {
+        fetchedUrls.push(url);
+        return { url, text: '<html></html>', status: 200 };
+      }),
+      fetchJson: (async <T = unknown>() => ({ url: '', data: null as T, status: 200 })) as Fetcher['fetchJson'],
+    };
+    const extract: GenericExtractor = async (_html, pageUrl) =>
+      pageUrl.includes('Backend')
+        ? [{ title: 'Senior Backend Developer', url: 'https://x/job/1' }]
+        : [{ title: 'Senior Frontend Developer', url: 'https://x/job/2' }];
+
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer', 'Frontend Developer'];
+    const result = await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({
+        url: undefined,
+        searchUrlTemplate: 'https://x/jobs?q={query}',
+      }),
+      fetcher,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(fetchedUrls).toHaveLength(2);
+    expect(fetchedUrls[0]).toContain('Backend');
+    expect(result.jobs).toHaveLength(2);
+  });
+
+  it('fetches a single page when the template has no {query}', async () => {
+    const fetchedUrls: string[] = [];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async (url: string) => {
+        fetchedUrls.push(url);
+        return { url, text: '<html></html>', status: 200 };
+      }),
+      fetchJson: (async <T = unknown>() => ({ url: '', data: null as T, status: 200 })) as Fetcher['fetchJson'],
+    };
+    const extract: GenericExtractor = async () => [];
+
+    const config = makeConfig();
+    config.discovery.targetTitles = ['A', 'B'];
+    const result = await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({
+        url: undefined,
+        searchUrlTemplate: 'https://x/jobs?page={page}',
+      }),
+      fetcher,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(fetchedUrls).toEqual(['https://x/jobs?page=1']);
+    expect(result.errors).toHaveLength(0);
+  });
+
   it('returns a controlled error when the source has no listing URL', async () => {
     const config = makeConfig();
     const result = await htmlAdapter.discover({
