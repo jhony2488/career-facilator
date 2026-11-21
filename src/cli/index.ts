@@ -689,7 +689,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       }
     }
   } finally {
-    await closeJobBrowser();
+    await shutdownSharedBrowser();
     repo.close();
   }
 
@@ -737,15 +737,30 @@ function buildDiscoveryExtractor(signal?: AbortSignal) {
 // Fontes render:true (SPA como Gupy) — browser persistente reusa o perfil do
 // autofill (DISCOVERY_BROWSER_PROFILE_DIR || AUTOFILL_PROFILE_DIR): login
 // manual do usuário fica guardado entre runs. Abre só se uma fonte precisar.
+const renderCtxOpts = () => ({
+  headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
+  profileDir:
+    config.discovery.browserProfileDir || effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+});
 let renderCtxPromise: ReturnType<typeof getJobBrowserContext> | null = null;
+/** Fecha o browser compartilhado (renderText + pageFactory) e limpa o cache. */
+const shutdownSharedBrowser = async (): Promise<void> => {
+  renderCtxPromise = null;
+  await closeJobBrowser().catch(() => {});
+};
 function buildRenderText() {
   return async (url: string) => {
-    renderCtxPromise ??= getJobBrowserContext({
-      headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
-      profileDir:
-        config.discovery.browserProfileDir || effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
-    });
-    const page = await (await renderCtxPromise).newPage();
+    renderCtxPromise ??= getJobBrowserContext(renderCtxOpts());
+    let ctx = await renderCtxPromise;
+    // Contexto morto entre comandos do shell (browser fechado no fim do run
+    // ou crash) — relança em vez de falhar no newPage.
+    try {
+      ctx.pages();
+    } catch {
+      renderCtxPromise = getJobBrowserContext(renderCtxOpts());
+      ctx = await renderCtxPromise;
+    }
+    const page = await ctx.newPage();
     try {
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
@@ -793,7 +808,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
     sourceIds,
     extract: buildDiscoveryExtractor(ctx.signal),
     renderText: buildRenderText(),
-  });
+  }).finally(() => shutdownSharedBrowser());
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
   }
@@ -838,7 +853,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
     sourceIds: [sourceId],
     extract: buildDiscoveryExtractor(ctx.signal),
     renderText: buildRenderText(),
-  });
+  }).finally(() => shutdownSharedBrowser());
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
   }

@@ -18,7 +18,17 @@ export async function getJobBrowserContext(
     profileDir?: string;
   } = {},
 ): Promise<BrowserContext> {
-  if (context) return context;
+  // Cache pode estar morto (closeJobBrowser entre comandos do shell ou crash
+  // do Chromium) — probe barato via pages() e relança em vez de falhar no newPage.
+  if (context) {
+    try {
+      context.pages();
+      return context;
+    } catch {
+      context = undefined;
+      browser = undefined;
+    }
+  }
   const { chromium } = await import('playwright');
   const headless = opts.headless ?? true;
   if (opts.profileDir) {
