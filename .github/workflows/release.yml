@@ -118,4 +118,4 @@ jobs:
 
             **Configuração:** `career config init` cria `~/.careerfacilator/.env`; ou coloque um `.env` com `CAREER_HOME=.` ao lado do executável para dados portáteis. Biblioteca de skills: copie `src/skills/library/` para `skills/` ao lado do executável.
 
-            **Limitação do binário:** extração de PDF usa o modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam; os demais seguem pelo fluxo npm com `pdf-parse`.
+            **Limitações do binário:** extração de PDF usa o modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam; os demais seguem pelo fluxo npm com `pdf-parse`. Playwright não é embutido — formulários web seguem para e-mail, WhatsApp ou a fila de revisão (autofill completo via `npm link`).
