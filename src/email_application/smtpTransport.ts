@@ -13,6 +13,28 @@ export interface SmtpCredential {
   pass: string;
 }
 
+/**
+ * Credencial SMTP via env (SMTP_HOST/PORT/SECURE/USER/PASS) — alternativa ao
+ * cofre p/ uso local; texto claro no .env, não usar em ambiente compartilhado.
+ * Retorna null quando SMTP_USER ou SMTP_PASS não estão definidos.
+ */
+export function smtpCredentialFromEnv(
+  env: Record<string, string | undefined>,
+): SmtpCredential | null {
+  const user = env.SMTP_USER?.trim();
+  const pass = env.SMTP_PASS;
+  if (!user || !pass) return null;
+  const secure =
+    env.SMTP_SECURE === 'true' || env.SMTP_SECURE === '1' || env.SMTP_PORT === '465';
+  return {
+    host: env.SMTP_HOST?.trim() || 'smtp.gmail.com',
+    port: Number(env.SMTP_PORT) || (secure ? 465 : 587),
+    secure,
+    user,
+    pass,
+  };
+}
+
 export interface SmtpTransportDeps {
   vault: CredentialVault;
   /** Ref do segredo no cofre (ex.: 'smtp-main'). */

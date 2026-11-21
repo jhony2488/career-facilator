@@ -185,6 +185,18 @@ export class JobRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
+  /** Candidaturas efetivamente enviadas (APPLIED*), mais recentes primeiro. */
+  async listApplied(limit = 50): Promise<JobRecord[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM jobs
+         WHERE status IN ('APPLIED', 'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP')
+         ORDER BY applied_at DESC LIMIT ?`,
+      )
+      .all(limit) as Record<string, unknown>[];
+    return rows.map((r) => this.mapRow(r));
+  }
+
   async countByStatus(): Promise<Record<string, number>> {
     const rows = this.db
       .prepare('SELECT status, COUNT(*) AS n FROM jobs GROUP BY status')
