@@ -480,7 +480,8 @@ async function githubIssues(ctx: SourceAdapterContext): Promise<DiscoveryJob[]> 
           title,
           company: String((it.user as Record<string, unknown>)?.login ?? ''),
           location: labels.join(', '),
-          descriptionHtml: `<p>${body.replace(/\n/g, '<br>')}</p>` +
+          descriptionHtml:
+            `<p>${body.replace(/\n/g, '<br>')}</p>` +
             (labels.length ? `<p><strong>Labels:</strong> ${labels.join(', ')}</p>` : ''),
           workModel: fields.workModel,
           contractType: fields.contractType,

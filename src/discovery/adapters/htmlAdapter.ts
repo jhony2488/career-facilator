@@ -32,16 +32,16 @@ function fail(
  * URLs de listagem da fonte: com `{query}` no template, uma URL por título
  * alvo (cap 3 — cada página custa uma extração LLM); sem `{query}`, uma só.
  */
-function listingUrls(
-  source: SourceAdapterContext['source'],
-  titles: string[],
-): string[] {
+function listingUrls(source: SourceAdapterContext['source'], titles: string[]): string[] {
   const tpl = source.searchUrlTemplate;
   if (!tpl) return source.url ? [source.url] : [];
   if (!tpl.includes('{query}')) {
     return [tpl.replace('{page}', '1').replace('{location}', 'remote')];
   }
-  const terms = titles.map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  const terms = titles
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 3);
   const queries = terms.length ? terms : ['developer'];
   return queries.map((q) =>
     tpl

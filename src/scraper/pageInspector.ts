@@ -89,8 +89,7 @@ function snapshotScript(): PageSnapshot {
       fields.push({
         kind,
         label: labelFor(el as HTMLElement),
-        required:
-          (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true',
+        required: (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true',
         selector: `[data-cf-idx="${idx - 1}"]`,
         name: el.getAttribute('name') || el.getAttribute('id') || '',
       });
@@ -187,9 +186,7 @@ export function snapshotToState(snap: PageSnapshot, url: string, dom?: unknown):
     totalSteps: snap.totalSteps,
     isShadowDom: snap.isShadowDom,
     submitted: false,
-    ...(snap.dropzones?.length
-      ? { dropzones: snap.dropzones.map((d) => ({ ...d })) }
-      : {}),
+    ...(snap.dropzones?.length ? { dropzones: snap.dropzones.map((d) => ({ ...d })) } : {}),
     ...(dom ? { dom } : {}),
   };
 }
@@ -326,7 +323,10 @@ export async function followApplyLink(page: Page): Promise<LivePageState | null>
     }
     if (!found.hasButton) return null;
     // Botão JS: pode navegar na mesma aba ou abrir popup — cobre os dois.
-    const popup = page.context().waitForEvent('page', { timeout: 4000 }).catch(() => null);
+    const popup = page
+      .context()
+      .waitForEvent('page', { timeout: 4000 })
+      .catch(() => null);
     const nav = page
       .waitForNavigation({ timeout: 4000 })
       .then(() => page)
