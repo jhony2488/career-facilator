@@ -198,10 +198,10 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, s
 ## Limitações atuais
 
 - **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
-- **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão, aceita `jobs.json` (`[{url, html}]`) via `--jobs-file` e cobre fontes `html` sem estrutura via fallback genérico com LLM (`DISCOVERY_USE_GENERIC_FALLBACK`; modelo = `DISCOVERY_GENERIC_MODEL` ou herda `AI_LOCAL_*`, provider ollama); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
+- **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão, aceita `jobs.json` (`[{url, html}]`) via `--jobs-file` e cobre fontes `html` sem estrutura via fallback genérico com LLM (`DISCOVERY_USE_GENERIC_FALLBACK`; modelo = `DISCOVERY_GENERIC_MODEL` ou herda `AI_LOCAL_*`, provider ollama) e fontes `search` via buscador (DDG/Bing + fallback anti-bot por query); scraping com Playwright ainda não conectado — `pageFactory` é um stub sem campos, então formulários reais não são preenchidos.
 - **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
 
 ## Próximos passos
 
-Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + fallback genérico HTML+LLM; próximas etapas: adapters ATS por slug, LinkedIn autenticado e busca orgânica (dorks).
+Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`), fallback genérico HTML+LLM e busca orgânica por dorks (DDG/Bing, incl. `linkedin-posts`/`linkedin-jobs` sem sessão); próximas etapas: adapters ATS por slug e LinkedIn autenticado.
