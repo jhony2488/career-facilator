@@ -38,13 +38,22 @@ jobs:
 
       - run: npm ci
 
+      - name: Check tag matches package.json version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME diverge de package.json version $PKG — bump a versão antes de taggear."
+            exit 1
+          fi
+
       - run: npx tsc --noEmit
       - run: npm run test:unit
 
       - name: Bundle + SEA blob
         run: npm run build:exe
-        env:
-          CAREER_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.tag || 'dev' }}
 
       - name: Inject blob into binary (Windows)
         if: runner.os == 'Windows'

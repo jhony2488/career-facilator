@@ -1,4 +1,6 @@
-import type { Page } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import type { Frame, JSHandle, Page } from 'playwright';
 import type {
   ExecuteFillOptions,
   ExecuteFillResult,
@@ -18,10 +20,17 @@ const SUBMIT_RE =
 /** "Apply" no próprio botão de abertura do form — evita tratar nav como submit. */
 const AMBIGUOUS_RE = /apply( now)?( for this (job|position))?/i;
 
+/** Escopo do campo: frame principal ou o iframe onde o seletor vive. */
+function scopeFor(dom: Page, frameIdx?: number): Page | Frame {
+  if (!frameIdx) return dom;
+  return dom.frames()[frameIdx] ?? dom;
+}
+
 async function fillDomField(dom: Page, field: PageFieldState, value: string): Promise<boolean> {
+  const scope = scopeFor(dom, field.frameIdx);
   const locator = field.selector
-    ? dom.locator(field.selector)
-    : dom.getByLabel(field.label, { exact: false });
+    ? scope.locator(field.selector)
+    : scope.getByLabel(field.label, { exact: false });
   const el = locator.first();
   try {
     if (field.kind === 'select') {
@@ -48,28 +57,69 @@ async function fillDomField(dom: Page, field: PageFieldState, value: string): Pr
 
 /** Clica "Next/Continue" de wizard; retorna false quando não achou botão. */
 async function clickNext(dom: Page): Promise<boolean> {
-  const btn = dom.getByRole('button', { name: NEXT_RE }).first();
-  try {
-    await btn.click({ timeout: 3000 });
-    await dom.waitForTimeout(700);
-    return true;
-  } catch {
-    return false;
+  // O botão pode viver no iframe do form — tenta todos os frames, main primeiro.
+  for (const scope of dom.frames()) {
+    const btn = scope.getByRole('button', { name: NEXT_RE }).first();
+    try {
+      await btn.click({ timeout: 3000 });
+      await dom.waitForTimeout(700);
+      return true;
+    } catch {
+      // próximo frame
+    }
   }
+  return false;
 }
 
 /** Botão de submit definitivo — ignora o 'Apply' que ABRE o form. */
 async function clickSubmit(dom: Page): Promise<boolean> {
-  const native = dom.locator('button[type="submit"], input[type="submit"]').first();
-  const candidates = [native, dom.getByRole('button', { name: SUBMIT_RE }).first()];
-  for (const btn of candidates) {
+  for (const scope of dom.frames()) {
+    const native = scope.locator('button[type="submit"], input[type="submit"]').first();
+    const candidates = [native, scope.getByRole('button', { name: SUBMIT_RE }).first()];
+    for (const btn of candidates) {
+      try {
+        const text = ((await btn.innerText()) || (await btn.getAttribute('value')) || '').trim();
+        if (AMBIGUOUS_RE.test(text) && !SUBMIT_RE.test(text)) continue;
+        await btn.click({ timeout: 4000 });
+        return true;
+      } catch {
+        // próximo candidato
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Upload sem input[type=file]: constrói File in-page a partir dos bytes do
+ * PDF e despacha dragenter/dragover/drop com DataTransfer na zona detectada
+ * (fallback p/ widgets de arrastar — Workday e afins).
+ */
+async function dropResumeViaDropzone(
+  dom: Page,
+  zones: Array<{ selector: string; frameIdx?: number }>,
+  resumePath: string,
+): Promise<boolean> {
+  const b64 = readFileSync(resumePath).toString('base64');
+  const name = basename(resumePath);
+  for (const zone of zones) {
+    const scope = scopeFor(dom, zone.frameIdx);
     try {
-      const text = ((await btn.innerText()) || (await btn.getAttribute('value')) || '').trim();
-      if (AMBIGUOUS_RE.test(text) && !SUBMIT_RE.test(text)) continue;
-      await btn.click({ timeout: 4000 });
+      const dt = await scope.evaluateHandle(() => new DataTransfer());
+      await (dt as JSHandle<DataTransfer>).evaluate(
+        (handle, [payload, fileName]) => {
+          const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+          handle.items.add(new File([bytes], fileName, { type: 'application/pdf' }));
+        },
+        [b64, name] as const,
+      );
+      const target = scope.locator(zone.selector).first();
+      for (const type of ['dragenter', 'dragover', 'drop']) {
+        await target.dispatchEvent(type, { dataTransfer: dt }, { timeout: 3000 });
+      }
       return true;
     } catch {
-      // próximo candidato
+      // próxima zona
     }
   }
   return false;
@@ -109,11 +159,18 @@ export async function executeLiveFill(
     const fileField = live.fields.find((f) => f.kind === 'file' && f.selector);
     if (fileField && resumePath && !resumeAttached) {
       try {
-        await dom.locator(fileField.selector!).setInputFiles(resumePath, { timeout: 3000 });
+        await scopeFor(dom, fileField.frameIdx)
+          .locator(fileField.selector!)
+          .setInputFiles(resumePath, { timeout: 3000 });
         resumeAttached = true;
       } catch {
         // upload invisível/iframe — segue; erro de validação (se houver) escalona abaixo
       }
+    }
+
+    // Sem input[type=file]: dropzone/drag-area detectada na inspeção vira o alvo.
+    if (!resumeAttached && resumePath && live.dropzones?.length) {
+      resumeAttached = await dropResumeViaDropzone(dom, live.dropzones, resumePath);
     }
 
     if (live.hasCaptcha || live.requiresEmailOtp || live.validationErrors.length > 0) {

@@ -12,6 +12,8 @@ export interface PageFieldState {
   selector?: string;
   /** name/placeholder do input — ajuda a distinguir labels genéricas. */
   name?: string;
+  /** Índice em page.frames() onde o seletor resolve — ausente = frame principal. */
+  frameIdx?: number;
 }
 
 /** Visão serializável da página — o que o executor enxerga do navegador. */
@@ -26,6 +28,11 @@ export interface PageStateLike {
   totalSteps: number;
   isShadowDom: boolean;
   submitted: boolean;
+  /**
+   * Zonas de upload sem input[type=file] (dropzones/labels de arrastar) —
+   * fallback de anexo via eventos drop com DataTransfer.
+   */
+  dropzones?: Array<{ selector: string; frameIdx?: number }>;
   /**
    * Handle da página real (Playwright Page, opaco). Presente só em páginas
    * vivas criadas pelo pageInspector — executores usam-na p/ agir no DOM.

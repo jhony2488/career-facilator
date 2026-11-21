@@ -1,10 +1,13 @@
-import { chromium, type Browser, type BrowserContext } from 'playwright';
+import type { Browser, BrowserContext } from 'playwright';
 
 /**
  * Browser único por `run` — lançado sob demanda no primeiro formulário web.
  * Com AUTOFILL_PROFILE_DIR usa contexto persistente (reaproveita logins do
  * usuário nos portais — igual ao discovery autenticado).
  * Só o CLI importa este módulo — testes nunca carregam playwright.
+ * Import lazy: playwright fica FORA do bundle SEA (requires dinâmicos do
+ * playwright-core quebram em single-file) — no exe o import falha e quem
+ * chama cai no fallback de canal de mensagem/NEEDS_HUMAN_INPUT.
  */
 let browser: Browser | undefined;
 let context: BrowserContext | undefined;
@@ -16,6 +19,7 @@ export async function getJobBrowserContext(
   } = {},
 ): Promise<BrowserContext> {
   if (context) return context;
+  const { chromium } = await import('playwright');
   const headless = opts.headless ?? true;
   if (opts.profileDir) {
     context = await chromium.launchPersistentContext(opts.profileDir, {

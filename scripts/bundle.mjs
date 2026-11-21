@@ -3,10 +3,10 @@
 import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
-// Versão embutida: tag do CI (CAREER_VERSION) → package.json → 'dev'.
-// Assim builds locais/manuais reportam a versão real, não 'dev'.
+// Versão embutida = package.json (fonte única da verdade). A tag do release
+// é validada contra ela no workflow (release.yml) — divergência aborta o build.
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-const version = process.env.CAREER_VERSION ?? pkg.version ?? 'dev';
+const version = pkg.version ?? 'dev';
 
 await build({
   entryPoints: ['src/cli/index.ts'],

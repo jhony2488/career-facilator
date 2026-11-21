@@ -538,7 +538,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   // Formulário web real (feature/06): Chromium lazy — só abre na 1ª vaga com
   // form. Falha de navegação → emptyPage → cai no canal de mensagem como antes.
   // AUTOFILL_HEADLESS=false mostra o navegador; AUTOFILL_PROFILE_DIR reaproveita
-  // logins do usuário via contexto persistente.
+  // logins do usuário via contexto persistente. No exe SEA o playwright é
+  // externo e o import falha — mesma degradação, com aviso uma vez por run.
+  let browserUnavailableWarned = false;
   const pageFactory = async (url: string): Promise<PageStateLike> => {
     try {
       const ctx = await getJobBrowserContext({
@@ -553,6 +555,13 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         return emptyPage(url);
       }
     } catch {
+      if (!browserUnavailableWarned) {
+        browserUnavailableWarned = true;
+        console.log(
+          '⚠ Autofill web indisponível (playwright não inicializou) — ' +
+            'vagas com formulário seguem p/ e-mail, WhatsApp ou revisão.',
+        );
+      }
       return emptyPage(url);
     }
   };
@@ -1166,7 +1175,7 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       await cmdWhatsapp(args, ctx);
       return true;
     case 'version':
-      console.log(process.env.CAREER_VERSION ?? 'dev');
+      console.log(careerVersion());
       return true;
     case 'help':
     case '-h':
@@ -1244,14 +1253,26 @@ async function repl(): Promise<void> {
   await new Promise<void>((resolvePromise) => rl.on('close', resolvePromise));
 }
 
+/** Versão exibida: tag embutida no build do exe → package.json → 'dev'. */
+function careerVersion(): string {
+  if (process.env.CAREER_VERSION) return process.env.CAREER_VERSION;
+  try {
+    const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return pkg.version ?? 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
 async function main(): Promise<void> {
   if (!argv.length) {
     await repl();
     return;
   }
   if (argv[0] === '--version' || argv[0] === '-v') {
-    // CAREER_VERSION é embutida pelo build do exe (tag do release).
-    console.log(process.env.CAREER_VERSION ?? 'dev');
+    console.log(careerVersion());
     return;
   }
   const ctrl = new AbortController();

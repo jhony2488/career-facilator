@@ -13,6 +13,8 @@ export interface PageSnapshot {
     required: boolean;
     selector: string;
     name: string;
+    /** Índice em page.frames() — carimbado no merge multi-frame. */
+    frameIdx?: number;
   }>;
   hasCaptcha: boolean;
   requiresEmailOtp: boolean;
@@ -21,6 +23,8 @@ export interface PageSnapshot {
   currentStep: number;
   totalSteps: number;
   isShadowDom: boolean;
+  /** Zonas de upload sem input[type=file] — selector + frame da zona. */
+  dropzones?: Array<{ selector: string; frameIdx?: number }>;
 }
 
 /**
@@ -36,9 +40,11 @@ function snapshotScript(): PageSnapshot {
     el.getClientRects().length > 0;
 
   const labelFor = (el: HTMLElement): string => {
+    // getRootNode() resolve label/for dentro do shadow root do próprio campo.
+    const root = el.getRootNode() as Document | ShadowRoot;
     const id = el.getAttribute('id');
     if (id) {
-      const lbl = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+      const lbl = root.querySelector(`label[for="${CSS.escape(id)}"]`);
       const text = lbl?.textContent?.trim();
       if (text) return text;
     }
@@ -47,7 +53,7 @@ function snapshotScript(): PageSnapshot {
     if (wrapText) return wrapText;
     const labelledBy = el.getAttribute('aria-labelledby');
     if (labelledBy) {
-      const t = document.getElementById(labelledBy);
+      const t = root.getElementById?.(labelledBy);
       if (t?.textContent?.trim()) return t.textContent!.trim();
     }
     return (
@@ -60,29 +66,71 @@ function snapshotScript(): PageSnapshot {
 
   const fields: PageSnapshot['fields'] = [];
   let idx = 0;
-  for (const el of Array.from(document.querySelectorAll('input,select,textarea'))) {
-    const tag = el.tagName.toLowerCase();
-    const type = (el.getAttribute('type') || '').toLowerCase();
-    if (tag === 'input' && SKIP_TYPES.includes(type)) continue;
-    // <input type=file> costuma ficar display:none atrás de um label — coleta mesmo invisível
-    if (!isVisible(el) && type !== 'file') continue;
-    el.setAttribute('data-cf-idx', String(idx++));
-    const kind =
-      type === 'file'
-        ? 'file'
-        : tag === 'select'
-          ? 'select'
-          : tag === 'textarea'
-            ? 'textarea'
-            : 'input';
-    fields.push({
-      kind,
-      label: labelFor(el as HTMLElement),
-      required: (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true',
-      selector: `[data-cf-idx="${idx - 1}"]`,
-      name: el.getAttribute('name') || el.getAttribute('id') || '',
-    });
-  }
+  let isShadowDom = false;
+
+  // Campos dentro de shadow roots ABERTOS também são coletados (Workday/Gupy —
+  // feature/06 "estruturas encapsuladas"). Roots fechados são opacos por design.
+  const collectFields = (root: Document | ShadowRoot) => {
+    for (const el of Array.from(root.querySelectorAll('input,select,textarea'))) {
+      const tag = el.tagName.toLowerCase();
+      const type = (el.getAttribute('type') || '').toLowerCase();
+      if (tag === 'input' && SKIP_TYPES.includes(type)) continue;
+      // <input type=file> costuma ficar display:none atrás de um label — coleta mesmo invisível
+      if (!isVisible(el) && type !== 'file') continue;
+      el.setAttribute('data-cf-idx', String(idx++));
+      const kind =
+        type === 'file'
+          ? 'file'
+          : tag === 'select'
+            ? 'select'
+            : tag === 'textarea'
+              ? 'textarea'
+              : 'input';
+      fields.push({
+        kind,
+        label: labelFor(el as HTMLElement),
+        required:
+          (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true',
+        selector: `[data-cf-idx="${idx - 1}"]`,
+        name: el.getAttribute('name') || el.getAttribute('id') || '',
+      });
+    }
+    for (const e of Array.from(root.querySelectorAll('*'))) {
+      if ((e as Element).shadowRoot) {
+        isShadowDom = true;
+        collectFields((e as Element).shadowRoot!);
+      }
+    }
+  };
+  collectFields(document);
+
+  // Dropzones sem input[type=file] real — fallback de upload via eventos drop.
+  const dropzones: NonNullable<PageSnapshot['dropzones']> = [];
+  let dzIdx = 0;
+  const dzSigRe = /drop|upload|anexo|attach|resume|curr[ií]culo|\bcv\b/i;
+  const dzTextRe = /arraste|solte|drag|drop|upload|anexar|attach|browse|choose file|arquivo/i;
+  const collectDropzones = (root: Document | ShadowRoot) => {
+    // Ordem reversa: os mais profundos primeiro — o check abaixo pula
+    // containers quando uma zona interna já foi marcada.
+    for (const el of Array.from(
+      root.querySelectorAll('div,section,label,button,[data-testid]'),
+    ).reverse()) {
+      if (dropzones.length >= 3) return;
+      const he = el as HTMLElement;
+      if (!isVisible(he) || he.querySelector('input[type="file"]')) continue;
+      const sig = `${he.getAttribute('class') ?? ''} ${he.id ?? ''} ${he.getAttribute('data-testid') ?? ''}`;
+      const text = (he.innerText ?? '').trim().slice(0, 160);
+      if (!dzSigRe.test(sig) && !(text.length <= 120 && dzTextRe.test(text))) continue;
+      // só a zona mais interna — evita marcar container e filho ao mesmo tempo
+      if (he.querySelector('[data-cf-dz]')) continue;
+      he.setAttribute('data-cf-dz', String(dzIdx));
+      dropzones.push({ selector: `[data-cf-dz="${dzIdx++}"]` });
+    }
+    for (const e of Array.from(root.querySelectorAll('*'))) {
+      if ((e as Element).shadowRoot) collectDropzones((e as Element).shadowRoot!);
+    }
+  };
+  collectDropzones(document);
 
   const captchaSel =
     'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare"], .g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]';
@@ -113,14 +161,6 @@ function snapshotScript(): PageSnapshot {
   const currentStep = stepMatch ? Number(stepMatch[1] ?? stepMatch[3]) : 1;
   const totalSteps = stepMatch ? Number(stepMatch[2] ?? stepMatch[4]) : 1;
 
-  let isShadowDom = false;
-  for (const e of Array.from(document.querySelectorAll('body *'))) {
-    if (e.shadowRoot) {
-      isShadowDom = true;
-      break;
-    }
-  }
-
   return {
     fields,
     hasCaptcha,
@@ -130,6 +170,7 @@ function snapshotScript(): PageSnapshot {
     currentStep,
     totalSteps,
     isShadowDom,
+    dropzones,
   };
 }
 
@@ -146,14 +187,78 @@ export function snapshotToState(snap: PageSnapshot, url: string, dom?: unknown):
     totalSteps: snap.totalSteps,
     isShadowDom: snap.isShadowDom,
     submitted: false,
+    ...(snap.dropzones?.length
+      ? { dropzones: snap.dropzones.map((d) => ({ ...d })) }
+      : {}),
     ...(dom ? { dom } : {}),
   };
 }
 
-/** Re-inspect após 'Next' em wizard — atualiza o estado com o DOM corrente. */
+/**
+ * Merge puro de snapshots por frame (testável sem browser): carimba frameIdx
+ * nos campos/dropzones, OR nos sinais, concatena erros (cap 5) e usa os
+ * contadores de etapa do frame principal.
+ */
+export function mergeSnapshots(
+  snaps: Array<{ frameIdx: number; snap: PageSnapshot }>,
+): PageSnapshot {
+  const main = snaps.find((s) => s.frameIdx === 0)?.snap ?? snaps[0]?.snap;
+  const merged: PageSnapshot = {
+    fields: [],
+    hasCaptcha: false,
+    requiresEmailOtp: false,
+    alreadyAppliedBanner: false,
+    validationErrors: [],
+    currentStep: main?.currentStep ?? 1,
+    totalSteps: main?.totalSteps ?? 1,
+    isShadowDom: false,
+    dropzones: [],
+  };
+  for (const { frameIdx, snap } of snaps) {
+    for (const f of snap.fields) merged.fields.push({ ...f, frameIdx });
+    merged.hasCaptcha ||= snap.hasCaptcha;
+    merged.requiresEmailOtp ||= snap.requiresEmailOtp;
+    merged.alreadyAppliedBanner ||= snap.alreadyAppliedBanner;
+    merged.isShadowDom ||= snap.isShadowDom;
+    for (const err of snap.validationErrors) {
+      if (merged.validationErrors.length < 5 && !merged.validationErrors.includes(err)) {
+        merged.validationErrors.push(err);
+      }
+    }
+    for (const dz of snap.dropzones ?? []) merged.dropzones!.push({ ...dz, frameIdx });
+  }
+  return merged;
+}
+
+/**
+ * Re-inspect após 'Next' em wizard — atualiza o estado com o DOM corrente.
+ * Roda o snapshot em TODOS os frames (evaluate por frame atravessa
+ * cross-origin); frame que falhar (detached/navegação) é ignorado.
+ */
 export async function inspectDom(page: Page, url?: string): Promise<LivePageState> {
-  const snap = await page.evaluate(snapshotScript);
-  return snapshotToState(snap, url ?? page.url(), page);
+  const frames = page.frames();
+  const snaps: Array<{ frameIdx: number; snap: PageSnapshot }> = [];
+  for (let i = 0; i < frames.length; i++) {
+    const snap = await frames[i].evaluate(snapshotScript).catch(() => null);
+    if (snap) snaps.push({ frameIdx: i, snap });
+  }
+  if (snaps.length === 0) {
+    return snapshotToState(
+      {
+        fields: [],
+        hasCaptcha: false,
+        requiresEmailOtp: false,
+        alreadyAppliedBanner: false,
+        validationErrors: [],
+        currentStep: 1,
+        totalSteps: 1,
+        isShadowDom: false,
+      },
+      url ?? page.url(),
+      page,
+    );
+  }
+  return snapshotToState(mergeSnapshots(snaps), url ?? page.url(), page);
 }
 
 /**
