@@ -101,3 +101,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 17 | URL carregada no pipeline | Link de candidatura da fonte (pply_url/pplicationLink/it.url) preferido sobre a página da listagem |
 
 | 18 | Repos GitHub de vagas BR | Issues abertas via API pi (1 request/repo); labels mapeiam workModel/contractType; PRs ignorados |
+
+| 19 | Providers remotos de IA | Adapter unico OpenAI-compatible (openaiCompatibleClient) cobre deepseek/groq/openai/kimi/openrouter/together + qualquer BASE_URL custom; Anthropic/Gemini nativos seguem sem adapter (Gemini func via endpoint compat do Google) |
