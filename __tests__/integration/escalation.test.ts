@@ -3,7 +3,16 @@ import {
   escalate,
   resumeAfterEscalation,
 } from '../../src/core/escalationHandler';
-import { fakePageState, mockVault } from '../helpers/mocks';
+import { runApplicationPipeline } from '../../src/core/pipeline';
+import {
+  fakePageState,
+  mockRepo,
+  mockTailorModel,
+  mockTriageModel,
+  mockVault,
+} from '../helpers/mocks';
+import { makeConfig, makeMasterProfile } from '../helpers/factories';
+import { SAMPLE_JOB_HTML } from '../helpers/fixtures';
 
 describe('Human escalation: detection → NEEDS_HUMAN_INPUT → resumption', () => {
   it('detects CAPTCHA and escalates without inventing data', async () => {
@@ -16,6 +25,14 @@ describe('Human escalation: detection → NEEDS_HUMAN_INPUT → resumption', () 
     const outcome = await escalate(page, signal!);
     expect(outcome.status).toBe('NEEDS_HUMAN_INPUT');
     expect(outcome.progressPreserved).toBe(true);
+  });
+
+  it('detects a login wall and escalates for manual authentication', async () => {
+    // feature/09: portal login wall → escalation for human sign-in
+    const page = { ...fakePageState(), requiresLogin: true };
+    const signal = detectBlockingSignal(page);
+
+    expect(signal?.kind).toBe('LOGIN_REQUIRED');
   });
 
   it('detects an email OTP step and preserves state for resumption', async () => {
@@ -60,5 +77,93 @@ describe('Human escalation: detection → NEEDS_HUMAN_INPUT → resumption', () 
 
     expect(resumed.continueFromStep).toBe(2);
     expect(resumed.status).not.toBe('NEEDS_HUMAN_INPUT');
+  });
+});
+
+describe('Human escalation: onHumanEscalation handoff (feature/09)', () => {
+  it('hands CAPTCHA to the visible-escalation callback with signal + refill payload', async () => {
+    // feature/09: visible escalation — caller may reopen the page for the human
+    const page = fakePageState({ hasCaptcha: true });
+    const onHumanEscalation = jest.fn().mockResolvedValue(true);
+
+    const result = await runApplicationPipeline(
+      {
+        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://boards.greenhouse.io/cap/jobs/9' }],
+        profile: makeMasterProfile(),
+        config: makeConfig(),
+      },
+      {
+        repo: mockRepo(),
+        triageModel: mockTriageModel({ fitScore: 95 }),
+        tailorModel: mockTailorModel(),
+        pageFactory: () => page,
+        onHumanEscalation,
+      },
+    );
+
+    expect(result.applications[0].status).toBe('NEEDS_HUMAN_INPUT');
+    expect(onHumanEscalation).toHaveBeenCalledTimes(1);
+    const handoff = onHumanEscalation.mock.calls[0][0] as {
+      page: unknown;
+      signal: { kind: string };
+      matched: unknown[];
+      aiAnswers: Record<string, string>;
+    };
+    expect(handoff.page).toBe(page);
+    expect(handoff.signal.kind).toBe('CAPTCHA');
+    expect(Array.isArray(handoff.matched)).toBe(true);
+    expect(handoff.aiAnswers).toBeDefined();
+  });
+
+  it('hands a login wall to the callback with LOGIN_REQUIRED for visible sign-in', async () => {
+    // feature/09: login-required pages reopen visibly for manual authentication
+    const page = { ...fakePageState(), requiresLogin: true };
+    const onHumanEscalation = jest.fn().mockResolvedValue(true);
+
+    const result = await runApplicationPipeline(
+      {
+        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://linkedin.com/jobs/view/77' }],
+        profile: makeMasterProfile(),
+        config: makeConfig(),
+      },
+      {
+        repo: mockRepo(),
+        triageModel: mockTriageModel({ fitScore: 95 }),
+        tailorModel: mockTailorModel(),
+        pageFactory: () => page,
+        onHumanEscalation,
+      },
+    );
+
+    expect(result.applications[0].status).toBe('NEEDS_HUMAN_INPUT');
+    expect(onHumanEscalation).toHaveBeenCalledTimes(1);
+    const handoff = onHumanEscalation.mock.calls[0][0] as { signal: { kind: string } };
+    expect(handoff.signal.kind).toBe('LOGIN_REQUIRED');
+  });
+
+  it('does NOT call the callback for non-visible blockers (unknown required field)', async () => {
+    // feature/09: UNKNOWN_REQUIRED_FIELD escalates but has nothing to reopen visually
+    const page = fakePageState({
+      fields: [{ kind: 'input', label: 'Codename XQ-42', required: true }],
+    });
+    const onHumanEscalation = jest.fn().mockResolvedValue(true);
+
+    const result = await runApplicationPipeline(
+      {
+        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://boards.greenhouse.io/unk/jobs/10' }],
+        profile: makeMasterProfile(),
+        config: makeConfig(),
+      },
+      {
+        repo: mockRepo(),
+        triageModel: mockTriageModel({ fitScore: 95 }),
+        tailorModel: mockTailorModel(),
+        pageFactory: () => page,
+        onHumanEscalation,
+      },
+    );
+
+    expect(result.applications[0].status).toBe('NEEDS_HUMAN_INPUT');
+    expect(onHumanEscalation).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,12 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Então a candidatura muda para "NEEDS_HUMAN_INPUT"
     E o estado atual da página é preservado para retomada após a verificação
 
+  Cenário: Escalonar ao encontrar tela de login do portal
+    Dado que a página da candidatura exige autenticação do usuário
+    Quando o sistema identifica a tela de login
+    Então a candidatura muda para "NEEDS_HUMAN_INPUT"
+    E o formulário é reaberto em janela visível para o usuário se autenticar e retomar
+
   Cenário: Escalonar ao encontrar campo obrigatório desconhecido
     Dado que o formulário contém um campo obrigatório sem mapeamento nem resposta gerada
     Quando o sistema tenta completar a etapa
@@ -59,3 +65,6 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
 # serializado para retomada posterior.
 # Decisão: circuit breaker — após maxEscalationsPerPlatformPerDay (default 3)
 # escalonamentos na mesma plataforma no dia, a fonte pausa até o dia seguinte.
+# Decisão: muro de login — página com URL de auth ou campo de senha em formulário
+# curto é escalonada; em headless o form reabre visível, o usuário loga e a
+# candidatura é retomada com os campos refeitos (AUTOFILL_VISIBLE_ON_ESCALATION).

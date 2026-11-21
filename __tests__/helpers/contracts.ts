@@ -363,12 +363,14 @@ export interface CareerOpsConfig {
 // src/core/autonomyEngine.ts
 //   decideApplicationRoute({fitScore, mode, signals, config, dailyCount}): ApplicationRoute
 // src/core/escalationHandler.ts
+//   BlockingSignalKind: CAPTCHA | EMAIL_OTP | LOGIN_REQUIRED | UNKNOWN_REQUIRED_FIELD | SESSION_EXPIRED
 //   detectBlockingSignal(pageState, ctx?): BlockingSignal | null
 //   escalate(page, signal): Promise<{status: 'NEEDS_HUMAN_INPUT'; progressPreserved; savedPageState}>
 //   resumeAfterEscalation(savedPageState, {humanResolved}): Promise<{continueFromStep; status}>
 // src/core/pipeline.ts
 //   runApplicationPipeline(input: {rawJobs, profile, config, dryRun?}, deps: {repo, triageModel,
-//     tailorModel, pageFactory(url): PageStateLike|Promise<…>, humanApproval?}):
+//     tailorModel, pageFactory(url): PageStateLike|Promise<…>, humanApproval?, humanPace?,
+//     onHumanEscalation?({page,signal,matched,aiAnswers,resumePath})→bool — true = página segue aberta}):
 //     Promise<{processed; applications: Array<{status; stages; resumePath?}>;
 //             tokenReport; dryRunReport?}>
 // src/autofill/playwrightExecutor.ts
