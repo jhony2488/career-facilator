@@ -39,7 +39,7 @@ Before spending a single AI token, the repository (`src/db/repository.ts`) block
 
 ## 4. Implemented sources and commands
 
-- **Public JSON APIs (enabled):** `remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, plus `weworkremotely` (RSS). They run through `src/discovery/adapters/apiAdapter.ts`/`rssAdapter.ts` and produce `RawJobInput` (`{url, html}`) for the pipeline.
+- **Public JSON APIs (enabled):** `remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, plus `weworkremotely` (RSS). They run through `src/discovery/adapters/apiAdapter.ts`/`rssAdapter.ts` and produce `RawJobInput` (`{url, html}`) for the pipeline. **Discovery is free; applying** depends on the source — `weworkremotely`, for instance, now requires a job-seeker account (paid Pro for most listings) to submit through the portal.
 - **Source registry:** `src/discovery/registry.ts` records 100+ sources/ATS/job boards; `getActiveSources` in `src/discovery/sourceRegistry.ts` applies `DISCOVERY_*` env filters (allowlist, exclusion, regions, work models, risky/auth).
 - **CLI:** `career run` (no `--jobs-file`) executes discovery; `career discover [--sources id1,id2] [--max-jobs N] [--export out.json]` lists or exports jobs; `career scan <source-id> [--max-jobs N]` tests one source. `--dry-run` on `discover` lists active sources without fetching.
 - **Error isolation:** a failing source returns a `DiscoveryError` and the engine continues with the others; if all fail it alerts and stops without touching the AI tiers.

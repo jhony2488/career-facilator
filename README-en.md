@@ -2,7 +2,7 @@
 
 Autonomous system for job prospecting, semantic triage, resume tailoring and assisted application with inference optimization.
 
-> **Status:** complete specification + implementation — Jest suites green and a real Ollama client working (streaming + structured JSON). Discovery runs on public APIs/RSS; SMTP via nodemailer and WhatsApp via Evolution API are connected; Playwright browser automation is still not connected (see [Current limitations](#current-limitations)).
+> **Status:** complete specification + implementation — Jest suites green and a real Ollama client working (streaming + structured JSON). Discovery runs on public APIs/RSS; SMTP via nodemailer and WhatsApp via Evolution API are connected; Playwright browser automation is connected — real web forms are inspected and filled (see [Current limitations](#current-limitations)).
 
 English version of the README. [Portuguese version (README.md)](README.md).
 
@@ -193,12 +193,12 @@ CareerFacilator/
 
 ## Stack
 
-Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, no native dep → single-file exe) · node-html-parser + turndown · Zod · Playwright (to connect) · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
+Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, no native dep → single-file exe) · node-html-parser + turndown · Zod · Playwright (connected) · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
 
 ## Current limitations
 
 - **Cloud clients:** Ollama works for real (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini are resolvable via `.env`, but without an adapter — explicit error when used.
-- **Discovery/browser:** `run` uses public API/RSS sources by default, still accepts `jobs.json` (`[{url, html}]`) via `--jobs-file`, and covers `html` sources without structure through the generic LLM fallback (`DISCOVERY_USE_GENERIC_FALLBACK`; model = `DISCOVERY_GENERIC_MODEL` or inherits `AI_LOCAL_*`, ollama provider) and `search` sources via search engine (DDG/Bing + per-query anti-bot fallback); Playwright scraping is still not connected — `pageFactory` is a stub with no fields, so real forms are not filled.
+- **Discovery/browser:** `run` uses public API/RSS sources by default, still accepts `jobs.json` (`[{url, html}]`) via `--jobs-file`, and covers `html` sources without structure through the generic LLM fallback (`DISCOVERY_USE_GENERIC_FALLBACK`; model = `DISCOVERY_GENERIC_MODEL` or inherits `AI_LOCAL_*`, ollama provider) and `search` sources via search engine (DDG/Bing + per-query anti-bot fallback); Web forms are handled via Playwright — `pageFactory(url)` opens the job in a lazy Chromium (`AUTOFILL_HEADLESS`, `AUTOFILL_PROFILE_DIR` to reuse your logins), inspects fields (`pageInspector`), fills them with profile + AI answers (`executeLiveFill`), walks multi-step wizards, and submits or pauses per the score gate (`AUTO_SUBMIT`/`PAUSE_BEFORE_SUBMIT`); CAPTCHA/OTP/validation errors escalate to NEEDS_HUMAN_INPUT.
 - **Channels:** real e-mail via nodemailer + AES-256-GCM vault (`vault set smtp-main`, docs/pt-BR/14); WhatsApp via manual queue or Evolution API (docs/pt-BR/15).
 - **`import` without Ollama:** requires `ollama serve` + `ollama pull <model>`; without a configured client it only generates a minimal draft.
 
