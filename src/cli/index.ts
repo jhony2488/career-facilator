@@ -36,7 +36,7 @@ import { checkProviders, type ProviderCheckResult, type TierKey } from '../ai/pr
 import { createOllamaClient } from '../ai/ollamaClient';
 import type { ModelRouting } from '../config/careerOps.config';
 import { JobRepository } from '../db/repository';
-import { runApplicationPipeline } from '../core/pipeline';
+import { runApplicationPipeline, type PipelineResult } from '../core/pipeline';
 import { createSemanticTitleMatcher } from '../core/titleMatcher';
 import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
 import { createGenericExtractor } from '../discovery/genericExtractor';
@@ -617,9 +617,53 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     }
   }
 
+  const sentStatuses = new Set(['APPLIED', 'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP']);
+  const countSent = (r: PipelineResult) =>
+    r.applications.filter((a) => sentStatuses.has(a.status)).length;
+
   let result;
   try {
     result = await runApplicationPipeline({ rawJobs, profile, config, dryRun }, channelDeps);
+
+    // Meta de candidaturas por run (DISCOVERY_MIN_JOBS_PER_RUN): enviou menos
+    // que a meta → o discovery expande, dobrando o teto por fonte a cada
+    // rodada e excluindo URLs já coletadas, até bater a meta, esgotar as
+    // fontes ou o teto global. --jobs-file e --dry-run não disparam expansão.
+    const minRun = config.execution.minJobsPerRun;
+    if (!dryRun && !jobsPath && minRun > 0) {
+      let sent = countSent(result);
+      let perSource = config.discovery.maxJobsPerSource;
+      for (let round = 1; sent < minRun && round <= 3; round++) {
+        const remaining = (maxJobs ?? config.execution.maxJobsPerRun) - rawJobs.length;
+        if (remaining <= 0) break;
+        perSource *= 2;
+        const more = await discoverJobs({
+          config,
+          signal,
+          maxJobs: remaining,
+          sourceIds,
+          perSourceMax: perSource,
+          excludeUrls: rawJobs.map((j) => j.url),
+          extract: buildDiscoveryExtractor(signal),
+        });
+        if (more.jobs.length === 0) break;
+        console.log(
+          `Meta ${sent}/${minRun} — expandindo discovery (rodada ${round}, ` +
+            `até ${perSource}/fonte): +${more.jobs.length} vaga(s) nova(s)`,
+        );
+        const extraRaw = toRawJobInputs(more.jobs);
+        rawJobs.push(...extraRaw);
+        const extra = await runApplicationPipeline(
+          { rawJobs: extraRaw, profile, config, dryRun },
+          channelDeps,
+        );
+        result.processed += extra.processed;
+        result.applications.push(...extra.applications);
+        result.tokenReport.triageCalls += extra.tokenReport.triageCalls;
+        result.tokenReport.smartTierCalls += extra.tokenReport.smartTierCalls;
+        sent += countSent(extra);
+      }
+    }
   } finally {
     await closeJobBrowser();
     repo.close();
@@ -634,6 +678,15 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   console.log(
     `Chamadas de modelo: triagem=${result.tokenReport.triageCalls} smart=${result.tokenReport.smartTierCalls}`,
   );
+  if (!dryRun && config.execution.minJobsPerRun > 0) {
+    const sent = countSent(result);
+    console.log(
+      sent >= config.execution.minJobsPerRun
+        ? `Meta mínima atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) enviada(s).`
+        : `⚠ Meta mínima não atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) ` +
+            `enviada(s) — fontes esgotadas ou vagas sem canal de candidatura.`,
+    );
+  }
 }
 
 /**

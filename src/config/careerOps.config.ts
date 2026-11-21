@@ -31,6 +31,8 @@ export interface CareerOpsConfig {
     maxDailyApplications: number;
     companyCooldownDays: number;
     maxJobsPerRun: number;
+    /** Meta de candidaturas enviadas por run; abaixo dela o discovery expande. 0 = off. */
+    minJobsPerRun: number;
     reviewExpirationDays: number;
     escalationTimeoutMinutes: number;
     maxEscalationsPerPlatformPerDay: number;
@@ -160,6 +162,7 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     maxDailyApplications: 15,
     companyCooldownDays: 30,
     maxJobsPerRun: 100,
+    minJobsPerRun: 0,
     reviewExpirationDays: 7,
     escalationTimeoutMinutes: 15,
     maxEscalationsPerPlatformPerDay: 3,

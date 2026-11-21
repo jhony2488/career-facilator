@@ -14,7 +14,12 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
   const { config, sourceIds, maxJobs } = opts;
   const start = Date.now();
   const globalMax = maxJobs ?? config.execution.maxJobsPerRun;
-  const perSourceMax = config.discovery.maxJobsPerSource;
+  const perSourceMax = opts.perSourceMax ?? config.discovery.maxJobsPerSource;
+  const excluded = new Set<string>();
+  for (const u of opts.excludeUrls ?? []) {
+    const key = canonicalKey(u);
+    if (key) excluded.add(key);
+  }
 
   const rateLimiter = new RateLimiter(config.discovery.perDomainDelayMs);
   const fetcher = createFetcher({ rateLimiter });
@@ -106,7 +111,7 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
     }
   }
 
-  const deduped = dedupByUrl(allJobs);
+  const deduped = dedupByUrl(allJobs).filter((j) => !excluded.has(canonicalKey(j.raw.url) ?? ''));
   const limited = deduped.slice(0, globalMax);
 
   return {
@@ -123,18 +128,24 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
   };
 }
 
+/** Chave canônica de dedup: host+path (ignora protocolo, query e fragmento). */
+function canonicalKey(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
 function dedupByUrl(jobs: DiscoveryJob[]): DiscoveryJob[] {
   const seen = new Set<string>();
   return jobs.filter((j) => {
-    try {
-      const u = new URL(j.raw.url);
-      const key = `${u.hostname}${u.pathname}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    } catch {
-      return true;
-    }
+    const key = canonicalKey(j.raw.url);
+    if (key === null) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 

@@ -55,6 +55,10 @@ export interface DiscoveryOptions {
   sourceIds?: string[];
   /** Limite global de vagas. */
   maxJobs?: number;
+  /** Sobrescreve discovery.maxJobsPerSource (rodadas de expansão pedem mais por fonte). */
+  perSourceMax?: number;
+  /** URLs já coletadas — removidas do resultado (dedup por host+path). */
+  excludeUrls?: string[];
   /** Sinal para cancelamento. */
   signal?: AbortSignal;
   /** Extrator LLM para fontes html sem adapter específico (fallback genérico). */

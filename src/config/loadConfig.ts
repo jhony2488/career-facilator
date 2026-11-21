@@ -166,6 +166,9 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
     env.AI_EMBEDDINGS_ENABLED === 'true' || env.AI_EMBEDDINGS_ENABLED === '1';
   const fitMin = Number(env.FIT_MIN_SCORE);
   const fitAuto = Number(env.FIT_AUTO_SCORE);
+  const numEnv = (v: string | undefined): number => (v?.trim() ? Number(v) : NaN);
+  const maxJobsRun = numEnv(env.DISCOVERY_MAX_JOBS_PER_RUN);
+  const minJobsRun = numEnv(env.DISCOVERY_MIN_JOBS_PER_RUN);
   const titles = env.JOB_TITLES?.split(/[;,]/)
     .map((t) => t.trim())
     .filter(Boolean);
@@ -177,6 +180,8 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       lexicalMinTerms,
       ...(Number.isFinite(fitMin) ? { minScoreForTailoring: fitMin } : {}),
       ...(Number.isFinite(fitAuto) ? { minScoreForFullAuto: fitAuto } : {}),
+      ...(Number.isFinite(maxJobsRun) ? { maxJobsPerRun: maxJobsRun } : {}),
+      ...(Number.isFinite(minJobsRun) ? { minJobsPerRun: minJobsRun } : {}),
     },
     discovery: {
       targetTitles: titles?.length ? titles : defaultCareerOpsConfig.discovery.targetTitles,
