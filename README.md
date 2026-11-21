@@ -130,6 +130,17 @@ Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` �
 
 > Sem modelo configurado, o `import` apenas valida o PDF e gera rascunho mínimo. Enquanto isso, você pode preencher `profile.master.md` manualmente seguindo o formato do seed (inclui seção de Projetos Open Source).
 
+### Sequência sugerida de uso
+
+1. Instale e configure a IA ([tutoriais 01–05](tutorials/pt-BR/README.md)) — `config check` precisa passar o tier LOCAL
+2. Importe seu CV (`import --pdf`), revise o rascunho e `approve`
+3. Confira a descoberta sem custo de IA: `discover --dry-run` e `scan <fonte>`
+4. Rode o funil no seguro: `run --dry-run` → depois `run`
+5. Trabalhe a fila: `review` → `status`
+6. Opcional: canais de envio — e-mail (`vault set smtp-main` + `EMAIL_*`) e WhatsApp (`whatsapp setup`)
+
+Detalhe de cada etapa: [tutorial 07 — Sequência de uso](tutorials/pt-BR/07-sequencia-de-uso.md).
+
 ### Testes e verificação
 
 ```powershell

@@ -130,6 +130,17 @@ Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Win
 
 > Without a configured model, `import` only validates the PDF and produces a minimal draft. Meanwhile, you can fill `profile.master.md` manually following the seed format (includes Open Source Projects section).
 
+### Suggested usage sequence
+
+1. Install and configure the AI ([tutorials 01–05](tutorials/en/README.md)) — `config check` must pass the LOCAL tier
+2. Import your resume (`import --pdf`), review the draft and `approve`
+3. Check discovery at zero AI cost: `discover --dry-run` and `scan <source>`
+4. Run the funnel safely: `run --dry-run` → then `run`
+5. Work the queue: `review` → `status`
+6. Optional: send channels — email (`vault set smtp-main` + `EMAIL_*`) and WhatsApp (`whatsapp setup`)
+
+Details for each step: [tutorial 07 — Usage sequence](tutorials/en/07-usage-sequence.md).
+
 ### Tests and verification
 
 ```powershell
