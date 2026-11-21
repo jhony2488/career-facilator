@@ -172,6 +172,9 @@ export function mockRepo() {
     countEmailsSentToday: jest.fn(async () => 0),
     hasWhatsappSentTo: jest.fn(async (_number: string, _cooldownDays: number) => false),
     recordWhatsappApplication: jest.fn(async (_input: unknown) => undefined),
+    findJob: jest.fn(async (ref: string) => jobs.find((j) => j.url === ref)),
+    deleteJob: jest.fn(async (_ref: string) => false),
+    markChannelSent: jest.fn(async (_jobId: string, _channel: string) => undefined),
   };
 }
 

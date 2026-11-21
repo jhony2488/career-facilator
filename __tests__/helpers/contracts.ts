@@ -334,7 +334,11 @@ export interface CareerOpsConfig {
 //   class JobRepository { constructor(dbPath|':memory:')
 //     dedupCheck(input: {url, company, title, description}, opts?: {companyCooldownDays}): Promise<DedupVerdict>
 //     recordJob(job), updateStatus(url, status), getByUrl(canonicalUrl), close()
-//     hasRecentApplication(company, days): Promise<boolean> }
+//     hasRecentApplication(company, days): Promise<boolean>
+//     findJob(ref: id|url|canonicalUrl): Promise<JobRecord|undefined>
+//     deleteJob(ref): Promise<boolean>  — removes job + applications rows
+//     markChannelSent(jobId, 'EMAIL'|'WHATSAPP'): Promise<void>
+//       — flips pending queue row to APPLIED_VIA_* (sent_at=now) or inserts it }
 //
 // src/ai/router.ts
 //   resolveModel(tier: ModelTier, config): { provider: string; modelId: string }

@@ -7,6 +7,8 @@
  *   career-facilitator import --inbox [--watch]     # Varre/monitora storage/profile_inbox/
  *   career-facilitator run --jobs-file <json> [--dry-run]
  *   career-facilitator review                       # Fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW
+ *   career-facilitator mark <url|id> <status>       # Marcação manual (applied/email/whatsapp/…)
+ *   career-facilitator remove <url|id>              # Remove a vaga do histórico
  *   career-facilitator status                       # Resumo do SQLite
  *   career-facilitator config                       # Roteamento de modelos resolvido do .env
  */
@@ -35,7 +37,7 @@ import {
 import { checkProviders, type ProviderCheckResult, type TierKey } from '../ai/preflight';
 import { createOllamaClient } from '../ai/ollamaClient';
 import type { ModelRouting } from '../config/careerOps.config';
-import { JobRepository } from '../db/repository';
+import { JobRepository, type JobStatus } from '../db/repository';
 import { runApplicationPipeline, type PipelineResult } from '../core/pipeline';
 import { createSemanticTitleMatcher } from '../core/titleMatcher';
 import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
@@ -88,6 +90,10 @@ const HELP = [
   '',
   '  Revisão e estado',
   '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
+  '                                            (no shell: marca cada item interativamente)',
+  '    mark <url|id> <status>                  applied|email|whatsapp|skipped|failed|',
+  '                                            rejected|interview|assessment',
+  '    remove <url|id>                         Remove a vaga do histórico (reprocessável no run)',
   '    status                                  Contagens por status no jobs.sqlite',
   '    applied [--limit N]                     Candidaturas enviadas (total por canal, hoje, recentes)',
   '',
@@ -866,37 +872,182 @@ async function cmdApprove(): Promise<void> {
   }
 }
 
-async function cmdReview(): Promise<void> {
+/** Ação de canal confirmada manualmente → vira a linha da fila e carimba sent_at. */
+const CHANNEL_OF_STATUS: Partial<Record<JobStatus, 'EMAIL' | 'WHATSAPP'>> = {
+  APPLIED_VIA_EMAIL: 'EMAIL',
+  APPLIED_VIA_WHATSAPP: 'WHATSAPP',
+};
+
+/** Aliases aceitos pelo `mark` (minúsculos) — inclui desfechos p/ tracking (doc 12). */
+const MARK_ALIASES: Record<string, JobStatus> = {
+  applied: 'APPLIED',
+  email: 'APPLIED_VIA_EMAIL',
+  'applied-email': 'APPLIED_VIA_EMAIL',
+  whatsapp: 'APPLIED_VIA_WHATSAPP',
+  'applied-whatsapp': 'APPLIED_VIA_WHATSAPP',
+  skipped: 'SKIPPED',
+  failed: 'FAILED',
+  rejected: 'REJECTED',
+  interview: 'INTERVIEW',
+  assessment: 'ASSESSMENT_INVITED',
+};
+
+const MARK_USAGE =
+  'Uso: mark <url|id> <status> — status: applied|email|whatsapp|skipped|failed|rejected|interview|assessment';
+
+/** Marcação manual de status — cobre candidaturas feitas fora do funil (docs 10/15). */
+async function cmdMark(args: string[]): Promise<void> {
+  const [ref, statusArg] = args;
+  const status = statusArg ? MARK_ALIASES[statusArg.toLowerCase()] : undefined;
+  if (!ref || !status) throw new CliError(MARK_USAGE);
+
+  const repo = openRepo();
+  try {
+    const job = await repo.findJob(ref);
+    if (!job) throw new CliError(`Vaga não encontrada: ${ref}`);
+    const channel = CHANNEL_OF_STATUS[status];
+    if (channel) await repo.markChannelSent(job.id, channel);
+    await repo.updateStatus(job.url, status);
+    console.log(`${job.title} — ${job.company}\n  ${job.status} → ${status}`);
+  } finally {
+    repo.close();
+  }
+}
+
+/** Remove a vaga do histórico — a URL volta a ser elegível no próximo run. */
+async function cmdRemove(args: string[]): Promise<void> {
+  const [ref] = args;
+  if (!ref) throw new CliError('Uso: remove <url|id>');
+
+  const repo = openRepo();
+  try {
+    const job = await repo.findJob(ref);
+    if (!job) throw new CliError(`Vaga não encontrada: ${ref}`);
+    await repo.deleteJob(job.id);
+    console.log(`Removida: ${job.title} — ${job.company} (reprocessável no próximo run)`);
+  } finally {
+    repo.close();
+  }
+}
+
+/** Ações de uma tecla no review interativo — desfechos ficam no `mark` p/ manter o prompt curto. */
+const REVIEW_ACTIONS: Record<string, JobStatus | 'DELETE'> = {
+  e: 'APPLIED',
+  m: 'APPLIED_VIA_EMAIL',
+  w: 'APPLIED_VIA_WHATSAPP',
+  p: 'SKIPPED',
+  f: 'FAILED',
+  x: 'DELETE',
+};
+
+function printWhatsappQueueItem(q: {
+  jobId: string;
+  recipient: string;
+  subject: string | null;
+  attachmentPath: string | null;
+}): void {
+  console.log(`  [${q.jobId}] wa.me/${q.recipient}`);
+  if (q.subject)
+    console.log(
+      `    Mensagem:\n${q.subject
+        .split('\n')
+        .map((l) => `      ${l}`)
+        .join('\n')}`,
+    );
+  if (q.attachmentPath) console.log(`    Anexar: ${q.attachmentPath}`);
+}
+
+/**
+ * Fila de ação humana. No shell interativo pergunta o desfecho de cada item —
+ * fora dele (comando direto) só lista e aponta mark/remove.
+ */
+async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
   const repo = openRepo();
   const pending = [
     ...(await repo.listByStatus('NEEDS_HUMAN_INPUT')),
     ...(await repo.listByStatus('READY_TO_REVIEW')),
   ];
   const whatsappQueue = await repo.listWhatsappQueue();
-  repo.close();
   if (!pending.length && !whatsappQueue.length) {
+    repo.close();
     console.log('Fila vazia — nenhuma candidatura pendente de ação humana.');
     return;
   }
-  if (pending.length) {
-    console.log(`${pending.length} candidatura(s) aguardando você:`);
-    for (const j of pending) {
-      console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+
+  const queueByJob = new Map(whatsappQueue.map((q) => [q.jobId, q]));
+  const orphanQueue = whatsappQueue.filter((q) => !pending.some((j) => j.id === q.jobId));
+
+  if (!ctx.ask) {
+    if (pending.length) {
+      console.log(`${pending.length} candidatura(s) aguardando você:`);
+      for (const j of pending) {
+        console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+      }
     }
+    if (whatsappQueue.length) {
+      console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
+      for (const q of whatsappQueue) printWhatsappQueueItem(q);
+    }
+    repo.close();
+    console.log(
+      "\nDica: no shell interativo ('npm run cli') o review marca cada item — " +
+        "ou use 'mark <url|id> <status>' e 'remove <url|id>'.",
+    );
+    return;
   }
-  if (whatsappQueue.length) {
-    console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
-    for (const q of whatsappQueue) {
-      console.log(`  [${q.jobId}] wa.me/${q.recipient}`);
-      if (q.subject)
-        console.log(
-          `    Mensagem:\n${q.subject
-            .split('\n')
-            .map((l) => `      ${l}`)
-            .join('\n')}`,
-        );
-      if (q.attachmentPath) console.log(`    Anexar: ${q.attachmentPath}`);
+
+  try {
+    console.log(
+      `${pending.length} candidatura(s) aguardando você ` +
+        `— 'e' marca APPLIED só depois de concluir o envio no navegador.`,
+    );
+    for (const j of pending) {
+      console.log(`\n  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+      const q = queueByJob.get(j.id);
+      if (q) {
+        console.log(`    WhatsApp: wa.me/${q.recipient}`);
+        if (q.subject)
+          console.log(
+            `    Mensagem:\n${q.subject
+              .split('\n')
+              .map((l) => `      ${l}`)
+              .join('\n')}`,
+          );
+        if (q.attachmentPath) console.log(`    Anexar: ${q.attachmentPath}`);
+      }
+      const answer = (
+        await ctx.ask(
+          '    ação? [enter] manter · e=enviei(web) · m=enviei e-mail · w=enviei whatsapp · p=pular · f=falhou · x=excluir: ',
+        )
+      )
+        .trim()
+        .toLowerCase();
+      if (!answer) continue;
+      const action = REVIEW_ACTIONS[answer];
+      if (!action) {
+        console.log('    (mantida — tecla não reconhecida)');
+        continue;
+      }
+      if (action === 'DELETE') {
+        await repo.deleteJob(j.id);
+        console.log('    → removida do histórico');
+        continue;
+      }
+      const channel = CHANNEL_OF_STATUS[action];
+      if (channel) await repo.markChannelSent(j.id, channel);
+      await repo.updateStatus(j.url, action);
+      console.log(`    → ${action}`);
     }
+
+    if (orphanQueue.length) {
+      console.log(`\n${orphanQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
+      for (const q of orphanQueue) {
+        printWhatsappQueueItem(q);
+        console.log(`    (confirme o envio com 'mark ${q.jobId} whatsapp')`);
+      }
+    }
+  } finally {
+    repo.close();
   }
 }
 
@@ -1187,7 +1338,13 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       await cmdScan(args, ctx);
       return true;
     case 'review':
-      await cmdReview();
+      await cmdReview(ctx);
+      return true;
+    case 'mark':
+      await cmdMark(args);
+      return true;
+    case 'remove':
+      await cmdRemove(args);
       return true;
     case 'approve':
       await cmdApprove();

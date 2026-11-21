@@ -178,6 +178,54 @@ export class JobRepository {
     return row ? this.mapRow(row) : undefined;
   }
 
+  /** Resolve uma vaga por id, url ou canonical_url — referência aceita pelos comandos manuais. */
+  async findJob(ref: string): Promise<JobRecord | undefined> {
+    const row = this.db
+      .prepare('SELECT * FROM jobs WHERE id = ? OR url = ? OR canonical_url = ?')
+      .get(ref, ref, canonicalizeUrl(ref)) as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : undefined;
+  }
+
+  /**
+   * Remove a vaga e seus registros de candidatura — torna a URL reprocessável
+   * no próximo run (dedup deixa de bloquear). ai_usage_logs fica intacto.
+   */
+  async deleteJob(ref: string): Promise<boolean> {
+    const job = await this.findJob(ref);
+    if (!job) return false;
+    this.db.prepare('DELETE FROM applications WHERE job_id = ?').run(job.id);
+    this.db.prepare('DELETE FROM jobs WHERE id = ?').run(job.id);
+    return true;
+  }
+
+  /**
+   * Confirma envio manual por canal (doc 15): vira a linha pendente da fila
+   * para APPLIED_VIA_*, ativando cooldown por destinatário; sem fila pendente,
+   * insere o registro (recipient desconhecido → não conta no cooldown, mas
+   * entra no teto diário e no histórico).
+   */
+  async markChannelSent(jobId: string, channel: 'EMAIL' | 'WHATSAPP'): Promise<void> {
+    const status = channel === 'EMAIL' ? 'APPLIED_VIA_EMAIL' : 'APPLIED_VIA_WHATSAPP';
+    const pending = this.db
+      .prepare(
+        `SELECT id FROM applications
+         WHERE job_id = ? AND channel = ? AND status = 'NEEDS_HUMAN_INPUT'`,
+      )
+      .get(jobId, channel) as { id: number } | undefined;
+
+    if (pending) {
+      this.db
+        .prepare('UPDATE applications SET status = ?, sent_at = ? WHERE id = ?')
+        .run(status, new Date().toISOString(), pending.id);
+      return;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO applications (job_id, status, channel, sent_at) VALUES (?, ?, ?, ?)`,
+      )
+      .run(jobId, status, channel, new Date().toISOString());
+  }
+
   async listByStatus(status: JobStatus): Promise<JobRecord[]> {
     const rows = this.db
       .prepare('SELECT * FROM jobs WHERE status = ? ORDER BY discovered_at DESC')
