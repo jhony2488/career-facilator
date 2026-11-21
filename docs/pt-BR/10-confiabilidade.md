@@ -32,6 +32,8 @@ Cinco mecanismos que fecham o ciclo de ponta a ponta: Descoberta → Filtro Geog
 - **Timeout de espera humana:** se o bloqueio não for resolvido dentro do prazo configurado (`escalationTimeoutMinutes`), a aba é fechada e o estado serializado é mantido para retomada posterior — a candidatura segue na lista de pendências.
 - **Circuit breaker por plataforma:** após N escalonamentos na mesma plataforma no dia (`maxEscalationsPerPlatformPerDay`), aquela fonte é pausada até o dia seguinte.
 
+**Prevenção anti-bot (`src/scraper/browserManager.ts` + `src/utils/humanSim.ts`):** menos CAPTCHAs disparados em vez de mais resolvidos — o sistema **não resolve** CAPTCHA por código. O Chromium abre via `playwright-extra` + `puppeteer-extra-plugin-stealth` (`AUTOFILL_STEALTH`, default on): sem flag `navigator.webdriver`, sem `HeadlessChrome` no UA, WebGL/languages/plugins coerentes e `--disable-blink-features=AutomationControlled`. Viewport é sorteado entre resoluções comuns de desktop por sessão e cookies/login persistem no perfil (`AUTOFILL_PROFILE_DIR`). Nas interações (`AUTOFILL_HUMAN_PACE`, default on) o executor move o mouse em polilinha com jitter antes dos cliques e digita caractere a caractere — pausas curtas entre etapas em vez de teleporte instantâneo.
+
 ## 4. Rastreador Pós-Candidatura e Feedback Loop (`src/tracker/outcomeMonitor.ts`)
 
 **O problema:** De nada adianta enviar 100 currículos sem saber qual versão de currículo ou qual Skill está convertendo em entrevistas.

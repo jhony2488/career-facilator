@@ -32,6 +32,8 @@ Five mechanisms that close the end-to-end cycle: Discovery → Geographic Filter
 - **Human wait timeout:** if the blocker is not resolved within the configured deadline (`escalationTimeoutMinutes`), the tab is closed and the serialized state is kept for later resumption — the application stays in the pending list.
 - **Per-platform circuit breaker:** after N escalations on the same platform in a day (`maxEscalationsPerPlatformPerDay`), that source is paused until the next day.
 
+**Anti-bot prevention (`src/scraper/browserManager.ts` + `src/utils/humanSim.ts`):** fewer CAPTCHAs triggered instead of more solved — the system does **not** solve CAPTCHAs in code. Chromium launches via `playwright-extra` + `puppeteer-extra-plugin-stealth` (`AUTOFILL_STEALTH`, default on): no `navigator.webdriver` flag, no `HeadlessChrome` in the UA, coherent WebGL/languages/plugins and `--disable-blink-features=AutomationControlled`. The viewport is drawn from common desktop resolutions per session and cookies/logins persist in the profile (`AUTOFILL_PROFILE_DIR`). During interactions (`AUTOFILL_HUMAN_PACE`, default on) the executor moves the mouse in a jittered polyline before clicks and types character by character — short pauses between steps instead of instant teleports.
+
 ## 4. Post-Application Tracker and Feedback Loop (`src/tracker/outcomeMonitor.ts`)
 
 **The problem:** Sending 100 resumes is useless without knowing which resume version or which Skill is converting into interviews.

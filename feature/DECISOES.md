@@ -46,6 +46,7 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 ### 09-escalonamento-humano.feature
 - [x] Tempo máximo de espera por intervenção humana e manutenção da aba. **Decisão:** timeout configurável (`escalationTimeoutMinutes`, default 15 min); a aba é fechada e o estado serializado para retomada.
 - [x] Circuit breaker para plataformas com escalonamentos repetidos. **Decisão:** sim — após N escalonamentos na mesma plataforma no dia (`maxEscalationsPerPlatformPerDay`, default 3), a fonte pausa até o dia seguinte.
+- [x] Mitigação de bot-detection (reCAPTCHA/Turnstile disparando com frequência). **Decisão:** **prevenção, não bypass** — Chromium com stealth (`playwright-extra` + `puppeteer-extra-plugin-stealth`, `AUTOFILL_STEALTH`), viewport realista sorteado e ritmo humano nas interações (mouse em curva + digitação, `AUTOFILL_HUMAN_PACE`). CAPTCHA detectado continua escalando para `NEEDS_HUMAN_INPUT` — o sistema não resolve desafio por código.
 
 ### 10-candidatura-email.feature
 - [x] Número máximo de tentativas de reenvio e status final. **Decisão:** máx. 3 tentativas com backoff → `NEEDS_HUMAN_INPUT`.
