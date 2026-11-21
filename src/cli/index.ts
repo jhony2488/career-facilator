@@ -53,8 +53,8 @@ import {
 } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
-import type { Page } from 'playwright';
 import { executeLiveFill } from '../autofill/playwrightExecutor';
+import type { Page } from 'playwright';
 import { followApplyLink, inspectPage } from '../scraper/pageInspector';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
@@ -599,7 +599,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
   };
 
-  // CAPTCHA/OTP → janela visível pro humano resolver na hora (feature/09):
+  // CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
   // em headless reabre o form no mesmo perfil; já visível, só preserva a aba.
   // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
   let pendingVisiblePages = 0;
