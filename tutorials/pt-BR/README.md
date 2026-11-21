@@ -6,5 +6,6 @@
 4. [Configurando Ollama (IA local)](04-configurando-ollama.md)
 5. [Configurando IAs remotas](05-configurando-ias-remotas.md)
 6. [Descobrindo vagas (discovery)](06-descobrindo-vagas.md)
+7. [Sequência sugerida de uso](07-sequencia-de-uso.md)
 
 [English version](../en/README.md)

@@ -6,5 +6,6 @@
 4. [Setting up Ollama (local AI)](04-setting-up-ollama.md)
 5. [Setting up remote LLMs](05-setting-up-remote-llms.md)
 6. [Discovering jobs (discovery)](06-discovering-jobs.md)
+7. [Suggested usage sequence](07-usage-sequence.md)
 
 [Portuguese version](../pt-BR/README.md)
