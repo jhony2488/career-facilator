@@ -6,7 +6,7 @@ Thanks for contributing! This document defines the project's workflow, style and
 
 ## Workflow
 
-1. **Fork + branch:** branch off `main` named `feat/`, `fix/`, `docs/`, or `chore/` + short description (e.g. `feat/triage-fallback`).
+1. **Fork + branch:** branch off `master` named `feat/`, `fix/`, `docs/`, or `chore/` + short description (e.g. `feat/triage-fallback`).
 2. **TDD first:** `__tests__/` is the executable spec — write/adjust the test before the implementation.
 3. **Before implementing a module**, read the matching doc in `docs/en/` and the `.feature` in `feature/`, and check `feature/DECISOES.md` for pending decisions.
 4. **Verify locally** before opening a PR:

@@ -44,7 +44,7 @@
 - **Orquestração & Roteamento de IA:** Vercel AI SDK (`ai`) + `zod` (para Structured Outputs garantidos sem alucinação de formato)
 - **Provedores de IA (Roteamento Híbrido):**
   - *Local / Triagem:* Ollama (`qwen2.5:7b` / `llama3.2`) e/ou `@huggingface/transformers` (embeddings locais)
-  - *Nuvem Otimizada:* Groq / Gemini Flash / Claude Haiku (com `cacheControl` ativado)
+  - *Nuvem Otimizada:* qualquer endpoint OpenAI-compatível via `openaiCompatibleClient` — deepseek / groq / openai / kimi / openrouter / together / gemini-compat (`<P>_BASE_URL` p/ outros); Anthropic/Gemini nativos seguem sem adapter
 - **Banco de Dados Local-First:** SQLite via `node:sqlite` builtin do Node 22+ (sem dep nativa — viabiliza exe single-file; controle de estado, histórico de vagas, logs de tokens gastos)
 - **Geração de Currículo PDF:** `puppeteer` ou `@react-pdf/renderer` (templates HTML/CSS limpos otimizados para leitura por sistemas ATS)
 

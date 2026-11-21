@@ -4,7 +4,7 @@ Sistema autônomo de prospecção, triagem semântica, adaptação de currículo
 
 Versão em português do README. [English version (README-en.md)](README-en.md).
 
-> **Status:** especificação completa + implementação — suites Jest verdes e client Ollama real funcionando (streaming + JSON estruturado). Discovery roda com APIs/RSS públicas; SMTP via nodemailer e WhatsApp via Evolution API conectados; Playwright ainda não conectado (ver [Limitações atuais](#limitações-atuais)).
+> **Status:** especificação completa + implementação — suites Jest verdes e client Ollama real + providers OpenAI-compatíveis funcionando (streaming + JSON estruturado). Discovery roda com APIs/RSS públicas; SMTP via nodemailer e WhatsApp via Evolution API conectados; Playwright ainda não conectado (ver [Limitações atuais](#limitações-atuais)).
 
 ## O que é
 
@@ -36,19 +36,19 @@ Copy-Item .env.example .env    # depois edite .env
 Providers e modelos são configurados **por tier** via `.env` — sem tocar em código:
 
 ```env
-AI_LOCAL_PROVIDER=ollama     # triagem barata  → qualquer modelo local
+AI_LOCAL_PROVIDER=ollama      # triagem barata  → qualquer modelo local
 AI_LOCAL_MODEL=hermes3:latest
-AI_FAST_PROVIDER=ollama      # fallback rápido
+AI_FAST_PROVIDER=ollama       # fallback rápido
 AI_FAST_MODEL=hermes3:latest
-AI_SMART_PROVIDER=anthropic  # raciocínio + prompt cache
-AI_SMART_MODEL=claude-haiku-4-5
-ANTHROPIC_API_KEY=sk-ant-...
+AI_SMART_PROVIDER=deepseek    # raciocínio + prompt cache
+AI_SMART_MODEL=deepseek-chat  # default do provider (~$0.60/dia p/ 100 envios)
+DEEPSEEK_API_KEY=sk-...
 
 # tuning opcional: OLLAMA_KEEP_ALIVE, AI_TEMPERATURE, AI_NUM_PREDICT,
 # AI_EMBEDDINGS_ENABLED (RAG semântico via nomic-embed-text), LEXICAL_MIN_TERMS
 ```
 
-Providers válidos: `ollama`, `groq`, `anthropic`, `openai`, `kimi`, `gemini` (ou qualquer outro nome — a chave é lida de `<PROVIDER>_API_KEY`, o modelo de `<PROVIDER>_MODEL` ou `AI_<TIER>_MODEL`). Tudo documentado comentado em `.env.example`.
+Providers com adapter de geração: `ollama` + **qualquer OpenAI-compatível** — `deepseek`, `groq`, `openai`, `kimi`/`moonshot`, `openrouter`, `together`, `gemini`-compat, ou outro via `<PROVIDER>_BASE_URL` (`openaiCompatibleClient.ts`). A chave é lida de `<PROVIDER>_API_KEY`, o modelo de `<PROVIDER>_MODEL` ou `AI_<TIER>_MODEL`. Anthropic e Gemini **nativos** ainda não têm adapter (o Gemini funciona pelo endpoint OpenAI-compat do Google). Tudo documentado comentado em `.env.example`.
 
 ### Comandos
 
@@ -197,7 +197,7 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, s
 
 ## Limitações atuais
 
-- **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini resolvíveis por `.env`, mas sem adapter — erro explícito ao usar.
+- **Clientes de nuvem**: Ollama funciona de verdade (chat/streaming/embeddings + `format:'json'` + retry); **qualquer provider OpenAI-compatível** também via `openaiCompatibleClient` (`/chat/completions`, SSE streaming, `response_format` json_schema→json_object, métricas `usage` — deepseek/groq/openai/kimi/openrouter/together/gemini-compat ou `<P>_BASE_URL` custom). Anthropic/Gemini nativos seguem sem adapter — erro explícito ao usar.
 - **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão, aceita `jobs.json` (`[{url, html}]`) via `--jobs-file` e cobre fontes `html` sem estrutura via fallback genérico com LLM (`DISCOVERY_USE_GENERIC_FALLBACK`; modelo = `DISCOVERY_GENERIC_MODEL` ou herda `AI_LOCAL_*`, provider ollama) e fontes `search` via buscador (DDG/Bing + fallback anti-bot por query). Formulário web conectado via Playwright — `pageFactory(url)` abre a vaga em Chromium lazy (`AUTOFILL_HEADLESS`, `AUTOFILL_PROFILE_DIR` p/ reaproveitar logins), inspeciona campos (`pageInspector`), preenche com perfil + respostas IA (`executeLiveFill`), navega wizards multi-etapas e submete ou pausa conforme a régua (`AUTO_SUBMIT`/`PAUSE_BEFORE_SUBMIT`); CAPTCHA/OTP/erro de validação escalonam p/ NEEDS_HUMAN_INPUT.
 - **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.

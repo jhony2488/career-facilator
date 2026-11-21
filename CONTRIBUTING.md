@@ -6,7 +6,7 @@ Obrigado por contribuir! Este documento define as regras de fluxo, estilo e qual
 
 ## Fluxo de trabalho
 
-1. **Fork + branch:** crie uma branch a partir de `main` com nome `feat/`, `fix/`, `docs/` ou `chore/` + descrição curta (ex.: `feat/triage-fallback`).
+1. **Fork + branch:** crie uma branch a partir de `master` com nome `feat/`, `fix/`, `docs/` ou `chore/` + descrição curta (ex.: `feat/triage-fallback`).
 2. **TDD primeiro:** `__tests__/` é a spec executável — escreva/ajuste o teste antes da implementação.
 3. **Antes de implementar um módulo**, leia o doc correspondente em `docs/pt-BR/` e o `.feature` em `feature/`, e verifique `feature/DECISOES.md`.
 4. **Verifique localmente** antes de abrir PR:
@@ -68,13 +68,14 @@ test(e2e): cobre deferimento por limite diário
 Regras adicionais:
 
 - Commits pequenos e atômicos — uma ideia por commit.
-- Mensagem em **inglês** (código/docs de sistema) ou **português** se o repositório adotar PT — neste projeto usamos inglês nas mensagens.
+- Mensagem em **inglês** (código/docs de sistema) — neste projeto usamos inglês nas mensagens.
 - **Nunca commite segredos** — credenciais SMTP/sessões vivem no cofre AES-256-GCM, nunca no repositório.
 
 ## Estilo de código
 
 - **TypeScript strict** — sem `any` implícito; tipos de domínio preferem `type`/`interface` exportados.
 - **ESLint + Prettier** são a fonte da verdade de estilo: rode `npm run lint` e `npm run format` antes de commitar (ou configure format-on-save no editor com `.editorconfig`).
+- **CI:** `.github/workflows/ci.yml` roda lint + `format:check` + `tsc --noEmit` + `test:unit`/`test:integration`/`test:e2e` em push ao `master` e em PRs — commits vermelhos na esteira precisam ser corrigidos antes do merge.
 - **Injeção de dependências:** módulos nunca importam Playwright, SMTP ou SDKs de LLM diretamente em código testável — recebem por `deps`.
 - **Anti-fabricação (doc 13):** nenhum dado do perfil do usuário pode ser inferido/inventado — campos ausentes ficam `NÃO_INFORMADO`/`null`.
 - **Human-in-the-loop:** nenhum fluxo pode enviar candidatura sem respeitar o modo de execução configurado.

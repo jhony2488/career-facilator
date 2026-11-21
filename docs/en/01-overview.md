@@ -13,7 +13,7 @@ Unlike naive approaches that send the entire page HTML to an expensive LLM for e
 
 ## Layer 1 — Lightweight / Local Models (Low Cost / High Speed)
 
-- Uses local quantized models (Ollama / ONNX) with fallbacks to ultra-fast APIs (e.g.: Groq / Llama-3-8B / Gemini Flash-Lite)
+- Uses local quantized models (Ollama / ONNX) with fallbacks to cheap OpenAI-compatible APIs (e.g.: DeepSeek / Groq / OpenRouter)
 - Extracts structured requirements in JSON (Structured Outputs) and calculates the **Fit Score**
 - Only jobs with score ≥ 75% advance
 

@@ -13,7 +13,7 @@ Diferente de abordagens ingênuas que enviam o HTML inteiro da página para uma 
 
 ## Camada 1 — Modelos Leves / Locais (Baixo Custo / Alta Velocidade)
 
-- Uso de modelos quantizados locais (Ollama / ONNX) com fallbacks para APIs ultra-rápidas (ex: Groq / Llama-3-8B / Gemini Flash-Lite)
+- Uso de modelos quantizados locais (Ollama / ONNX) com fallbacks para APIs OpenAI-compatíveis baratas (ex: DeepSeek / Groq / OpenRouter)
 - Extrai requisitos estruturados em JSON (Structured Outputs) e calcula o **Fit Score**
 - Apenas vagas com score ≥ 75% avançam
 

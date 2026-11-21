@@ -4,7 +4,7 @@
 
 **CareerFacilator AI (TypeScript Edition)** — sistema autônomo de prospecção, triagem semântica, adaptação de currículos e candidatura assistida a vagas de emprego, com foco em otimização de custo de inferência (funil determinístico → modelos leves → modelos de raciocínio com prompt caching).
 
-**Estado atual:** especificação + implementação de `src/` — suites Jest passam (unit + integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM, WhatsApp (fila/Evolution API) e formulário web via Playwright (`pageInspector` + `playwrightExecutor` — `pageFactory(url)` real) conectados. Ollama funciona de verdade via `import`/`run`. Discovery roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + registry de 145 fontes; fontes `html` usam fallback genérico HTML+LLM (`DISCOVERY_USE_GENERIC_FALLBACK`, modelo via `DISCOVERY_GENERIC_MODEL` ou herança do tier `AI_LOCAL_*`); adapters ATS/LinkedIn (sessão) seguem stub; dorks orgânicos rodam via `searchAdapter` (DDG/Bing + fallback por query).
+**Estado atual:** especificação + implementação de `src/` — suites Jest passam (unit + integration + e2e). SMTP real via nodemailer + cofre AES-256-GCM, WhatsApp (fila/Evolution API) e formulário web via Playwright (`pageInspector` + `playwrightExecutor` — `pageFactory(url)` real) conectados. Ollama funciona de verdade via `import`/`run`; providers remotos OpenAI-compatíveis também (`openaiCompatibleClient` — deepseek/groq/openai/kimi/moonshot/openrouter/together/gemini-compat + `<P>_BASE_URL` custom; Anthropic/Gemini nativos sem adapter). Discovery roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`) + registry de 145 fontes; fontes `html` usam fallback genérico HTML+LLM (`DISCOVERY_USE_GENERIC_FALLBACK`, modelo via `DISCOVERY_GENERIC_MODEL` ou herança do tier `AI_LOCAL_*`); adapters ATS/LinkedIn (sessão) seguem stub; dorks orgânicos rodam via `searchAdapter` (DDG/Bing + fallback por query).
 
 ## Onde encontrar as coisas
 
@@ -57,7 +57,7 @@
 
 ## Stack planejada (quando implementar)
 
-Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod · `node:sqlite` builtin (sem dep nativa — viabiliza exe single-file) · Ollama (triagem local) + Groq/Gemini/Claude Haiku (nuvem com cache)
+Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod · `node:sqlite` builtin (sem dep nativa — viabiliza exe single-file) · Ollama (triagem local) + providers OpenAI-compatíveis via `openaiCompatibleClient` (deepseek/groq/openai/kimi/openrouter/together; Anthropic/Gemini nativos sem adapter)
 
 ## Testes (`__tests__/`)
 

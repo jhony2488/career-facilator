@@ -36,19 +36,19 @@ Copy-Item .env.example .env    # then edit .env
 Providers and models are configured **per tier** via `.env` — no need to touch code:
 
 ```env
-AI_LOCAL_PROVIDER=ollama     # cheap triage → any local model
+AI_LOCAL_PROVIDER=ollama      # cheap triage → any local model
 AI_LOCAL_MODEL=hermes3:latest
-AI_FAST_PROVIDER=ollama      # fast fallback
+AI_FAST_PROVIDER=ollama       # fast fallback
 AI_FAST_MODEL=hermes3:latest
-AI_SMART_PROVIDER=anthropic  # reasoning + prompt cache
-AI_SMART_MODEL=claude-haiku-4-5
-ANTHROPIC_API_KEY=sk-ant-...
+AI_SMART_PROVIDER=deepseek    # reasoning + prompt cache
+AI_SMART_MODEL=deepseek-chat  # provider default (~$0.60/day for 100 sends)
+DEEPSEEK_API_KEY=sk-...
 
 # optional tuning: OLLAMA_KEEP_ALIVE, AI_TEMPERATURE, AI_NUM_PREDICT,
 # AI_EMBEDDINGS_ENABLED (semantic RAG via nomic-embed-text), LEXICAL_MIN_TERMS
 ```
 
-Valid providers: `ollama`, `groq`, `anthropic`, `openai`, `kimi`, `gemini` (or any other name — the key is read from `<PROVIDER>_API_KEY`, the model from `<PROVIDER>_MODEL` or `AI_<TIER>_MODEL`). All documented in `.env.example`.
+Providers with a generation adapter: `ollama` + **any OpenAI-compatible** — `deepseek`, `groq`, `openai`, `kimi`/`moonshot`, `openrouter`, `together`, `gemini`-compat, or any other via `<PROVIDER>_BASE_URL` (`openaiCompatibleClient.ts`). The key is read from `<PROVIDER>_API_KEY`, the model from `<PROVIDER>_MODEL` or `AI_<TIER>_MODEL`. Native Anthropic and Gemini adapters do not exist yet (Gemini works through Google's OpenAI-compat endpoint). All documented in `.env.example`.
 
 ### Commands
 
@@ -197,7 +197,7 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, n
 
 ## Current limitations
 
-- **Cloud clients:** Ollama works for real (chat/streaming/embeddings + `format:'json'` + retry). Groq/Anthropic/OpenAI/Kimi/Gemini are resolvable via `.env`, but without an adapter — explicit error when used.
+- **Cloud clients:** Ollama works for real (chat/streaming/embeddings + `format:'json'` + retry); **any OpenAI-compatible provider** works too via `openaiCompatibleClient` (`/chat/completions`, SSE streaming, `response_format` json_schema→json_object, usage metrics — deepseek/groq/openai/kimi/openrouter/together/gemini-compat or custom `<P>_BASE_URL`). Native Anthropic/Gemini adapters still missing — explicit error when used.
 - **Discovery/browser:** `run` uses public API/RSS sources by default, still accepts `jobs.json` (`[{url, html}]`) via `--jobs-file`, and covers `html` sources without structure through the generic LLM fallback (`DISCOVERY_USE_GENERIC_FALLBACK`; model = `DISCOVERY_GENERIC_MODEL` or inherits `AI_LOCAL_*`, ollama provider) and `search` sources via search engine (DDG/Bing + per-query anti-bot fallback); Web forms are handled via Playwright — `pageFactory(url)` opens the job in a lazy Chromium (`AUTOFILL_HEADLESS`, `AUTOFILL_PROFILE_DIR` to reuse your logins), inspects fields (`pageInspector`), fills them with profile + AI answers (`executeLiveFill`), walks multi-step wizards, and submits or pauses per the score gate (`AUTO_SUBMIT`/`PAUSE_BEFORE_SUBMIT`); CAPTCHA/OTP/validation errors escalate to NEEDS_HUMAN_INPUT.
 - **Channels:** real e-mail via nodemailer + AES-256-GCM vault (`vault set smtp-main`, docs/pt-BR/14); WhatsApp via manual queue or Evolution API (docs/pt-BR/15).
 - **`import` without Ollama:** requires `ollama serve` + `ollama pull <model>`; without a configured client it only generates a minimal draft.

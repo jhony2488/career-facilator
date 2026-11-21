@@ -44,7 +44,7 @@
 - **AI Orchestration & Routing:** Vercel AI SDK (`ai`) + `zod` (for guaranteed Structured Outputs without format hallucination)
 - **AI Providers (Hybrid Routing):**
   - *Local / Triage:* Ollama (`qwen2.5:7b` / `llama3.2`) and/or `@huggingface/transformers` (local embeddings)
-  - *Optimized Cloud:* Groq / Gemini Flash / Claude Haiku (with `cacheControl` enabled)
+  - *Optimized Cloud:* any OpenAI-compatible endpoint via `openaiCompatibleClient` — deepseek / groq / openai / kimi / openrouter / together / gemini-compat (`<P>_BASE_URL` for others); native Anthropic/Gemini adapters still missing
 - **Local-First Database:** SQLite via `node:sqlite` builtin on Node 22+ (no native dep — enables single-file exe; state control, job history, spent token logs)
 - **PDF Resume Generation:** `puppeteer` or `@react-pdf/renderer` (clean HTML/CSS templates optimized for parsing by ATS systems)
 
