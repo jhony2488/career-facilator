@@ -229,11 +229,18 @@ export function mergeSnapshots(
 
 /** Hosts de ATS conhecidos — link pra eles é quase certamente o form real. */
 const ATS_HOST_RE =
-  /greenhouse|lever\.co|ashbyhq|workable|workday|myworkday|gupy|smartrecruiters|breezy\.hr|recruitee|personio|teamtailor|rippling|icims|jobvite|taleo|eightfold|successfactors|bamboohr|pinpoint/i;
+  /greenhouse|lever\.co|ashbyhq|workable|workday|myworkday|gupy|smartrecruiters|breezy\.hr|recruitee|personio|teamtailor|rippling|icims|jobvite|taleo|eightfold|successfactors|bamboohr|pinpoint|join\.com/i;
 
 /** Texto de link/botão de candidatura (EN/PT/ES/DE) — curto o bastante p/ ser CTA. */
 const APPLY_TEXT_RE =
   /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|bewerb|enviar curr[ií]culo/i;
+
+/**
+ * Path que é destino de candidatura por definição — cobre links com texto
+ * genérico ("company portal", "view job") apontando p/ /apply, /bewerben…
+ */
+const APPLY_PATH_RE =
+  /\/(apply|apply-now|application|candidat|postul|inscri|aplica|bewerb|vacature|jobs\/apply)([/?#-]|$)/i;
 
 const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
 
@@ -253,6 +260,7 @@ export function pickApplyTarget(
     return null;
   }
   let atsHit: string | null = null;
+  let pathHit: string | null = null;
   let textHit: string | null = null;
   for (const c of candidates) {
     const href = c.href.trim();
@@ -270,12 +278,16 @@ export function pickApplyTarget(
       if (!atsHit) atsHit = abs;
       continue;
     }
+    if (APPLY_PATH_RE.test(u.pathname)) {
+      if (!pathHit) pathHit = abs;
+      continue;
+    }
     const text = c.text.trim();
     if (text && text.length <= 80 && APPLY_TEXT_RE.test(text)) {
       if (!textHit) textHit = abs;
     }
   }
-  return atsHit ?? textHit;
+  return atsHit ?? pathHit ?? textHit;
 }
 
 /**
@@ -318,7 +330,12 @@ export async function followApplyLink(page: Page): Promise<LivePageState | null>
   try {
     if (target) {
       await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      const state = await inspectDom(page).catch(() => null);
+      let state = await inspectDom(page).catch(() => null);
+      // Widget/iframe de candidatura lazy — respiro p/ montar e 1 re-inspect.
+      if (state && state.fields.length === 0) {
+        await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
+        state = await inspectDom(page).catch(() => null);
+      }
       return state && state.fields.length ? state : null;
     }
     if (!found.hasButton) return null;
@@ -384,5 +401,12 @@ export async function inspectDom(page: Page, url?: string): Promise<LivePageStat
 export async function inspectPage(page: Page, url: string): Promise<LivePageState> {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await page.waitForTimeout(800); // SPA precisa de um respiro p/ renderizar o form
-  return inspectDom(page, url);
+  let state = await inspectDom(page, url);
+  // Widget/iframe de apply tardio (ex.: form embutido da arbeitnow): sem
+  // campos no primeiro pass, espera rede acalmar e re-inspeciona uma vez.
+  if (state.fields.length === 0) {
+    await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
+    state = await inspectDom(page, url);
+  }
+  return state;
 }

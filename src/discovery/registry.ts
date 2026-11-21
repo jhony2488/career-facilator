@@ -332,6 +332,15 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     url: 'https://programathor.com.br/jobs',
     notes: 'Listagem pública; extrai via fallback genérico HTML+LLM.',
   },
+  gupy: {
+    category: 'brasil',
+    name: 'Gupy',
+    adapter: 'html',
+    enabled: false,
+    url: 'https://portal.gupy.io/job-search',
+    notes:
+      'API api.gupy.io exige auth (401); portal público é SPA — extrai via fallback genérico HTML+LLM, best-effort.',
+  },
   getonbrd: {
     category: 'latam',
     name: 'Get on Board',

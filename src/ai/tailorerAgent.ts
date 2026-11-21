@@ -10,6 +10,11 @@ export interface TailorInput {
    * substitui o dump JSON completo — essencial para modelos pequenos (3B).
    */
   profileContext?: string;
+  /**
+   * Idioma alvo do currículo e das respostas (resolveLocale do scope da vaga —
+   * INTERNATIONAL → en-US). Ausente = idioma do perfil.
+   */
+  resumeLanguage?: 'pt-BR' | 'en-US';
 }
 
 export interface TailoredAssets {
@@ -49,6 +54,13 @@ export async function tailorResume(input: TailorInput, deps: TailorDeps): Promis
     'You are a resume tailoring engine. Adapt the master profile to the job.',
     'NEVER invent skills, experiences or metrics absent from the master profile.',
     'Only reorder, rephrase and emphasize what exists.',
+    ...(input.resumeLanguage
+      ? [
+          `Write resumeMarkdown and all answer values in ${
+            input.resumeLanguage === 'en-US' ? 'English' : 'Portuguese'
+          }.`,
+        ]
+      : []),
     '',
     input.profileContext
       ? `<master_profile_relevant>\n${input.profileContext}\n</master_profile_relevant>`

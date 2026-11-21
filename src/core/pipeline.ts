@@ -254,6 +254,7 @@ export async function runApplicationPipeline(
           skillsBlock,
           profile,
           profileContext: buildProfileContext(relevantChunks),
+          resumeLanguage: resolveLocale(scope, config).resumeLanguage,
         },
         { model: deps.tailorModel },
       );
