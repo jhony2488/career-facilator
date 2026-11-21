@@ -203,7 +203,7 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     target: 'BOTH',
     national: {
       enabled: true,
-      workModels: ['REMOTE'],
+      workModels: ['REMOTE', 'HYBRID'],
       allowedCities: ['Recife', 'Jaboatão dos Guararapes'],
       contracts: ['PJ', 'CLT'],
       salaryExpectationBRL: 10000,
