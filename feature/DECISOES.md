@@ -96,3 +96,8 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 14 | Filtro de título em posts LinkedIn | `adapterConfig.titleFilter` — off em `linkedin-posts` |
 
 | 15 | Página de vaga sem formulário | Segue link/botão de candidatura (1 hop, prefere host de ATS conhecido); sem destino, cai no canal de mensagem/revisão |
+
+| 16 | Queries das APIs de discovery | Derivam da config (geo=DISCOVERY_REGIONS, count=limite/fonte, paginação automática) — sem env dedicado |
+| 17 | URL carregada no pipeline | Link de candidatura da fonte (pply_url/pplicationLink/it.url) preferido sobre a página da listagem |
+
+| 18 | Repos GitHub de vagas BR | Issues abertas via API pi (1 request/repo); labels mapeiam workModel/contractType; PRs ignorados |
