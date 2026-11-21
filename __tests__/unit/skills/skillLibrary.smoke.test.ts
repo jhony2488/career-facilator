@@ -8,7 +8,11 @@ const LIB = join(__dirname, '../../../src/skills/library');
 describe('skills/library — real library loads and selects', () => {
   it('indexes the 3 skills from doc 05', async () => {
     const lib = await loadSkillRegistry(LIB);
-    expect(lib.map((s) => s.id).sort()).toEqual(['ai-engineer', 'fullstack-ts', 'international-remote']);
+    expect(lib.map((s) => s.id).sort()).toEqual([
+      'ai-engineer',
+      'fullstack-ts',
+      'international-remote',
+    ]);
     for (const s of lib) expect(s.triggers.length).toBeGreaterThan(3);
   });
 

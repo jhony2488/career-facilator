@@ -2,10 +2,12 @@ import { renderTemplate } from '../../../src/utils/textTemplate';
 
 describe('renderTemplate — shared message template engine (docs 11/15)', () => {
   it('replaces {{placeholder}} with the provided value', () => {
-    expect(renderTemplate('Hi {{name}}, applied for {{jobTitle}}.', {
-      name: 'Ana',
-      jobTitle: 'Dev',
-    })).toBe('Hi Ana, applied for Dev.');
+    expect(
+      renderTemplate('Hi {{name}}, applied for {{jobTitle}}.', {
+        name: 'Ana',
+        jobTitle: 'Dev',
+      }),
+    ).toBe('Hi Ana, applied for Dev.');
   });
 
   it('drops a line whose only placeholders are empty — nothing is invented', () => {
@@ -16,10 +18,10 @@ describe('renderTemplate — shared message template engine (docs 11/15)', () =>
   });
 
   it('drops a line whose placeholders all resolve empty', () => {
-    const out = renderTemplate(
-      'LinkedIn: {{linkedin}}\nGitHub: {{github}}\n{{fullName}}',
-      { github: 'https://github.com/x', fullName: 'Ana' },
-    );
+    const out = renderTemplate('LinkedIn: {{linkedin}}\nGitHub: {{github}}\n{{fullName}}', {
+      github: 'https://github.com/x',
+      fullName: 'Ana',
+    });
     expect(out).toBe('GitHub: https://github.com/x\nAna');
   });
 

@@ -8,7 +8,11 @@ import { makeJob, makeMasterProfile, makeSkill, makeConfig } from '../helpers/fa
 import { mockRepo, mockEvolutionTransport } from '../helpers/mocks';
 
 const WA_JOB_TEXT = 'Vaga Dev — envie seu currículo pelo WhatsApp: wa.me/5581999887766';
-const LOCALE = { resumeLanguage: 'pt-BR' as const, currency: 'BRL' as const, salaryExpectation: 10000 };
+const LOCALE = {
+  resumeLanguage: 'pt-BR' as const,
+  currency: 'BRL' as const,
+  salaryExpectation: 10000,
+};
 
 describe('WhatsApp application: resolve → compose → queue/send → record', () => {
   const profile = makeMasterProfile();
@@ -74,7 +78,10 @@ describe('WhatsApp application: resolve → compose → queue/send → record', 
 
     expect(result.status).toBe('APPLIED_VIA_WHATSAPP');
     expect(result.sent).toBe(true);
-    expect(transport.sendText).toHaveBeenCalledWith('5581999887766', expect.stringContaining('Bom dia'));
+    expect(transport.sendText).toHaveBeenCalledWith(
+      '5581999887766',
+      expect.stringContaining('Bom dia'),
+    );
     expect(transport.sendDocument).toHaveBeenCalledWith(
       '5581999887766',
       expect.any(String),

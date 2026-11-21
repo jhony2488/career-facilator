@@ -31,8 +31,7 @@ describe('resolveWhatsappRecipient — number extraction + cooldown (doc 15)', (
     repo.hasWhatsappSentTo.mockResolvedValueOnce(true);
     const recipient = await resolveWhatsappRecipient(
       {
-        descriptionMarkdown:
-          'WhatsApp: wa.me/5581111111111\nOu então wa.me/5581999887766',
+        descriptionMarkdown: 'WhatsApp: wa.me/5581111111111\nOu então wa.me/5581999887766',
       },
       { repo },
     );

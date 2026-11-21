@@ -53,7 +53,10 @@ describe('loadCareerOpsConfig — model resolution via env', () => {
   it('Ollama gets a default baseUrl; AI_<T>_BASE_URL and <P>_BASE_URL override it', () => {
     const cfg = loadCareerOpsConfig(empty);
     expect(cfg.ai.local.baseUrl).toBe('http://localhost:11434');
-    const custom = loadCareerOpsConfig({ env: { OLLAMA_BASE_URL: 'http://gpu:11434' }, envFile: '' });
+    const custom = loadCareerOpsConfig({
+      env: { OLLAMA_BASE_URL: 'http://gpu:11434' },
+      envFile: '',
+    });
     expect(custom.ai.local.baseUrl).toBe('http://gpu:11434');
   });
 

@@ -36,7 +36,17 @@ describe('chunkProfile', () => {
   it('produces labeled chunks for all sections', () => {
     const chunks = chunkProfile(profile);
     const sections = new Set(chunks.map((c) => c.section));
-    for (const s of ['personal', 'summary', 'coreStack', 'standardAnswers', 'languages', 'experiences', 'projects', 'openSourceProjects', 'education']) {
+    for (const s of [
+      'personal',
+      'summary',
+      'coreStack',
+      'standardAnswers',
+      'languages',
+      'experiences',
+      'projects',
+      'openSourceProjects',
+      'education',
+    ]) {
       expect(sections).toContain(s);
     }
     expect(chunks.filter((c) => c.section === 'experiences')).toHaveLength(2);
@@ -70,7 +80,10 @@ describe('retrieveRelevant — lexical', () => {
   });
 
   it('query with no overlap → skeleton only', () => {
-    const out = retrieveRelevant(chunks, { keywords: ['kubernetes-xyz'], jobText: 'cobol fortran' });
+    const out = retrieveRelevant(chunks, {
+      keywords: ['kubernetes-xyz'],
+      jobText: 'cobol fortran',
+    });
     expect(out.every((c) => ALWAYS_INCLUDE.includes(c.section))).toBe(true);
   });
 });
