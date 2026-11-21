@@ -89,3 +89,7 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
 # habilitado; desabilitado, são ignoradas com aviso — nunca quebram o ciclo.
 # Decisão: o modelo do extrator é o dedicado configurado ou, vazio, o tier leve
 # já configurado (AI_LOCAL_*); campos ausentes ficam vazios — nada é inventado.
+# Decisão: buscas estruturadas rodam em motor de busca público configurável
+# (DISCOVERY_SEARCH_ENGINE); desligado, a fonte de busca é ignorada com aviso.
+# Decisão: resultados de buscador que o motor alarga além do domínio-alvo são
+# descartados — só links do domínio declarado na busca entram.
