@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 storage/*
+vault/*
 tmp/
 *.local
 career.exe
