@@ -130,12 +130,12 @@ describe('pickApplyTarget — apply link selection', () => {
   });
 
   it('follows localized apply paths beyond English', () => {
-    expect(
-      pickApplyTarget([{ text: 'ver mais', href: '/postuler/offre/7' }], base),
-    ).toBe('https://company.example/postuler/offre/7');
-    expect(
-      pickApplyTarget([{ text: 'saiba mais', href: '/trabalhe-conosco/dev' }], base),
-    ).toBe('https://company.example/trabalhe-conosco/dev');
+    expect(pickApplyTarget([{ text: 'ver mais', href: '/postuler/offre/7' }], base)).toBe(
+      'https://company.example/postuler/offre/7',
+    );
+    expect(pickApplyTarget([{ text: 'saiba mais', href: '/trabalhe-conosco/dev' }], base)).toBe(
+      'https://company.example/trabalhe-conosco/dev',
+    );
   });
 
   it('recognizes join.com as an ATS host', () => {

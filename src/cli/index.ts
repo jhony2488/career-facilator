@@ -1,9 +1,9 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
- * CLI do CareerFacilator AI â€” entrypoint.
+ * CLI do CareerFacilator AI — entrypoint.
  *
  *   career-facilitator                              # Shell interativo (prompt career>)
- *   career-facilitator import --pdf <caminho>       # IngestÃ£o de perfil via LLM local (doc 13)
+ *   career-facilitator import --pdf <caminho>       # Ingestão de perfil via LLM local (doc 13)
  *   career-facilitator import --inbox [--watch]     # Varre/monitora storage/profile_inbox/
  *   career-facilitator run --jobs-file <json> [--dry-run]
  *   career-facilitator review                       # Fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW
@@ -55,14 +55,14 @@ import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
 
-// No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) â€”
-// stderr limpo p/ usuÃ¡rio do binÃ¡rio. Em dev (tsx) os warnings continuam.
+// No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) —
+// stderr limpo p/ usuário do binário. Em dev (tsx) os warnings continuam.
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- detecÃ§Ã£o sÃ­ncrona de SEA (import() Ã© assÃ­ncrono demais para este ponto de entrada)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- detecção síncrona de SEA (import() é assíncrono demais para este ponto de entrada)
   const sea = require('node:sea') as { isSea?: () => boolean };
   if (sea.isSea?.()) process.removeAllListeners('warning');
 } catch {
-  /* node:sea indisponÃ­vel â€” execuÃ§Ã£o normal */
+  /* node:sea indisponível — execução normal */
 }
 
 const argv = process.argv.slice(2);
@@ -75,7 +75,7 @@ const HELP = [
   'Comandos:',
   '',
   '  Perfil',
-  '    import --pdf <arquivo>                  Estrutura um CV em PDF â†’ profile.draft.md',
+  '    import --pdf <arquivo>                  Estrutura um CV em PDF → profile.draft.md',
   '    import --inbox [--watch] [--replace]    Processa PDFs pendentes da inbox',
   '    approve                                 Promove o rascunho a perfil-mestre',
   '',
@@ -84,34 +84,34 @@ const HELP = [
   '                                          Lista/exporta vagas descobertas (--dry-run lista fontes)',
   '    scan <source-id> [--max-jobs N]         Testa uma fonte e imprime amostras',
   '    run [--jobs-file <json>] [--sources id1,id2] [--max-jobs N] [--dry-run] [--verbose]',
-  '                                          Descobre vagas (ou lÃª jobs.json) e roda o funil',
+  '                                          Descobre vagas (ou lê jobs.json) e roda o funil',
   '',
-  '  RevisÃ£o e estado',
+  '  Revisão e estado',
   '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
   '    status                                  Contagens por status no jobs.sqlite',
   '    applied [--limit N]                     Candidaturas enviadas (total por canal, hoje, recentes)',
   '',
-  '  ConfiguraÃ§Ã£o e canais',
+  '  Configuração e canais',
   '    config [path|init|get|set|unset|check]  Config global + preflight dos tiers de IA',
   '    vault [list|set|remove <ref>]           Cofre de credenciais (SMTP etc.)',
-  '    whatsapp [setup|status]                 Evolution API: instÃ¢ncia + QR no terminal',
+  '    whatsapp [setup|status]                 Evolution API: instância + QR no terminal',
   '',
   '  Outros',
-  '    version                                 VersÃ£o da build',
+  '    version                                 Versão da build',
   '    help                                    Esta ajuda',
   '    exit                                    Sai do shell interativo',
 ].join('\n');
 
-/** Contexto de execuÃ§Ã£o de um comando â€” cancelamento + perguntas interativas. */
+/** Contexto de execução de um comando — cancelamento + perguntas interativas. */
 interface CmdCtx {
   signal?: AbortSignal;
-  /** SÃ³ no REPL: pergunta sim/nÃ£o ao usuÃ¡rio. */
+  /** Só no REPL: pergunta sim/não ao usuário. */
   ask?: (question: string) => Promise<string>;
 }
 
-/** Template mÃ­nimo gravado por `config init` â€” sem chaves reais. */
-const ENV_TEMPLATE = `# CareerFacilator AI â€” configuraÃ§Ã£o global (gerada por 'config init')
-# ReferÃªncia completa: .env.example no repositÃ³rio.
+/** Template mínimo gravado por `config init` — sem chaves reais. */
+const ENV_TEMPLATE = `# CareerFacilator AI — configuração global (gerada por 'config init')
+# Referência completa: .env.example no repositório.
 EXECUTION_MODE=HYBRID_THRESHOLD
 AI_LOCAL_PROVIDER=ollama
 AI_LOCAL_MODEL=qwen2.5:7b
@@ -124,17 +124,17 @@ OLLAMA_BASE_URL=http://localhost:11434
 # ANTHROPIC_API_KEY=
 `;
 
-/** Erro de uso/entrada â€” impresso sem stack; no shell nÃ£o derruba o REPL. */
+/** Erro de uso/entrada — impresso sem stack; no shell não derruba o REPL. */
 class CliError extends Error {}
 
-/** RejeiÃ§Ã£o de AbortSignal â€” Ctrl+C ou timeout. */
+/** Rejeição de AbortSignal — Ctrl+C ou timeout. */
 const isAbortError = (err: unknown): boolean => err instanceof Error && err.name === 'AbortError';
 
 const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
 
 /**
- * Recursos que seguram o processo vivo (fs.watch etc.) â€” precisam de dispose
- * explÃ­cito pra Ctrl+C/exit realmente encerrar tudo.
+ * Recursos que seguram o processo vivo (fs.watch etc.) — precisam de dispose
+ * explícito pra Ctrl+C/exit realmente encerrar tudo.
  */
 const cleanups = new Set<() => void>();
 const registerCleanup = (cb: () => void): void => {
@@ -155,7 +155,7 @@ const runCleanups = (): void => {
 const streamTokens = (args: string[]) =>
   args.includes('--verbose') ? (t: string) => process.stdout.write(t) : undefined;
 
-/** Progresso silencioso: '.' a cada ~32 chars de token â€” mostra que o modelo estÃ¡ gerando. */
+/** Progresso silencioso: '.' a cada ~32 chars de token — mostra que o modelo está gerando. */
 const dotsTokens = (() => {
   let pending = 0;
   return (t: string) => {
@@ -170,19 +170,19 @@ const dotsTokens = (() => {
 /** Callback de tokens: --verbose mostra o stream; sem ele, pontinhos de progresso. */
 const tokenSink = (args: string[]) => streamTokens(args) ?? dotsTokens;
 
-/** RaciocÃ­nio do modelo em cinza (dim) â€” --thinking ou AI_THINK_ENABLED=true. */
+/** Raciocínio do modelo em cinza (dim) — --thinking ou AI_THINK_ENABLED=true. */
 const thoughtSink = (args: string[]) =>
   args.includes('--thinking') || effEnv.env.AI_THINK_ENABLED === 'true'
     ? (t: string) => process.stdout.write(`\x1b[2m${t}\x1b[0m`)
     : undefined;
 
-/** Linha de mÃ©tricas ao fim de cada chamada de modelo (provider-agnÃ³stico). */
+/** Linha de métricas ao fim de cada chamada de modelo (provider-agnóstico). */
 const onStage = (s: ModelCallStats): void => {
   const secs = s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : '?';
-  const toks = s.outputTokens !== undefined ? ` Â· ${s.outputTokens} tok` : '';
-  const tps = s.tokensPerSecond ? ` Â· ${s.tokensPerSecond} tok/s` : '';
-  const load = s.loadDurationMs ? ` Â· carga ${(s.loadDurationMs / 1000).toFixed(1)}s` : '';
-  console.log(`\n  âœ“ ${s.stage} (${s.provider}/${s.modelId}) ${secs}${toks}${tps}${load}`);
+  const toks = s.outputTokens !== undefined ? ` · ${s.outputTokens} tok` : '';
+  const tps = s.tokensPerSecond ? ` · ${s.tokensPerSecond} tok/s` : '';
+  const load = s.loadDurationMs ? ` · carga ${(s.loadDurationMs / 1000).toFixed(1)}s` : '';
+  console.log(`\n  ✓ ${s.stage} (${s.provider}/${s.modelId}) ${secs}${toks}${tps}${load}`);
 };
 
 const fmtRouting = (r: ModelRouting): string =>
@@ -191,18 +191,16 @@ const fmtRouting = (r: ModelRouting): string =>
 /** Linha de status de um resultado de preflight. */
 function printCheck(r: ProviderCheckResult): void {
   const ms = r.latencyMs ? ` (${r.latencyMs}ms)` : '';
-  const adapter = r.adapterImplemented ? '' : ' â€” geraÃ§Ã£o: adapter ainda nÃ£o implementado';
+  const adapter = r.adapterImplemented ? '' : ' — geração: adapter ainda não implementado';
   if (r.status === 'ok') {
-    console.log(
-      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” OK${ms}${adapter}`,
-    );
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — OK${ms}${adapter}`);
   } else if (r.status === 'skipped') {
     console.log(
-      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” pulado (${r.detail ?? ''})`,
+      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — pulado (${r.detail ?? ''})`,
     );
   } else {
     console.log(
-      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} â€” FALHOU â€” ${r.detail ?? r.status}`,
+      `  ${r.tier.toUpperCase().padEnd(6)} ${fmtRouting(r.routing)} — FALHOU — ${r.detail ?? r.status}`,
     );
   }
 }
@@ -216,7 +214,7 @@ async function requireAiReady(
   tiers: TierKey[],
   ctx: CmdCtx,
 ): Promise<Partial<Record<TierKey, ModelRouting>>> {
-  console.log('Verificando provedores de IAâ€¦');
+  console.log('Verificando provedores de IA…');
   const results = await checkProviders(config, tiers, {
     env: effEnv.env,
     signal: ctx.signal,
@@ -238,7 +236,7 @@ async function requireAiReady(
       );
     }
 
-    // Confere o fallback antes de oferecer â€” nÃ£o adianta sugerir um quebrado.
+    // Confere o fallback antes de oferecer — não adianta sugerir um quebrado.
     const fbCheck = await checkProviders(
       { ...config, ai: { ...config.ai, [r.tier]: fallback } },
       [r.tier],
@@ -248,24 +246,24 @@ async function requireAiReady(
     if (fbCheck[0].status !== 'ok') {
       throw new CliError(
         `${r.tier.toUpperCase()} falhou (${r.detail}) e o fallback ${fmtRouting(fallback)} ` +
-          `tambÃ©m (${fbCheck[0].detail ?? fbCheck[0].status}). Corrija o .env.`,
+          `também (${fbCheck[0].detail ?? fbCheck[0].status}). Corrija o .env.`,
       );
     }
 
-    const question = `  âš  Usar fallback ${fmtRouting(fallback)}? [s/N] `;
+    const question = `  ⚠ Usar fallback ${fmtRouting(fallback)}? [s/N] `;
     if (!ctx.ask || !(await ctx.ask(question)).trim().toLowerCase().startsWith('s')) {
       throw new CliError(
         `${r.tier.toUpperCase()} (${fmtRouting(r.routing)}) falhou: ${r.detail ?? r.status}. ` +
-          `Fallback disponÃ­vel: ${fmtRouting(fallback)} â€” rode no shell interativo p/ escolher, ` +
+          `Fallback disponível: ${fmtRouting(fallback)} — rode no shell interativo p/ escolher, ` +
           `ou ajuste AI_${r.tier.toUpperCase()}_PROVIDER/MODEL no .env.`,
       );
     }
     overrides[r.tier] = fallback;
-    console.log(`  ${r.tier.toUpperCase().padEnd(6)} â†’ usando ${fmtRouting(fallback)}`);
+    console.log(`  ${r.tier.toUpperCase().padEnd(6)} → usando ${fmtRouting(fallback)}`);
   }
 
-  // Modelo ollama jÃ¡ quente? Se nÃ£o, aquece agora (visÃ­vel) em vez de a 1Âª
-  // chamada real travar em silÃªncio.
+  // Modelo ollama já quente? Se não, aquece agora (visível) em vez de a 1ª
+  // chamada real travar em silêncio.
   for (const tier of tiers) {
     const routing = overrides[tier] ?? config.ai[tier];
     if (routing.provider === 'ollama') {
@@ -275,7 +273,7 @@ async function requireAiReady(
   return overrides;
 }
 
-/** Verifica /api/ps; se o modelo nÃ£o estiver na RAM, dispara 1 token p/ carregÃ¡-lo. */
+/** Verifica /api/ps; se o modelo não estiver na RAM, dispara 1 token p/ carregá-lo. */
 async function warmOllamaIfNeeded(routing: ModelRouting, signal?: AbortSignal): Promise<void> {
   const client = createOllamaClient({
     baseUrl: routing.baseUrl,
@@ -284,10 +282,10 @@ async function warmOllamaIfNeeded(routing: ModelRouting, signal?: AbortSignal): 
   const loaded = await client.listLoadedModels();
   const wanted = routing.modelId.includes(':') ? routing.modelId : `${routing.modelId}:latest`;
   if (loaded.some((m) => m === wanted || m === routing.modelId)) {
-    console.log(`  ${routing.modelId} jÃ¡ quente (carregado em RAM)`);
+    console.log(`  ${routing.modelId} já quente (carregado em RAM)`);
     return;
   }
-  process.stdout.write(`  Aquecendo ${routing.modelId}â€¦`);
+  process.stdout.write(`  Aquecendo ${routing.modelId}…`);
   try {
     await client.chat(routing.modelId, [{ role: 'user', content: 'ok' }], {
       options: { num_predict: 1 },
@@ -296,9 +294,9 @@ async function warmOllamaIfNeeded(routing: ModelRouting, signal?: AbortSignal): 
     });
     console.log(' pronto');
   } catch (err) {
-    // warmup Ã© best-effort â€” se falhar, a chamada real carrega o modelo do mesmo jeito
+    // warmup é best-effort — se falhar, a chamada real carrega o modelo do mesmo jeito
     if (isAbortError(err)) throw err;
-    console.log(` falhou (serÃ¡ carregado na 1Âª chamada)`);
+    console.log(` falhou (será carregado na 1ª chamada)`);
   }
 }
 
@@ -311,7 +309,7 @@ function loadMasterProfile(): MasterProfileLike {
   const compiled = config.profile.compiledPath;
   if (!existsSync(compiled)) {
     throw new CliError(
-      `Perfil compilado nÃ£o encontrado em ${compiled} â€” rode 'import --pdf' e aprove o rascunho.`,
+      `Perfil compilado não encontrado em ${compiled} — rode 'import --pdf' e aprove o rascunho.`,
     );
   }
   return JSON.parse(readFileSync(compiled, 'utf8')) as MasterProfileLike;
@@ -322,7 +320,7 @@ function printImportResult(result: InboxItemResult): void {
     console.error(`  ${result.path}: ${result.alert}`);
     return;
   }
-  console.log(`  ${result.path} â†’ rascunho em ${result.draftPath}`);
+  console.log(`  ${result.path} → rascunho em ${result.draftPath}`);
   if (result.conflicts?.length) {
     console.log(`    Conflitos a decidir: ${result.conflicts.map((c) => c.field).join(', ')}`);
   }
@@ -365,29 +363,29 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
       model: clients.structurerModel,
       store,
       scanner: { listPendingPdfs, moveToProcessed },
-      // auditoria: o texto extraÃ­do que a IA de fato viu (anti-hallucination aid)
+      // auditoria: o texto extraído que a IA de fato viu (anti-hallucination aid)
       onExtracted: (text: string, sourcePath?: string) => {
         if (!sourcePath) return;
         const dir = join(dirname(cfg.inboxDir), 'profile_extracts');
         const out = join(dir, `${basename(sourcePath).replace(/\.pdf$/i, '')}.txt`);
         mkdirSync(dir, { recursive: true });
         writeFileSync(out, text, 'utf-8');
-        console.log(`  texto extraÃ­do â†’ ${out}`);
+        console.log(`  texto extraído → ${out}`);
       },
       onFile: (p: string) => {
         if (signal?.aborted) throw abortError();
-        console.log(`Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId}â€¦`);
+        console.log(`Estruturando ${basename(p)} via ${smart.provider}/${smart.modelId}…`);
       },
     };
     const sweep = async () => {
       const inbox = await processInbox({ inboxDir: cfg.inboxDir, mode }, deps);
       if (!inbox.scanned) {
-        console.log('Inbox vazia â€” nenhum PDF pendente.');
+        console.log('Inbox vazia — nenhum PDF pendente.');
         return;
       }
       for (const item of inbox.results) printImportResult(item);
       if (inbox.results.some((r) => r.outcome === 'DRAFT_PENDING_REVIEW')) {
-        console.log(`\nRascunho atualizado em ${cfg.draftPath} â€” revise antes de aprovar.`);
+        console.log(`\nRascunho atualizado em ${cfg.draftPath} — revise antes de aprovar.`);
       }
     };
     await sweep();
@@ -395,7 +393,7 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
     if (watch) {
       const { watch: fsWatch } = await import('node:fs');
       mkdirSync(cfg.inboxDir, { recursive: true });
-      console.log(`\nMonitorando ${cfg.inboxDir} â€” solte PDFs lÃ¡.`);
+      console.log(`\nMonitorando ${cfg.inboxDir} — solte PDFs lá.`);
       let debounce: NodeJS.Timeout | undefined;
       const watcher = fsWatch(cfg.inboxDir, (_event, filename) => {
         if (!filename?.toLowerCase().endsWith('.pdf')) return;
@@ -426,16 +424,16 @@ async function cmdImport(args: string[], ctx: CmdCtx): Promise<void> {
 
   console.log(
     `Estruturando ${resolve(pdfPath as string)} via ${smart.provider}/${smart.modelId} ` +
-      `(1Âª chamada carrega o modelo â€” pode demorar)â€¦`,
+      `(1ª chamada carrega o modelo — pode demorar)…`,
   );
   const result = await importResume(
     { file: { path: pdfPath as string }, mode, source: 'CLI' },
     { reader: createNodePdfReader(), model: clients.structurerModel, store },
   );
   if (result.outcome === 'UNREADABLE_DOCUMENT') {
-    throw new CliError(result.alert ?? 'Documento ilegÃ­vel.');
+    throw new CliError(result.alert ?? 'Documento ilegível.');
   }
-  console.log(`\nRascunho gerado em ${result.draftPath} â€” revise antes de aprovar.`);
+  console.log(`\nRascunho gerado em ${result.draftPath} — revise antes de aprovar.`);
   if (result.conflicts?.length) {
     console.log(`Conflitos a decidir: ${result.conflicts.map((c) => c.field).join(', ')}`);
   }
@@ -467,8 +465,8 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   const pendingInbox = await listPendingPdfs(config.profile.inboxDir);
   if (pendingInbox.length) {
     console.log(
-      `âš  ${pendingInbox.length} PDF(s) pendente(s) em ${config.profile.inboxDir} ` +
-        `â€” rode 'import --inbox' para gerar o rascunho de perfil.`,
+      `⚠ ${pendingInbox.length} PDF(s) pendente(s) em ${config.profile.inboxDir} ` +
+        `— rode 'import --inbox' para gerar o rascunho de perfil.`,
     );
   }
 
@@ -480,7 +478,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       html: string;
     }[];
   } else {
-    console.log('Nenhum --jobs-file informado â€” iniciando descoberta de vagasâ€¦');
+    console.log('Nenhum --jobs-file informado — iniciando descoberta de vagas…');
     const discovery = await discoverJobs({
       config,
       signal,
@@ -513,11 +511,11 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     effEnv.env,
   );
   const embedder = createEmbedder(config);
-  // TÃ­tulo da vaga vs JOB_TITLES: determinÃ­stico primeiro; embeddings
-  // (nomic-embed-text) como fallback quando nÃ£o casa por lÃ©xico.
+  // Título da vaga vs JOB_TITLES: determinístico primeiro; embeddings
+  // (nomic-embed-text) como fallback quando não casa por léxico.
   const titleMatcher = createSemanticTitleMatcher(config.discovery.targetTitles, embedder);
-  // No exe (SEA) o packageRoot Ã© virtual â€” fallback p/ pasta "skills" ao lado
-  // do executÃ¡vel; usuÃ¡rio pode copiÃ¡-la para manter a biblioteca de skills.
+  // No exe (SEA) o packageRoot é virtual — fallback p/ pasta "skills" ao lado
+  // do executável; usuário pode copiá-la para manter a biblioteca de skills.
   const exeSkillsDir = join(dirname(process.execPath), 'skills');
   const skillsDir = existsSync(join(packageRoot, 'src/skills/library'))
     ? join(packageRoot, 'src/skills/library')
@@ -538,11 +536,11 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     submitted: false,
   });
 
-  // FormulÃ¡rio web real (feature/06): Chromium lazy â€” sÃ³ abre na 1Âª vaga com
-  // form. Falha de navegaÃ§Ã£o â†’ emptyPage â†’ cai no canal de mensagem como antes.
+  // Formulário web real (feature/06): Chromium lazy — só abre na 1ª vaga com
+  // form. Falha de navegação → emptyPage → cai no canal de mensagem como antes.
   // AUTOFILL_HEADLESS=false mostra o navegador; AUTOFILL_PROFILE_DIR reaproveita
-  // logins do usuÃ¡rio via contexto persistente. No exe SEA o playwright Ã©
-  // externo e o import falha â€” mesma degradaÃ§Ã£o, com aviso uma vez por run.
+  // logins do usuário via contexto persistente. No exe SEA o playwright é
+  // externo e o import falha — mesma degradação, com aviso uma vez por run.
   let browserUnavailableWarned = false;
   const pageFactory = async (url: string): Promise<PageStateLike> => {
     try {
@@ -553,7 +551,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       const page = await ctx.newPage();
       try {
         const state = await inspectPage(page, url);
-        // PÃ¡gina de empresa sem form: o "Apply" costuma levar ao ATS real â€”
+        // Página de empresa sem form: o "Apply" costuma levar ao ATS real —
         // 1 hop antes de declarar NO_CHANNEL.
         if (state.fields.length === 0) {
           const followed = await followApplyLink(page);
@@ -568,15 +566,15 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       if (!browserUnavailableWarned) {
         browserUnavailableWarned = true;
         console.log(
-          'âš  Autofill web indisponÃ­vel (playwright nÃ£o inicializou) â€” ' +
-            'vagas com formulÃ¡rio seguem p/ e-mail, WhatsApp ou revisÃ£o.',
+          '⚠ Autofill web indisponível (playwright não inicializou) — ' +
+            'vagas com formulário seguem p/ e-mail, WhatsApp ou revisão.',
         );
       }
       return emptyPage(url);
     }
   };
 
-  // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) â€” docs 11/15.
+  // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) — docs 11/15.
   // Sem credencial/endpoint configurado o pipeline deixa a vaga em NEEDS_HUMAN_INPUT.
   const channelDeps: Parameters<typeof runApplicationPipeline>[1] = {
     repo,
@@ -598,7 +596,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         ref: config.email.smtpCredentialRef,
       });
     } else {
-      // Fallback env SMTP_* (uso local) â€” cofre continua preferido quando existe.
+      // Fallback env SMTP_* (uso local) — cofre continua preferido quando existe.
       const envSmtp = smtpCredentialFromEnv(effEnv.env);
       if (envSmtp) {
         const envVault: CredentialVault = {
@@ -607,13 +605,13 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         channelDeps.vault = envVault;
         channelDeps.emailTransport = createSmtpTransport({ vault: envVault, ref: 'env:smtp' });
         console.log(
-          `E-mail: credencial via env SMTP_* (${envSmtp.user}) â€” ` +
+          `E-mail: credencial via env SMTP_* (${envSmtp.user}) — ` +
             `para guardar cifrada, 'vault set ${config.email.smtpCredentialRef}'.`,
         );
       } else {
         console.log(
           `E-mail: credencial '${config.email.smtpCredentialRef}' ausente no cofre ` +
-            `â€” rode 'vault set ${config.email.smtpCredentialRef}'. Vagas de e-mail vÃ£o para revisÃ£o.`,
+            `— rode 'vault set ${config.email.smtpCredentialRef}'. Vagas de e-mail vão para revisão.`,
         );
       }
     }
@@ -631,7 +629,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     } else {
       console.log(
         `WhatsApp EVOLUTION_API sem ${config.whatsapp.apiUrlEnv}/${config.whatsapp.apiKeyEnv} ` +
-          `definidos â€” vagas de WhatsApp cairÃ£o na fila manual.`,
+          `definidos — vagas de WhatsApp cairão na fila manual.`,
       );
     }
   }
@@ -645,9 +643,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     result = await runApplicationPipeline({ rawJobs, profile, config, dryRun }, channelDeps);
 
     // Meta de candidaturas por run (DISCOVERY_MIN_JOBS_PER_RUN): enviou menos
-    // que a meta â†’ o discovery expande, dobrando o teto por fonte a cada
-    // rodada e excluindo URLs jÃ¡ coletadas, atÃ© bater a meta, esgotar as
-    // fontes ou o teto global. --jobs-file e --dry-run nÃ£o disparam expansÃ£o.
+    // que a meta → o discovery expande, dobrando o teto por fonte a cada
+    // rodada e excluindo URLs já coletadas, até bater a meta, esgotar as
+    // fontes ou o teto global. --jobs-file e --dry-run não disparam expansão.
     const minRun = config.execution.minJobsPerRun;
     if (!dryRun && !jobsPath && minRun > 0) {
       let sent = countSent(result);
@@ -668,8 +666,8 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         });
         if (more.jobs.length === 0) break;
         console.log(
-          `Meta ${sent}/${minRun} â€” expandindo discovery (rodada ${round}, ` +
-            `atÃ© ${perSource}/fonte): +${more.jobs.length} vaga(s) nova(s)`,
+          `Meta ${sent}/${minRun} — expandindo discovery (rodada ${round}, ` +
+            `até ${perSource}/fonte): +${more.jobs.length} vaga(s) nova(s)`,
         );
         const extraRaw = toRawJobInputs(more.jobs);
         rawJobs.push(...extraRaw);
@@ -692,7 +690,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   console.log(`\n${result.processed} vaga(s) processada(s):`);
   for (const a of result.applications) {
     console.log(
-      `  ${a.status.padEnd(20)} ${a.fitScore ?? 'â€”'} ${a.url}${a.reason ? ` (${a.reason})` : ''}`,
+      `  ${a.status.padEnd(20)} ${a.fitScore ?? '—'} ${a.url}${a.reason ? ` (${a.reason})` : ''}`,
     );
   }
   console.log(
@@ -702,37 +700,37 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     const sent = countSent(result);
     console.log(
       sent >= config.execution.minJobsPerRun
-        ? `Meta mÃ­nima atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) enviada(s).`
-        : `âš  Meta mÃ­nima nÃ£o atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) ` +
-            `enviada(s) â€” fontes esgotadas ou vagas sem canal de candidatura.`,
+        ? `Meta mínima atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) enviada(s).`
+        : `⚠ Meta mínima não atingida: ${sent}/${config.execution.minJobsPerRun} candidatura(s) ` +
+            `enviada(s) — fontes esgotadas ou vagas sem canal de candidatura.`,
     );
   }
 }
 
 /**
- * Fallback genÃ©rico por LLM: cria o extrator sÃ³ quando habilitado
- * (DISCOVERY_USE_GENERIC_FALLBACK) e loga qual modelo foi resolvido â€”
- * DISCOVERY_GENERIC_MODEL explÃ­cito ou heranÃ§a do tier LOCAL (AI_LOCAL_*).
+ * Fallback genérico por LLM: cria o extrator só quando habilitado
+ * (DISCOVERY_USE_GENERIC_FALLBACK) e loga qual modelo foi resolvido —
+ * DISCOVERY_GENERIC_MODEL explícito ou herança do tier LOCAL (AI_LOCAL_*).
  */
 function buildDiscoveryExtractor(signal?: AbortSignal) {
   if (!config.discovery.useGenericHtmlFallback) return undefined;
   const res = createGenericExtractor(config, { env: effEnv.env, signal });
   if (!res) return undefined;
   if ('error' in res) {
-    console.log(`âš  Fallback genÃ©rico desativado â€” ${res.error}`);
+    console.log(`⚠ Fallback genérico desativado — ${res.error}`);
     return undefined;
   }
   const inherited = !config.discovery.genericExtractionModel?.trim();
   console.log(
-    `Fallback genÃ©rico (HTML+LLM): ollama/${res.modelId}` +
-      (inherited ? ' â€” herdado de AI_LOCAL_*' : ' â€” DISCOVERY_GENERIC_MODEL'),
+    `Fallback genérico (HTML+LLM): ollama/${res.modelId}` +
+      (inherited ? ' — herdado de AI_LOCAL_*' : ' — DISCOVERY_GENERIC_MODEL'),
   );
   return res.extract;
 }
 
-// Fontes render:true (SPA como Gupy) â€” browser persistente reusa o perfil do
+// Fontes render:true (SPA como Gupy) — browser persistente reusa o perfil do
 // autofill (DISCOVERY_BROWSER_PROFILE_DIR || AUTOFILL_PROFILE_DIR): login
-// manual do usuÃ¡rio fica guardado entre runs. Abre sÃ³ se uma fonte precisar.
+// manual do usuário fica guardado entre runs. Abre só se uma fonte precisar.
 let renderCtxPromise: ReturnType<typeof getJobBrowserContext> | null = null;
 function buildRenderText() {
   return async (url: string) => {
@@ -781,7 +779,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
     return;
   }
 
-  console.log('Descobrindo vagasâ€¦');
+  console.log('Descobrindo vagas…');
   const discovery = await discoverJobs({
     config,
     signal: ctx.signal,
@@ -795,7 +793,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
   }
   console.log(
     `Fontes: ${discovery.meta.sourcesSucceeded}/${discovery.meta.sourcesTried} | ` +
-      `brutas: ${discovery.meta.totalRaw} | Ãºnicas: ${discovery.meta.afterDedup} | ` +
+      `brutas: ${discovery.meta.totalRaw} | únicas: ${discovery.meta.afterDedup} | ` +
       `retornadas: ${discovery.jobs.length} | tempo: ${discovery.meta.durationMs}ms`,
   );
   for (const j of discovery.jobs) {
@@ -807,7 +805,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
       JSON.stringify(toRawJobInputs(discovery.jobs), null, 2),
       'utf8',
     );
-    console.log(`Exportado â†’ ${exportPath}`);
+    console.log(`Exportado → ${exportPath}`);
   }
 }
 
@@ -826,7 +824,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
   const parsedMaxJobs = maxJobsIdx === -1 ? 10 : Number(args[maxJobsIdx + 1]);
   const maxJobs = Number.isFinite(parsedMaxJobs) ? parsedMaxJobs : 10;
 
-  console.log(`Escaneando ${sourceId}â€¦`);
+  console.log(`Escaneando ${sourceId}…`);
   const discovery = await discoverJobs({
     config,
     signal: ctx.signal,
@@ -845,7 +843,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
       .replace(/\s+/g, ' ')
       .slice(0, 120);
     console.log(`  ${j.raw.url}`);
-    console.log(`    ${snippet}â€¦`);
+    console.log(`    ${snippet}…`);
   }
 }
 
@@ -860,11 +858,11 @@ async function cmdApprove(): Promise<void> {
     { fs: createNodeFileStore() },
   );
   const result = await approveProfileDraft({ store });
-  console.log(`Rascunho aprovado â†’ ${cfg.masterPath}`);
-  console.log(`Snapshot da versÃ£o anterior em ${cfg.historyDir}`);
+  console.log(`Rascunho aprovado → ${cfg.masterPath}`);
+  console.log(`Snapshot da versão anterior em ${cfg.historyDir}`);
   if (result.cacheInvalidated) console.log('Cache de prompt invalidado.');
   if (result.scoresToRecalculate) {
-    console.log('Fit Scores pendentes serÃ£o recalculados na prÃ³xima execuÃ§Ã£o.');
+    console.log('Fit Scores pendentes serão recalculados na próxima execução.');
   }
 }
 
@@ -877,17 +875,17 @@ async function cmdReview(): Promise<void> {
   const whatsappQueue = await repo.listWhatsappQueue();
   repo.close();
   if (!pending.length && !whatsappQueue.length) {
-    console.log('Fila vazia â€” nenhuma candidatura pendente de aÃ§Ã£o humana.');
+    console.log('Fila vazia — nenhuma candidatura pendente de ação humana.');
     return;
   }
   if (pending.length) {
-    console.log(`${pending.length} candidatura(s) aguardando vocÃª:`);
+    console.log(`${pending.length} candidatura(s) aguardando você:`);
     for (const j of pending) {
-      console.log(`  [${j.status}] ${j.title} â€” ${j.company}\n    ${j.url}`);
+      console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
     }
   }
   if (whatsappQueue.length) {
-    console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mÃ£o:`);
+    console.log(`\n${whatsappQueue.length} candidatura(s) por WhatsApp para enviar na mão:`);
     for (const q of whatsappQueue) {
       console.log(`  [${q.jobId}] wa.me/${q.recipient}`);
       if (q.subject)
@@ -913,7 +911,7 @@ async function cmdStatus(): Promise<void> {
   }
 }
 
-/** `applied [--limit N]` â€” candidaturas efetivamente enviadas + recentes. */
+/** `applied [--limit N]` — candidaturas efetivamente enviadas + recentes. */
 async function cmdApplied(args: string[]): Promise<void> {
   const limitIdx = args.indexOf('--limit');
   const limit = limitIdx === -1 ? 10 : Number(args[limitIdx + 1]) || 10;
@@ -935,8 +933,8 @@ async function cmdApplied(args: string[]): Promise<void> {
   if (applied.length) {
     console.log('\nRecentes:');
     for (const j of applied) {
-      const when = j.appliedAt ? j.appliedAt.slice(0, 16).replace('T', ' ') : 'â€”';
-      console.log(`  ${when}  ${j.status.padEnd(20)} ${j.title} â€” ${j.company}`);
+      const when = j.appliedAt ? j.appliedAt.slice(0, 16).replace('T', ' ') : '—';
+      console.log(`  ${when}  ${j.status.padEnd(20)} ${j.title} — ${j.company}`);
     }
   }
 }
@@ -946,7 +944,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
   const envFile = effEnv.homeEnvFile;
 
   if (sub === 'check') {
-    console.log('Verificando provedores de IAâ€¦');
+    console.log('Verificando provedores de IA…');
     const results = await checkProviders(config, ['local', 'fast', 'smart'], {
       env: effEnv.env,
       signal: ctx.signal,
@@ -955,7 +953,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
     const failed = results.filter((r) => r.status !== 'ok' && r.status !== 'skipped');
     if (failed.length) {
       throw new CliError(
-        `${failed.length} tier(s) indisponÃ­vel(is) â€” ajuste o .env ou configure fallbacks.`,
+        `${failed.length} tier(s) indisponível(is) — ajuste o .env ou configure fallbacks.`,
       );
     }
     return;
@@ -963,8 +961,8 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
 
   switch (sub) {
     case 'path': {
-      console.log(`DiretÃ³rio de dados (CAREER_HOME): ${HOME}`);
-      console.log(`Arquivo de configuraÃ§Ã£o:          ${envFile}`);
+      console.log(`Diretório de dados (CAREER_HOME): ${HOME}`);
+      console.log(`Arquivo de configuração:          ${envFile}`);
       return;
     }
     case 'init': {
@@ -977,11 +975,11 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
         writeFileSync(envFile, ENV_TEMPLATE, 'utf8');
         console.log(`Criado ${envFile}`);
       } else {
-        console.log(`${envFile} jÃ¡ existe â€” use 'config init --force' para sobrescrever.`);
+        console.log(`${envFile} já existe — use 'config init --force' para sobrescrever.`);
       }
-      console.log(`DiretÃ³rio de dados pronto em ${HOME}`);
+      console.log(`Diretório de dados pronto em ${HOME}`);
       console.log(
-        `PrÃ³ximo passo: solte o CV em ${config.profile.inboxDir} e rode 'import --inbox'.`,
+        `Próximo passo: solte o CV em ${config.profile.inboxDir} e rode 'import --inbox'.`,
       );
       return;
     }
@@ -989,7 +987,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
       if (!key) throw new CliError('Uso: config get <CHAVE>');
       const value = effEnv.env[key];
       if (value === undefined) {
-        console.log(`${key} nÃ£o definida`);
+        console.log(`${key} não definida`);
         return;
       }
       const localFile = resolve('.env');
@@ -998,7 +996,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
       const global = parseEnvFile(envFile)[key];
       const shadow =
         local !== undefined && local !== global
-          ? `  (efetivo; global: ${global ?? 'â€”'}, .env local: ${local})`
+          ? `  (efetivo; global: ${global ?? '—'}, .env local: ${local})`
           : '';
       console.log(`${key}=${value}${shadow}`);
       return;
@@ -1007,7 +1005,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
       const value = rest.join(' ');
       if (!key || value === '') throw new CliError('Uso: config set <CHAVE> <valor>');
       setEnvKey(envFile, key, value);
-      console.log(`${key}=${value}  â†’  ${envFile}`);
+      console.log(`${key}=${value}  →  ${envFile}`);
       return;
     }
     case 'unset': {
@@ -1035,23 +1033,23 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
     );
   }
   if (ai.embeddings) {
-    console.log(`  EMBED  ollama/${ai.embeddings.modelId} (RAG semÃ¢ntico ativo)`);
+    console.log(`  EMBED  ollama/${ai.embeddings.modelId} (RAG semântico ativo)`);
   }
-  console.log(`  Modo de execuÃ§Ã£o: ${config.execution.mode}`);
+  console.log(`  Modo de execução: ${config.execution.mode}`);
   console.log('Descoberta:');
   console.log(`  Fontes registradas: ${listSources(config).length}`);
-  console.log(`  Ativas (apÃ³s filtros): ${getActiveSources(config).length}`);
-  console.log(`  JOB_TITLES: ${config.discovery.targetTitles.join(', ') || 'â€”'}`);
+  console.log(`  Ativas (após filtros): ${getActiveSources(config).length}`);
+  console.log(`  JOB_TITLES: ${config.discovery.targetTitles.join(', ') || '—'}`);
   console.log('Canais de candidatura:');
   console.log(
     `  EMAIL    ${config.email.enabled ? config.email.dispatchMode : 'desligado'}` +
-      ` â€” teto ${config.email.maxDailyEmails}/dia, cred '${config.email.smtpCredentialRef}',` +
+      ` — teto ${config.email.maxDailyEmails}/dia, cred '${config.email.smtpCredentialRef}',` +
       ` template ${config.email.bodyTemplatePath}`,
   );
   console.log(
     `  WHATSAPP ${config.whatsapp.enabled ? config.whatsapp.mode : 'desligado'}` +
       (config.whatsapp.mode === 'EVOLUTION_API'
-        ? ` â€” instÃ¢ncia ${config.whatsapp.apiInstance} @ $${config.whatsapp.apiUrlEnv}`
+        ? ` — instância ${config.whatsapp.apiInstance} @ $${config.whatsapp.apiUrlEnv}`
         : ''),
   );
   console.log('Caminhos:');
@@ -1063,7 +1061,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
   console.log(`  DRAFT     ${config.profile.draftPath}`);
 }
 
-/** Cofre de credenciais (doc 11/15): set/list/remove â€” segredos cifrados, nunca exibidos. */
+/** Cofre de credenciais (doc 11/15): set/list/remove — segredos cifrados, nunca exibidos. */
 async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
   const [sub, ref] = args;
   const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
@@ -1074,7 +1072,7 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
       console.log(
         refs.length
           ? `Refs no cofre:\n${refs.map((r) => `  ${r}`).join('\n')}`
-          : 'Cofre vazio â€” nenhuma credencial gravada.',
+          : 'Cofre vazio — nenhuma credencial gravada.',
       );
       return;
     }
@@ -1082,16 +1080,14 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
       if (!ref) throw new CliError('Uso: vault set <ref>  (ex.: vault set smtp-main)');
       if (!ctx.ask) {
         throw new CliError(
-          `vault set Ã© interativo â€” rode no shell ('npm run cli' sem argumentos) e digite 'vault set ${ref}'.`,
+          `vault set é interativo — rode no shell ('npm run cli' sem argumentos) e digite 'vault set ${ref}'.`,
         );
       }
       const host = (await ctx.ask('SMTP host (ex.: smtp.gmail.com / smtp.office365.com): ')).trim();
       const portStr = (await ctx.ask('SMTP port (465 = TLS direto, 587 = STARTTLS): ')).trim();
-      const secureStr = (await ctx.ask('TLS direto na conexÃ£o (porta 465)? [s/N]: ')).trim();
-      const user = (await ctx.ask('UsuÃ¡rio (seu e-mail completo): ')).trim();
-      const pass = (
-        await ctx.ask('Senha de app (app password â€” nÃ£o a senha da conta): ')
-      ).trim();
+      const secureStr = (await ctx.ask('TLS direto na conexão (porta 465)? [s/N]: ')).trim();
+      const user = (await ctx.ask('Usuário (seu e-mail completo): ')).trim();
+      const pass = (await ctx.ask('Senha de app (app password — não a senha da conta): ')).trim();
       const secure = secureStr.toLowerCase().startsWith('s');
       const cred = {
         host,
@@ -1109,7 +1105,7 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
     case 'remove': {
       if (!ref) throw new CliError('Uso: vault remove <ref>');
       const ok = await vault.remove(ref);
-      console.log(ok ? `'${ref}' removida do cofre.` : `'${ref}' nÃ£o encontrada no cofre.`);
+      console.log(ok ? `'${ref}' removida do cofre.` : `'${ref}' não encontrada no cofre.`);
       return;
     }
     default:
@@ -1117,14 +1113,14 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
   }
 }
 
-/** Setup e estado da instÃ¢ncia Evolution API (doc 15 Â§15.3) â€” QR no terminal. */
+/** Setup e estado da instância Evolution API (doc 15 §15.3) — QR no terminal. */
 async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
   const [sub, name] = args;
   const apiUrl = effEnv.env[config.whatsapp.apiUrlEnv];
   const apiKey = effEnv.env[config.whatsapp.apiKeyEnv];
   if (!apiUrl || !apiKey) {
     throw new CliError(
-      `Evolution API nÃ£o configurada â€” defina ${config.whatsapp.apiUrlEnv} e ` +
+      `Evolution API não configurada — defina ${config.whatsapp.apiUrlEnv} e ` +
         `${config.whatsapp.apiKeyEnv} ('config set').`,
     );
   }
@@ -1133,7 +1129,7 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
   switch (sub) {
     case 'setup': {
       const instanceName = name ?? config.whatsapp.apiInstance;
-      console.log(`Criando instÃ¢ncia '${instanceName}' em ${apiUrl}â€¦`);
+      console.log(`Criando instância '${instanceName}' em ${apiUrl}…`);
       await setup.createInstance(instanceName);
 
       const qr = await setup.getConnectionQr(instanceName);
@@ -1142,12 +1138,12 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
         const qrcode = (await import('qrcode-terminal')).default;
         qrcode.generate(qr.code, { small: true });
       } else if (qr.pairingCode) {
-        console.log(`CÃ³digo de pareamento: ${qr.pairingCode}`);
+        console.log(`Código de pareamento: ${qr.pairingCode}`);
       } else {
-        console.log('InstÃ¢ncia criada â€” verifique o QR no painel da Evolution API.');
+        console.log('Instância criada — verifique o QR no painel da Evolution API.');
       }
 
-      console.log('Aguardando conexÃ£o (Ctrl+C para cancelar)â€¦');
+      console.log('Aguardando conexão (Ctrl+C para cancelar)…');
       const deadline = Date.now() + 150_000;
       while (Date.now() < deadline) {
         if (ctx.signal?.aborted) throw abortError();
@@ -1156,20 +1152,18 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
         if (state === 'open') {
           setEnvKey(effEnv.homeEnvFile, 'EVOLUTION_INSTANCE', instanceName);
           console.log(
-            `\nâœ“ Conectado! InstÃ¢ncia '${instanceName}' salva em EVOLUTION_INSTANCE.\n` +
-              `  Ative o envio automÃ¡tico com: config set WHATSAPP_MODE EVOLUTION_API`,
+            `\n✓ Conectado! Instância '${instanceName}' salva em EVOLUTION_INSTANCE.\n` +
+              `  Ative o envio automático com: config set WHATSAPP_MODE EVOLUTION_API`,
           );
           return;
         }
       }
-      console.log('Tempo esgotado aguardando a conexÃ£o â€” tente whatsapp setup de novo.');
+      console.log('Tempo esgotado aguardando a conexão — tente whatsapp setup de novo.');
       return;
     }
     case 'status': {
       const state = await setup.getConnectionState(config.whatsapp.apiInstance);
-      console.log(
-        `InstÃ¢ncia '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`,
-      );
+      console.log(`Instância '${config.whatsapp.apiInstance}' (${config.whatsapp.mode}): ${state}`);
       return;
     }
     default:
@@ -1177,7 +1171,7 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
   }
 }
 
-/** Despacha um comando. Retorna false se o comando nÃ£o existe. */
+/** Despacha um comando. Retorna false se o comando não existe. */
 async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Promise<boolean> {
   switch (command) {
     case 'import':
@@ -1249,7 +1243,7 @@ async function repl(): Promise<void> {
     closed = true;
     runCleanups();
   });
-  // Ctrl+C: com comando em curso â†’ aborta (fetch, watch, pipeline); ocioso â†’ sai do shell.
+  // Ctrl+C: com comando em curso → aborta (fetch, watch, pipeline); ocioso → sai do shell.
   rl.on('SIGINT', () => {
     if (current && !current.signal.aborted) {
       current.abort();
@@ -1258,7 +1252,7 @@ async function repl(): Promise<void> {
     }
   });
   console.log(
-    `CareerFacilator AI â€” shell interativo. 'help' lista comandos, 'exit' sai. Ctrl+C cancela.`,
+    `CareerFacilator AI — shell interativo. 'help' lista comandos, 'exit' sai. Ctrl+C cancela.`,
   );
   rl.prompt();
   rl.on('line', (line) => {
@@ -1278,7 +1272,7 @@ async function repl(): Promise<void> {
       const ask = (q: string) => new Promise<string>((res) => rl.question(q, res));
       try {
         if (!(await dispatch(cmd, cmdArgs, { signal: ctrl.signal, ask }))) {
-          console.log(`Comando desconhecido: ${cmd} â€” 'help' lista os comandos.`);
+          console.log(`Comando desconhecido: ${cmd} — 'help' lista os comandos.`);
         }
       } catch (err) {
         printError(err);
@@ -1292,7 +1286,7 @@ async function repl(): Promise<void> {
   await new Promise<void>((resolvePromise) => rl.on('close', resolvePromise));
 }
 
-/** VersÃ£o exibida: tag embutida no build do exe â†’ package.json â†’ 'dev'. */
+/** Versão exibida: tag embutida no build do exe → package.json → 'dev'. */
 function careerVersion(): string {
   if (process.env.CAREER_VERSION) return process.env.CAREER_VERSION;
   try {

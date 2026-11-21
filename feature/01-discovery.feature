@@ -93,6 +93,13 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
     Quando a extração assistida é acionada
     Então o modelo leve já configurado no sistema é utilizado
 
+  Cenário: Coletar listagem que só existe após renderização da página
+    Dado que a fonte habilitada é uma aplicação que monta vagas só via JavaScript
+    Quando a coleta é executada
+    Então a página é renderizada em navegador com perfil persistente
+    E o login manual do usuário é reaproveitado para descobrir e preencher
+
+# Decisão: fontes SPA (render) usam o navegador persistente do usuário — sem API.
 # Decisão: falha de todas as fontes aborta o ciclo com alerta, sem consumir IA.
 # Decisão: o volume máximo de vagas coletadas por execução é configurável
 # (maxJobsPerRun, default 100).
