@@ -70,6 +70,19 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
     Então a resposta em cache é utilizada
     E nenhuma nova geração é acionada para aquela pergunta
 
+  Cenário: Seguir o link de candidatura quando a página da vaga não expõe formulário
+    Dado que a página da vaga não contém campos de formulário
+    E que existe um link ou botão de candidatura apontando para o formulário real
+    Quando a inspeção da página é executada
+    Então o sistema navega até o destino de candidatura
+    E o formulário encontrado lá é preenchido normalmente
+
+  Cenário: Sem destino de candidatura alcançável, segue para os canais de mensagem
+    Dado que a página da vaga não contém campos de formulário
+    E que nenhum link de candidatura navegável é encontrado
+    Quando a inspeção da página é executada
+    Então a candidatura segue pelo canal de e-mail, WhatsApp ou revisão humana
+
 # Decisão: campo padronizado ausente no perfil usa o valor padrão configurável
 # (fieldDefaults).
 # Decisão: "pergunta conhecida" = similaridade de texto de pelo menos 90% com uma
