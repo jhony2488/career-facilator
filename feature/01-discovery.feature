@@ -41,6 +41,17 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
       | INTERNATIONAL  | portais globais e ATS com filtro remoto internacional   |
       | BOTH           | ambos os conjuntos de fontes                            |
 
+  Cenário: Parâmetros de busca da API são derivados da configuração vigente
+    Dado que o escopo de região e os limites de coleta estão configurados
+    Quando uma fonte de API suporta parâmetros de busca
+    Então os parâmetros são montados a partir dessa configuração
+    E nenhuma configuração adicional é exigida para ativar a busca
+
+  Cenário: Link direto de candidatura é preferido quando a fonte o expõe
+    Dado que uma fonte retorna um link de candidatura distinto da página da vaga
+    Quando a vaga é registrada para o pipeline
+    Então o link de candidatura é o endereço usado na etapa de aplicação
+
   Cenário: Fonte temporariamente indisponível não interrompe o ciclo
     Dado que uma das fontes de vagas está indisponível ou retorna erro
     Quando a execução de descoberta consulta as fontes
