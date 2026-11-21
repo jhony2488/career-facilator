@@ -553,6 +553,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       const ctx = await getJobBrowserContext({
         headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
         profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+        stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
       });
       const page = await ctx.newPage();
       try {
@@ -591,6 +592,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     retriever: (chunks, keywords, jobText) =>
       retrieveHybrid(chunks, { keywords, jobText }, embedder),
     titleMatcher,
+    humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
   };
 
   if (config.email.enabled) {
@@ -741,6 +743,7 @@ const renderCtxOpts = () => ({
   headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
   profileDir:
     config.discovery.browserProfileDir || effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+  stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
 });
 let renderCtxPromise: ReturnType<typeof getJobBrowserContext> | null = null;
 /** Fecha o browser compartilhado (renderText + pageFactory) e limpa o cache. */

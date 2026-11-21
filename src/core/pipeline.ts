@@ -78,6 +78,11 @@ export interface PipelineDeps {
    * createSemanticTitleMatcher p/ fallback probabilístico.
    */
   titleMatcher?: (jobTitle: string) => Promise<TitleMatch | null> | TitleMatch | null;
+  /**
+   * Ritmo humano nas interações DOM reais (mouse em curva + digitação) —
+   * default true; `false` p/ interações instantâneas (AUTOFILL_HUMAN_PACE).
+   */
+  humanPace?: boolean;
 }
 
 export interface ApplicationResult {
@@ -363,6 +368,7 @@ export async function runApplicationPipeline(
               aiAnswers: assets.answers,
               resumePath: assets.resumePath,
               submitMode: route === 'AUTO_SEND' ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT',
+              humanPace: deps.humanPace,
             })
           : executeFill(page, {
               matched,
@@ -397,7 +403,7 @@ export async function runApplicationPipeline(
             continue;
           }
           // Página real: a aprovação humana dispara o submit definitivo no DOM
-          if (page.dom && !(await submitLivePage(page))) {
+          if (page.dom && !(await submitLivePage(page, deps.humanPace !== false))) {
             stages.push('NEEDS_HUMAN_INPUT');
             Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'SUBMIT_CLICK_FAILED' });
             applications.push(app);

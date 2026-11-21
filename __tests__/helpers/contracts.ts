@@ -372,8 +372,10 @@ export interface CareerOpsConfig {
 //     Promise<{processed; applications: Array<{status; stages; resumePath?}>;
 //             tokenReport; dryRunReport?}>
 // src/autofill/playwrightExecutor.ts
-//   executeLiveFill(page(com .dom real), opts) → ExecuteFillResult
-//   submitLivePage(page) → bool (submit pós-aprovação) · closeLivePage(page) → void
+//   executeLiveFill(page(com .dom real), opts{…, humanPace?}) → ExecuteFillResult
+//   submitLivePage(page, humanPace?) → bool (submit pós-aprovação) · closeLivePage(page) → void
+// src/scraper/browserManager.ts
+//   getJobBrowserContext({headless?, profileDir?, stealth?}) → BrowserContext (cacheado/revalidado)
 // src/scraper/pageInspector.ts  inspectPage(page,url)/inspectDom(page) → PageStateLike{dom};
 //   snapshotToState(snapshot, url, dom?) — puro, testável sem navegador
 //

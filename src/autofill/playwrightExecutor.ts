@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { Frame, JSHandle, Page } from 'playwright';
+import type { Frame, JSHandle, Locator, Page } from 'playwright';
 import type {
   ExecuteFillOptions,
   ExecuteFillResult,
@@ -8,8 +8,41 @@ import type {
   PageStateLike,
 } from './formExecutor';
 import { inspectDom } from '../scraper/pageInspector';
+import { humanPathTo, randInt, typeDelayFor } from '../utils/humanSim';
 
 const MAX_STEPS = 8;
+
+/**
+ * Clique com abordagem humana: mouse move em polilinha com jitter até o botão
+ * + pausa curta antes do click — menos "teleporte instantâneo" p/ bot-detection.
+ * humanPace=false cai no click direto.
+ */
+async function humanClick(
+  dom: Page,
+  locator: Locator,
+  humanPace: boolean,
+  timeout: number,
+): Promise<void> {
+  if (humanPace) {
+    try {
+      const box = await locator.boundingBox();
+      if (box) {
+        const start = { x: randInt(50, 600), y: randInt(50, 400) };
+        const end = {
+          x: box.x + box.width * (0.3 + Math.random() * 0.4),
+          y: box.y + box.height * (0.3 + Math.random() * 0.4),
+        };
+        for (const p of humanPathTo(start, end)) {
+          await dom.mouse.move(p.x, p.y, { steps: randInt(4, 8) });
+        }
+        await dom.waitForTimeout(randInt(80, 260));
+      }
+    } catch {
+      // sem box/posição — segue p/ o click normal
+    }
+  }
+  await locator.click({ timeout });
+}
 
 /** Botões de avanço de wizard (multi-etapas — feature/06). */
 const NEXT_RE =
@@ -26,7 +59,12 @@ function scopeFor(dom: Page, frameIdx?: number): Page | Frame {
   return dom.frames()[frameIdx] ?? dom;
 }
 
-async function fillDomField(dom: Page, field: PageFieldState, value: string): Promise<boolean> {
+async function fillDomField(
+  dom: Page,
+  field: PageFieldState,
+  value: string,
+  humanPace: boolean,
+): Promise<boolean> {
   const scope = scopeFor(dom, field.frameIdx);
   const locator = field.selector
     ? scope.locator(field.selector)
@@ -47,7 +85,20 @@ async function fillDomField(dom: Page, field: PageFieldState, value: string): Pr
       else await el.uncheck({ timeout: 3000 });
       return true;
     }
-    // fill() dispara input+change — o que SPAs (React/Vue) esperam pra validar
+    // fill() dispara input+change — o que SPAs (React/Vue) esperam pra validar.
+    // humanPace: digitação caractere a caractere com delay — menos bot-like.
+    if (humanPace) {
+      try {
+        await el.fill('', { timeout: 3000 });
+        await el.pressSequentially(value, {
+          delay: typeDelayFor(value.length),
+          timeout: 15000,
+        });
+        return true;
+      } catch {
+        // teclado falhou (campo especial) — cai no fill instantâneo
+      }
+    }
     await el.fill(value, { timeout: 3000 });
     return true;
   } catch {
@@ -56,13 +107,13 @@ async function fillDomField(dom: Page, field: PageFieldState, value: string): Pr
 }
 
 /** Clica "Next/Continue" de wizard; retorna false quando não achou botão. */
-async function clickNext(dom: Page): Promise<boolean> {
+async function clickNext(dom: Page, humanPace: boolean): Promise<boolean> {
   // O botão pode viver no iframe do form — tenta todos os frames, main primeiro.
   for (const scope of dom.frames()) {
     const btn = scope.getByRole('button', { name: NEXT_RE }).first();
     try {
-      await btn.click({ timeout: 3000 });
-      await dom.waitForTimeout(700);
+      await humanClick(dom, btn, humanPace, 3000);
+      await dom.waitForTimeout(humanPace ? randInt(600, 1400) : 700);
       return true;
     } catch {
       // próximo frame
@@ -72,7 +123,7 @@ async function clickNext(dom: Page): Promise<boolean> {
 }
 
 /** Botão de submit definitivo — ignora o 'Apply' que ABRE o form. */
-async function clickSubmit(dom: Page): Promise<boolean> {
+async function clickSubmit(dom: Page, humanPace: boolean): Promise<boolean> {
   for (const scope of dom.frames()) {
     const native = scope.locator('button[type="submit"], input[type="submit"]').first();
     const candidates = [native, scope.getByRole('button', { name: SUBMIT_RE }).first()];
@@ -80,7 +131,7 @@ async function clickSubmit(dom: Page): Promise<boolean> {
       try {
         const text = ((await btn.innerText()) || (await btn.getAttribute('value')) || '').trim();
         if (AMBIGUOUS_RE.test(text) && !SUBMIT_RE.test(text)) continue;
-        await btn.click({ timeout: 4000 });
+        await humanClick(dom, btn, humanPace, 4000);
         return true;
       } catch {
         // próximo candidato
@@ -138,11 +189,14 @@ export async function executeLiveFill(
   const dom = live.dom as Page | undefined;
   if (!dom) throw new Error('executeLiveFill: live.dom ausente (use executeFill para mocks)');
 
-  const { matched = [], aiAnswers = {}, resumePath, submitMode } = opts;
+  const { matched = [], aiAnswers = {}, resumePath, submitMode, humanPace = true } = opts;
   const matchedByLabel = new Map(matched.map((m) => [m.field.label, m.value]));
   let fieldsFilled = 0;
   let resumeAttached = false;
   const aiAnswersUsed = new Set<string>();
+
+  // Dwell antes de interagir — ler a página em vez de atacar o 1º campo.
+  if (humanPace) await dom.waitForTimeout(randInt(400, 1200));
 
   for (let step = 0; step < MAX_STEPS; step++) {
     for (const field of live.fields) {
@@ -150,7 +204,7 @@ export async function executeLiveFill(
       const det = matchedByLabel.get(field.label);
       const value = det ?? aiAnswers[field.label];
       if (value === undefined) continue;
-      if (await fillDomField(dom, field, value)) {
+      if (await fillDomField(dom, field, value, humanPace)) {
         fieldsFilled++;
         if (det === undefined) aiAnswersUsed.add(field.label);
       }
@@ -186,14 +240,14 @@ export async function executeLiveFill(
     }
 
     if (live.currentStep >= live.totalSteps) break;
-    if (!(await clickNext(dom))) break; // sem botão de avanço — tenta o que tem
+    if (!(await clickNext(dom, humanPace))) break; // sem botão de avanço — tenta o que tem
     const refreshed = await inspectDom(dom).catch(() => null);
     if (!refreshed) break;
     Object.assign(live, refreshed);
   }
 
   if (submitMode === 'AUTO_SUBMIT') {
-    if (await clickSubmit(dom)) {
+    if (await clickSubmit(dom, humanPace)) {
       live.submitted = true;
       return {
         fieldsFilled,
@@ -225,10 +279,10 @@ export async function executeLiveFill(
 }
 
 /** Submit disparado após aprovação humana num READY_TO_REVIEW — mesma página viva. */
-export async function submitLivePage(live: PageStateLike): Promise<boolean> {
+export async function submitLivePage(live: PageStateLike, humanPace = true): Promise<boolean> {
   const dom = live.dom as Page | undefined;
   if (!dom) return false;
-  return clickSubmit(dom);
+  return clickSubmit(dom, humanPace);
 }
 
 /** Fecha a página real se existir — no-op em mocks. */

@@ -1,4 +1,5 @@
-import type { Browser, BrowserContext } from 'playwright';
+import type { Browser, BrowserContext, BrowserType } from 'playwright';
+import { pickViewport } from '../utils/humanSim';
 
 /**
  * Browser único por `run` — lançado sob demanda no primeiro formulário web.
@@ -8,14 +9,43 @@ import type { Browser, BrowserContext } from 'playwright';
  * Import lazy: playwright fica FORA do bundle SEA (requires dinâmicos do
  * playwright-core quebram em single-file) — no exe o import falha e quem
  * chama cai no fallback de canal de mensagem/NEEDS_HUMAN_INPUT.
+ * Stealth (playwright-extra + puppeteer-extra-plugin-stealth) reduz detecção
+ * anti-bot (webdriver flag, chrome.runtime, WebGL, UA-headless…) — prevenção,
+ * CAPTCHA continua escalando p/ humano.
  */
 let browser: Browser | undefined;
 let context: BrowserContext | undefined;
+const chromiumPromises = new Map<boolean, Promise<BrowserType>>();
+
+function getChromium(stealth: boolean): Promise<BrowserType> {
+  let cached = chromiumPromises.get(stealth);
+  if (!cached) {
+    cached = (async () => {
+      if (stealth) {
+        try {
+          const [{ chromium }, { default: stealthPlugin }] = await Promise.all([
+            import('playwright-extra'),
+            import('puppeteer-extra-plugin-stealth'),
+          ]);
+          chromium.use(stealthPlugin());
+          return chromium as unknown as BrowserType;
+        } catch {
+          // plugin indisponível — cai p/ playwright puro (menos stealth, funciona)
+        }
+      }
+      const { chromium } = await import('playwright');
+      return chromium;
+    })();
+    chromiumPromises.set(stealth, cached);
+  }
+  return cached;
+}
 
 export async function getJobBrowserContext(
   opts: {
     headless?: boolean;
     profileDir?: string;
+    stealth?: boolean;
   } = {},
 ): Promise<BrowserContext> {
   // Cache pode estar morto (closeJobBrowser entre comandos do shell ou crash
@@ -29,16 +59,20 @@ export async function getJobBrowserContext(
       browser = undefined;
     }
   }
-  const { chromium } = await import('playwright');
+  const chromium = await getChromium(opts.stealth !== false);
   const headless = opts.headless ?? true;
+  const viewport = pickViewport();
+  const args = ['--disable-blink-features=AutomationControlled'];
   if (opts.profileDir) {
     context = await chromium.launchPersistentContext(opts.profileDir, {
       headless,
-      viewport: { width: 1280, height: 800 },
+      viewport,
+      args,
     });
   } else {
-    browser = await chromium.launch({ headless });
-    context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const launched = await chromium.launch({ headless, args });
+    browser = launched;
+    context = await launched.newContext({ viewport });
   }
   return context;
 }

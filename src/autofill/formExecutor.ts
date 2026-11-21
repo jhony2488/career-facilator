@@ -46,6 +46,11 @@ export interface ExecuteFillOptions {
   aiAnswers?: Record<string, string>;
   resumePath?: string;
   submitMode: SubmitMode;
+  /**
+   * Ritmo humano (default true): caminho de mouse com jitter antes dos cliques
+   * e digitação caractere a caractere — reduz bot-detection. `false` = direto.
+   */
+  humanPace?: boolean;
 }
 
 export interface ExecuteFillResult {
