@@ -1,4 +1,8 @@
-import { snapshotToState, type PageSnapshot } from '../../../src/scraper/pageInspector';
+import {
+  mergeSnapshots,
+  snapshotToState,
+  type PageSnapshot,
+} from '../../../src/scraper/pageInspector';
 
 const snap: PageSnapshot = {
   fields: [
@@ -38,5 +42,67 @@ describe('snapshotToState', () => {
     const fakeDom = { close: async () => {} };
     const state = snapshotToState(snap, 'https://x.job', fakeDom);
     expect(state.dom).toBe(fakeDom);
+  });
+});
+
+describe('mergeSnapshots — multi-frame inspection', () => {
+  const base: PageSnapshot = {
+    fields: [],
+    hasCaptcha: false,
+    requiresEmailOtp: false,
+    alreadyAppliedBanner: false,
+    validationErrors: [],
+    currentStep: 1,
+    totalSteps: 1,
+    isShadowDom: false,
+  };
+
+  it('stamps frameIdx on fields and dropzones collected per frame', () => {
+    const merged = mergeSnapshots([
+      {
+        frameIdx: 0,
+        snap: {
+          ...base,
+          fields: [
+            { kind: 'input', label: 'Name', required: true, selector: 'a', name: 'n' },
+          ],
+        },
+      },
+      {
+        frameIdx: 1,
+        snap: {
+          ...base,
+          fields: [
+            { kind: 'input', label: 'Email', required: true, selector: 'b', name: 'e' },
+          ],
+          dropzones: [{ selector: 'dz' }],
+        },
+      },
+    ]);
+    expect(merged.fields.map((f) => f.label)).toEqual(['Name', 'Email']);
+    expect(merged.fields.map((f) => f.frameIdx)).toEqual([0, 1]);
+    expect(merged.dropzones).toEqual([{ selector: 'dz', frameIdx: 1 }]);
+  });
+
+  it('ORs blocking signals across frames and caps deduped errors at 5', () => {
+    const snapWith = (over: Partial<PageSnapshot>): PageSnapshot => ({ ...base, ...over });
+    const merged = mergeSnapshots([
+      { frameIdx: 0, snap: snapWith({ validationErrors: ['e1', 'e2', 'e3', 'e4', 'e5'] }) },
+      {
+        frameIdx: 1,
+        snap: snapWith({ hasCaptcha: true, validationErrors: ['e5', 'e6', 'e7'] }),
+      },
+    ]);
+    expect(merged.hasCaptcha).toBe(true);
+    expect(merged.validationErrors).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+  });
+
+  it('keeps step counters from the main frame (frameIdx 0)', () => {
+    const merged = mergeSnapshots([
+      { frameIdx: 0, snap: { ...base, currentStep: 2, totalSteps: 3 } },
+      { frameIdx: 1, snap: { ...base, currentStep: 1, totalSteps: 1 } },
+    ]);
+    expect(merged.currentStep).toBe(2);
+    expect(merged.totalSteps).toBe(3);
   });
 });

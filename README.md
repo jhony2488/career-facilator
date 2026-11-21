@@ -117,7 +117,7 @@ Baixe o binário da aba [Releases](https://github.com/jhony2488/career-facilitat
 
 O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele. Para a biblioteca de skills no exe, copie `src/skills/library/` para `skills/` na mesma pasta.
 
-> **Diferenças do exe:** extração de PDF cai no modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam normalmente. O Playwright também não é embutido (incompatível com SEA single-file): formulários web seguem para e-mail, WhatsApp ou a fila de revisão — para autofill de formulários use o fluxo npm/`npm link`. `career --version` mostra a tag do release.
+> **Diferenças do exe:** extração de PDF cai no modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam normalmente. O Playwright também não é embutido (incompatível com SEA single-file): formulários web seguem para e-mail, WhatsApp ou a fila de revisão — para autofill de formulários use o fluxo npm/`npm link`. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide com ela).
 
 Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS/Linux (Node SEA single-file) → artefatos anexados ao release.
 

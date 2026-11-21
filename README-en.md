@@ -117,7 +117,7 @@ Download the binary from the [Releases](https://github.com/jhony2488/career-faci
 
 The executable uses the **same configuration** as the other modes: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it, and a `.env` with `CAREER_HOME=.` next to the exe keeps data portable. For the skill library in binary mode, copy `src/skills/library/` to a `skills/` folder next to the executable.
 
-> **Binary differences:** PDF extraction falls back to regex mode (no `pdf-parse`) — text-layer PDFs work normally. Playwright is not embedded either (incompatible with SEA single-file): web forms fall back to e-mail, WhatsApp, or the review queue — use the npm/`npm link` flow for form autofill. `career --version` shows the release tag.
+> **Binary differences:** PDF extraction falls back to regex mode (no `pdf-parse`) — text-layer PDFs work normally. Playwright is not embedded either (incompatible with SEA single-file): web forms fall back to e-mail, WhatsApp, or the review queue — use the npm/`npm link` flow for form autofill. `career --version` shows the `package.json` version (the release validates the `v*` tag matches it).
 
 Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Windows/macOS/Linux matrix (Node SEA single-file) → artifacts attached to the release.
 
