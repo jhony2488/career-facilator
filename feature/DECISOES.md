@@ -105,3 +105,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 19 | Providers remotos de IA | Adapter unico OpenAI-compatible (openaiCompatibleClient) cobre deepseek/groq/openai/kimi/openrouter/together + qualquer BASE_URL custom; Anthropic/Gemini nativos seguem sem adapter (Gemini func via endpoint compat do Google) |
 
 | 20 | Link de candidatura com texto genérico | pickApplyTarget tambem avalia o path da URL (segmento /apply, /bewerben, /postul…) — portais 'company portal' viram canal web; iframe lazy ganha re-inspect pós-networkidle; tailor recebe resumeLanguage do scope (INTERNATIONAL → en-US) |
+
+| 21 | Listagem SPA sem API publica | Fonte ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |
