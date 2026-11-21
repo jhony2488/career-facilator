@@ -118,6 +118,8 @@ const CUSTOM_NAMES: Record<string, string> = {
   amazonjobs: 'Amazon Jobs',
   microsoftcareers: 'Microsoft Careers',
   searchdork: 'Dork / busca orgânica',
+  'linkedin-posts': 'LinkedIn Posts (busca)',
+  'linkedin-jobs': 'LinkedIn Jobs (busca)',
 };
 
 function titleFromId(id: string): string {
@@ -312,8 +314,44 @@ const DETAILS: Record<string, Partial<JobSource> & { category: string }> = {
     name: 'Dork / busca orgânica',
     adapter: 'search',
     enabled: false,
-    url: 'https://duckduckgo.com/html',
-    notes: 'Fallback por dorks; opt-in.',
+    url: 'https://html.duckduckgo.com/html/',
+    notes: 'Plano de queries por escopo (dorkBuilder); opt-in via DISCOVERY_SEARCH_ENGINE.',
+  },
+  'linkedin-posts': {
+    category: 'search',
+    name: 'LinkedIn Posts (busca)',
+    adapter: 'search',
+    enabled: false,
+    regions: ['GLOBAL', 'BR', 'LATAM', 'PT', 'EU', 'US'],
+    adapterConfig: {
+      dorkTemplates: [
+        'site:linkedin.com/posts {query} (vaga OR vagas OR "estamos contratando" OR hiring OR "open position" OR "job opening")',
+      ],
+      titleFilter: false,
+    },
+    notes:
+      'Posts públicos indexados; sem sessão — titleFilter off (posts não usam título de vaga).',
+  },
+  'linkedin-jobs': {
+    category: 'search',
+    name: 'LinkedIn Jobs (busca)',
+    adapter: 'search',
+    enabled: false,
+    regions: ['GLOBAL', 'BR', 'LATAM', 'PT', 'EU', 'US'],
+    adapterConfig: {
+      dorkTemplates: ['site:linkedin.com/jobs/view {query}'],
+    },
+    notes: 'Listagens públicas indexadas; sem sessão.',
+  },
+  'linkedin-br': {
+    category: 'brasil',
+    name: 'LinkedIn BR',
+    adapter: 'linkedin',
+    enabled: false,
+    risky: true,
+    requiresAuth: true,
+    url: 'https://www.linkedin.com/jobs',
+    notes: 'Exige sessão autenticada; adapter stub — opt-in consciente.',
   },
 };
 
@@ -443,6 +481,7 @@ const GROUPS: Record<string, string[]> = {
     'teachaway',
   ],
   freelance: ['upwork', 'toptal', 'fiverr', 'peopleperhour', 'contra'],
+  search: ['searchdork', 'linkedin-posts', 'linkedin-jobs'],
   aggregator: [
     'jooble',
     'adzuna',
