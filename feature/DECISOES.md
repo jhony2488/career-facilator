@@ -110,5 +110,8 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 
 | 20 | Link de candidatura com texto genérico | pickApplyTarget tambem avalia o path da URL (segmento /apply, /bewerben, /postul…) — portais 'company portal' viram canal web; iframe lazy ganha re-inspect pós-networkidle; tailor recebe resumeLanguage do scope (INTERNATIONAL → en-US) |
 
+| 22 | Boards ATS por empresa | `DISCOVERY_ATS_BOARDS=provider:slug` (`greenhouse`/`lever`) — APIs públicas `boards-api.greenhouse.io` e `api.lever.co`; slug = empresa no board; demais providers seguem stub |
+| 23 | LinkedIn autenticado | `linkedin`/`linkedin-br` com `renderText` da sessão (`career login linkedin`): jobs (`/jobs/search` + render `/jobs/view`) e posts de vagas (`/search/results/content/`, ≤10/título, gate "fala de vaga") |
+| 24 | Contato em posts LinkedIn | e-mail/link/WhatsApp do texto; sem contato → OCR tesseract.js (por+eng, `DISCOVERY_POSTS_OCR`, ≤3 imgs/post); link externo vira url; post sem canal → `NEEDS_HUMAN_INPUT` (revisão) |
 | 21 | Listagem SPA sem API publica | Fonte 
 ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |
