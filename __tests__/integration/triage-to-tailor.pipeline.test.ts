@@ -65,6 +65,24 @@ describe('Pipeline: TRIAGED → skills → TAILORED', () => {
     expect(tailorModel.tailor).toHaveBeenCalled();
   });
 
+  it('includes the resume language directive for international jobs', async () => {
+    // feature/08: INTERNATIONAL scope → resumeMarkdown generated in English
+    const tailorModel = mockTailorModel();
+    const job = makeJob({ descriptionMarkdown: INTL_JOB_DESCRIPTION });
+    await tailorResume(
+      {
+        job,
+        triage: {},
+        skillsBlock: '',
+        profile: makeMasterProfile(),
+        resumeLanguage: 'en-US',
+      },
+      { model: tailorModel },
+    );
+    const prompt = tailorModel.tailor.mock.calls[0][0] as string;
+    expect(prompt).toContain('in English');
+  });
+
   it('reuses the cached profile on the second processed job', async () => {
     // feature/05: Reuse the cached master profile when processing jobs in batch
     const tailorModel = mockTailorModel();

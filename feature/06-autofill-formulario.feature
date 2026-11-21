@@ -77,6 +77,19 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
     Então o sistema navega até o destino de candidatura
     E o formulário encontrado lá é preenchido normalmente
 
+  Cenário: Reconhecer destino de candidatura pelo endereço do link
+    Dado que a página da vaga não contém campos de formulário
+    E que existe um link cujo endereço termina em "/apply" mesmo com texto genérico
+    Quando a inspeção da página é executada
+    Então o sistema navega até o destino de candidatura
+    E o formulário encontrado lá é preenchido normalmente
+
+  Cenário: Aguardar formulário embutido que carrega após o conteúdo da página
+    Dado que a página da vaga embute o formulário em componente tardio
+    Quando a inspeção da página é executada
+    Então o sistema aguarda a rede estabilizar e reinspeciona
+    E o formulário que apareceu é preenchido normalmente
+
   Cenário: Sem destino de candidatura alcançável, segue para os canais de mensagem
     Dado que a página da vaga não contém campos de formulário
     E que nenhum link de candidatura navegável é encontrado

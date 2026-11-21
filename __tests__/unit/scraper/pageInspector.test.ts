@@ -124,6 +124,30 @@ describe('pickApplyTarget — apply link selection', () => {
     expect(target).toBe('https://company.example/inscricao/123');
   });
 
+  it('follows an /apply path even when the link text is generic', () => {
+    const target = pickApplyTarget([{ text: 'company portal', href: '/jobs/dev/apply' }], base);
+    expect(target).toBe('https://company.example/jobs/dev/apply');
+  });
+
+  it('recognizes join.com as an ATS host', () => {
+    const target = pickApplyTarget(
+      [{ text: 'View job', href: 'https://join.com/companies/acme/123-backend' }],
+      base,
+    );
+    expect(target).toBe('https://join.com/companies/acme/123-backend');
+  });
+
+  it('prefers a known ATS host over an /apply path', () => {
+    const target = pickApplyTarget(
+      [
+        { text: 'company portal', href: '/jobs/dev/apply' },
+        { text: 'Careers', href: 'https://boards.greenhouse.io/acme/jobs/9' },
+      ],
+      base,
+    );
+    expect(target).toBe('https://boards.greenhouse.io/acme/jobs/9');
+  });
+
   it('skips mailto/self/javascript links and returns null', () => {
     const target = pickApplyTarget(
       [
