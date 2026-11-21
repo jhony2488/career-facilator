@@ -94,3 +94,5 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 12 | Motor de busca orgânica | `DISCOVERY_SEARCH_ENGINE` (`duckduckgo`\|`bing`\|`none`) + fallback por query no outro motor |
 | 13 | Resultados fora do `site:` alvo | Filtrar hits pelo domínio declarado na dork |
 | 14 | Filtro de título em posts LinkedIn | `adapterConfig.titleFilter` — off em `linkedin-posts` |
+
+| 15 | Página de vaga sem formulário | Segue link/botão de candidatura (1 hop, prefere host de ATS conhecido); sem destino, cai no canal de mensagem/revisão |
