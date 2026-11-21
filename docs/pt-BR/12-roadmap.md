@@ -3,7 +3,7 @@
 1. **Setup Inicial:** Inicializar projeto Node/TypeScript com `node:sqlite` (builtin), `playwright` e `ai` (Vercel AI SDK).
 2. **Construir o `domCleaner.ts` + `triageAgent.ts`:** Validar a extração e o cálculo de Fit Score com custo mínimo de tokens.
 3. **Criar o Template ATS (`resumeBuilder.ts`):** Estruturar um layout HTML limpo em coluna única que gere PDFs leves e 100% legíveis por parsers de RH.
-4. **Acoplar o Executor Playwright (`formExecutor.ts`):** Integrar o preenchimento compatível com React/SPA e o anel de aprovação manual.
+4. ~~Acoplar o Executor Playwright (`formExecutor.ts`)~~ **feito:** `pageInspector.ts` + `playwrightExecutor.ts` conectados — formulário web real via Chromium (`AUTOFILL_HEADLESS`/`AUTOFILL_PROFILE_DIR`), preenchimento SPA, multi-etapas e anel de aprovação.
 
 ### Ordem sugerida de evolução
 
