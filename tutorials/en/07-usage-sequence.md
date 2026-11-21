@@ -60,11 +60,14 @@ career run --dry-run   # full funnel without sending anything
 career run             # real run (respects EXECUTION_MODE)
 ```
 
-Then work the queue:
+Then work the queue — in the shell (`career` with no arguments) `review` asks each item's outcome:
 
 ```powershell
-career review   # READY_TO_REVIEW, NEEDS_HUMAN_INPUT and the WhatsApp queue
-career status   # status counts in the database
+career review                 # READY_TO_REVIEW, NEEDS_HUMAN_INPUT and the WhatsApp queue
+                              # (in the shell: e=sent on web · m=email · w=whatsapp · p=skip · f=failed · x=delete)
+career mark <url> applied     # a manual application becomes APPLIED (email|whatsapp|skipped|failed|…)
+career remove <url>           # drops the job from history — re-eligible on the next run
+career status                 # status counts in the database
 ```
 
 Under `HYBRID_THRESHOLD`, jobs ≥ 88% go by themselves, ≥ 75% get tailored material and wait in `review`.
@@ -72,7 +75,7 @@ Under `HYBRID_THRESHOLD`, jobs ≥ 88% go by themselves, ≥ 75% get tailored ma
 ## Step 5 — Enable channels (optional)
 
 - **Email:** `career vault set smtp-main` (Gmail/Outlook app password) + `EMAIL_ENABLED=true` in `.env` — 45/day cap. Full guide in `docs/pt-BR/14-configurar-smtp-gmail-outlook.md`.
-- **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR in the terminal). Default `MANUAL_QUEUE` — number+message+PDF wait in `review` for manual send. Doc 15.
+- **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR in the terminal). Default `MANUAL_QUEUE` — number+message+PDF wait in `review` for manual send; confirm with `w` in the interactive review or `career mark <url> whatsapp` to activate the per-number cooldown. Doc 15.
 
 ## Step 6 — Daily routine
 

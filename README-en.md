@@ -67,6 +67,8 @@ npm run cli -- discover --max-jobs 10 --sources remoteok,remotive  # filtered di
 npm run cli -- scan remoteok        # tests a single source and prints samples
 npm run cli -- approve              # promotes the profile draft to profile.master.md
 npm run cli -- review               # NEEDS_HUMAN_INPUT / READY_TO_REVIEW queue + WhatsApp queue
+npm run cli -- mark <url> applied   # mark a manually completed application (email|whatsapp|skipped|failed|rejected|interview|assessment)
+npm run cli -- remove <url>         # delete a job from history (re-eligible on the next run)
 npm run cli -- status               # status counts from jobs.sqlite
 npm run cli -- config check         # tests endpoint+model for all 3 tiers (preflight)
 npm run cli -- vault set smtp-main  # stores encrypted SMTP credential (interactive in shell)
@@ -175,7 +177,7 @@ CareerFacilator/
 │   ├── tracker/     # outcomeMonitor
 │   ├── generator/   # resumeBuilder
 │   ├── config/      # careerOps.config + loadConfig + paths/envFile (.env, CAREER_HOME)
-│   └── cli/         # entrypoint — interactive shell + commands (import/run/discover/scan/review/status/config)
+│   └── cli/         # entrypoint — interactive shell + commands (import/run/discover/scan/review/mark/remove/status/config)
 ├── bin/career.cjs   # wrapper for global CLI (npm link → career)
 ├── __tests__/       # Jest suites (contracts in helpers/contracts.ts)
 ├── CONTRIBUTING.md  # Contribution guide (PT-BR) — CONTRIBUTING.en.md (EN)

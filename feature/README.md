@@ -17,7 +17,7 @@ Cenários comportamentais em Gherkin (`# language: pt`) cobrindo todos os módul
 | 09 | [09-escalonamento-humano.feature](09-escalonamento-humano.feature) | CAPTCHA, OTP e escalonamento para `NEEDS_HUMAN_INPUT` |
 | 10 | [10-candidatura-email.feature](10-candidatura-email.feature) | Fallback de candidatura por e-mail |
 | 11 | [11-sessao-rate-limit.feature](11-sessao-rate-limit.feature) | Cofre de sessões e fila com jitter |
-| 12 | [12-tracking-e-dry-run.feature](12-tracking-e-dry-run.feature) | Feedback loop pós-candidatura e modo de simulação |
+| 12 | [12-tracking-e-dry-run.feature](12-tracking-e-dry-run.feature) | Feedback loop pós-candidatura, marcação manual de status e modo de simulação |
 | 13 | [13-ingestao-de-perfil.feature](13-ingestao-de-perfil.feature) | Ingestão de currículos em PDF, rascunho com revisão humana e perfil-mestre |
 | 15 | [15-candidatura-whatsapp.feature](15-candidatura-whatsapp.feature) | Candidatura por número de WhatsApp — fila manual ou Evolution API |
 

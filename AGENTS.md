@@ -42,16 +42,17 @@
 
 ### Conceitos-chave do domínio
 
-- **Máquina de estados:** `DISCOVERED → TRIAGED → TAILORED → READY_TO_REVIEW → APPLIED` (+ `SKIPPED`, `APPLIED_VIA_EMAIL`, `APPLIED_VIA_WHATSAPP`, `NEEDS_HUMAN_INPUT`, `REJECTED`, `INTERVIEW`, `ASSESSMENT_INVITED`)
+- **Máquina de estados:** `DISCOVERED → TRIAGED → TAILORED → READY_TO_REVIEW → APPLIED` (+ `SKIPPED`, `APPLIED_VIA_EMAIL`, `APPLIED_VIA_WHATSAPP`, `NEEDS_HUMAN_INPUT`, `REJECTED`, `INTERVIEW`, `ASSESSMENT_INVITED`, `DEFERRED`, `DRY_RUN`, `FAILED`)
 - **Modos de execução:** `FULL_AUTO` / `SEMI_AUTO` / `HYBRID_THRESHOLD` (régua: 75 para tailoring, 88 para auto-envio)
 - **Escopo de mercado:** `NATIONAL` / `INTERNATIONAL` / `BOTH`
 - **Skills dinâmicas:** `SKILL.md` + `keywords.json`, seleção determinística (máx. 2 por vaga)
 - **Perfil-mestre:** `profile.master.md` editável é a fonte da verdade; `profile.master.json` é o artefato compilado usado no cache de prompt. Ingestão via `src/intake/` (ver `docs/pt-BR/13-ingestao-de-perfil.md`) — anti-fabricação: nada entra no perfil sem vir de documento do usuário ou de edição manual
-- **Canais de candidatura:** web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT`. E-mail: credencial SMTP no cofre (`career vault set`), teto 45/dia (`EMAIL_MAX_DAILY`), corpo via template `email_template.md`. WhatsApp: `MANUAL_QUEUE` (fila no `review`) ou `EVOLUTION_API` — ver `docs/pt-BR/14` e `docs/pt-BR/15`
+- **Canais de candidatura:** web > e-mail > WhatsApp > `NEEDS_HUMAN_INPUT`. E-mail: credencial SMTP no cofre (`career vault set`), teto 45/dia (`EMAIL_MAX_DAILY`), corpo via template `email_template.md`. WhatsApp: `MANUAL_QUEUE` (fila no `review` — confirmar envio via `mark <url> whatsapp` ou review interativo p/ ativar o cooldown) ou `EVOLUTION_API` — ver `docs/pt-BR/14` e `docs/pt-BR/15`
 
 ### CLI e dados do usuário
 
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
+- Marcação manual da fila: `mark <url|id> <status>` (applied|email|whatsapp|skipped|failed|rejected|interview|assessment), `remove <url|id>` (tira do histórico → reprocessável) e `review` interativo no shell — ver `feature/12` e `feature/15`
 - Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1
 - Precedência de env: `<home>/.env` < `./.env` < `process.env`; `career config set|get|unset|init|path` manipula o `.env` do home via `src/config/envFile.ts`
 

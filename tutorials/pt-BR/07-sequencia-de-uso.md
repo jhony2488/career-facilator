@@ -60,11 +60,14 @@ career run --dry-run   # funil completo sem enviar nada
 career run             # execução real (respeita EXECUTION_MODE)
 ```
 
-Depois trabalhe a fila:
+Depois trabalhe a fila — no shell (`career` sem argumentos) o `review` pergunta o desfecho de cada item:
 
 ```powershell
-career review   # READY_TO_REVIEW, NEEDS_HUMAN_INPUT e fila WhatsApp
-career status   # contagens por status no banco
+career review                 # READY_TO_REVIEW, NEEDS_HUMAN_INPUT e fila WhatsApp
+                              # (no shell: e=enviei web · m=e-mail · w=whatsapp · p=pular · f=falhou · x=excluir)
+career mark <url> applied     # candidatura feita na mão vira APPLIED (email|whatsapp|skipped|failed|…)
+career remove <url>           # tira a vaga do histórico — reprocessável no próximo run
+career status                 # contagens por status no banco
 ```
 
 Em `HYBRID_THRESHOLD`, vagas ≥ 88% vão sozinhas, ≥ 75% recebem material adaptado e ficam no `review`.
@@ -72,7 +75,7 @@ Em `HYBRID_THRESHOLD`, vagas ≥ 88% vão sozinhas, ≥ 75% recebem material ada
 ## Etapa 5 — Ligar os canais (opcional)
 
 - **E-mail:** `career vault set smtp-main` (senha de app Gmail/Outlook) + `EMAIL_ENABLED=true` no `.env` — teto 45/dia. Guia completo em `docs/pt-BR/14-configurar-smtp-gmail-outlook.md`.
-- **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR no terminal). Default `MANUAL_QUEUE` — número+mensagem+PDF ficam no `review` para envio manual. Doc 15.
+- **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR no terminal). Default `MANUAL_QUEUE` — número+mensagem+PDF ficam no `review` para envio manual; confirme com `w` no review interativo ou `career mark <url> whatsapp` p/ ativar o cooldown do número. Doc 15.
 
 ## Etapa 6 — Rotina
 

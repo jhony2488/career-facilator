@@ -41,18 +41,19 @@ npm test                   # everything
 
 ## Feature → suites map
 
-| Feature              | Unit                                                                                                                          | Integration                        | E2E                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------- |
-| 01-discovery         | `geo/dorkBuilder`, `discovery/apiAdapter`, `discovery/htmlAdapter`, `discovery/genericExtractor`, `discovery/discoveryEngine` | —                                  | `pipeline.happy-path` |
-| 02-deduplicacao      | —                                                                                                                             | `repository.sqlite`                | `pipeline.*`          |
-| 03-triagem-fit-score | `ai/triageAgent`, `ai/router`                                                                                                 | `triage-to-tailor`                 | `pipeline.*`          |
-| 04-skills            | `skills/skillSelector`, `skills/skillInjector`                                                                                | `triage-to-tailor`                 | `pipeline.*`          |
-| 05-geracao-curriculo | `ai/tokenTracker`                                                                                                             | `triage-to-tailor`                 | `pipeline.*`          |
-| 06-autofill          | `autofill/deterministicMatcher`                                                                                               | `autofill-pipeline`, `wizard-flow` | `pipeline.*`          |
-| 07-modos             | `core/autonomyEngine`                                                                                                         | —                                  | `pipeline.full-auto`  |
-| 08-escopo-geo        | `geo/eligibilityGuard`, `geo/localeAdapter`                                                                                   | —                                  | —                     |
-| 09-escalonamento     | —                                                                                                                             | `escalation`                       | `pipeline.full-auto`  |
-| 10-email             | `email/recipientResolver`                                                                                                     | `email-application`                | —                     |
-| 11-sessao            | —                                                                                                                             | `escalation` (expired session)     | —                     |
-| 12-tracking/dry-run  | `tracker/outcomeMonitor`                                                                                                      | —                                  | `pipeline.dry-run`    |
-| 13-ingestao-perfil   | `intake/pdfExtractor`, `intake/profileStructurer`, `intake/masterProfileStore`, `intake/profileCompiler`                      | `intake-pipeline`                  | —                     |
+| Feature              | Unit                                                                                                                          | Integration                                 | E2E                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------- |
+| 01-discovery         | `geo/dorkBuilder`, `discovery/apiAdapter`, `discovery/htmlAdapter`, `discovery/genericExtractor`, `discovery/discoveryEngine` | —                                           | `pipeline.happy-path` |
+| 02-deduplicacao      | —                                                                                                                             | `repository.sqlite`                         | `pipeline.*`          |
+| 03-triagem-fit-score | `ai/triageAgent`, `ai/router`                                                                                                 | `triage-to-tailor`                          | `pipeline.*`          |
+| 04-skills            | `skills/skillSelector`, `skills/skillInjector`                                                                                | `triage-to-tailor`                          | `pipeline.*`          |
+| 05-geracao-curriculo | `ai/tokenTracker`                                                                                                             | `triage-to-tailor`                          | `pipeline.*`          |
+| 06-autofill          | `autofill/deterministicMatcher`                                                                                               | `autofill-pipeline`, `wizard-flow`          | `pipeline.*`          |
+| 07-modos             | `core/autonomyEngine`                                                                                                         | —                                           | `pipeline.full-auto`  |
+| 08-escopo-geo        | `geo/eligibilityGuard`, `geo/localeAdapter`                                                                                   | —                                           | —                     |
+| 09-escalonamento     | —                                                                                                                             | `escalation`                                | `pipeline.full-auto`  |
+| 10-email             | `email/recipientResolver`                                                                                                     | `email-application`                         | —                     |
+| 11-sessao            | —                                                                                                                             | `escalation` (expired session)              | —                     |
+| 12-tracking/dry-run  | `tracker/outcomeMonitor`                                                                                                      | `repository.sqlite`                         | `pipeline.dry-run`    |
+| 13-ingestao-perfil   | `intake/pdfExtractor`, `intake/profileStructurer`, `intake/masterProfileStore`, `intake/profileCompiler`                      | `intake-pipeline`                           | —                     |
+| 15-whatsapp          | `whatsapp/whatsappResolver`, `whatsapp/evolutionClient`                                                                       | `whatsapp-application`, `repository.sqlite` | —                     |
