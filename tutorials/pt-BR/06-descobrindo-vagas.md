@@ -59,6 +59,7 @@ career run --jobs-file jobs.json   # pula a descoberta e usa um arquivo [{url, h
 | `DISCOVERY_WORK_MODELS`          | `REMOTE,HYBRID,ONSITE` — fontes remote-only ficam fora se você tirar `REMOTE` | `REMOTE,HYBRID` |
 | `DISCOVERY_MAX_JOBS_PER_SOURCE`  | Teto por fonte                                                                | `20`            |
 | `DISCOVERY_MAX_JOBS_PER_RUN`     | Teto global por execução                                                      | `100`           |
+| `DISCOVERY_MIN_JOBS_PER_RUN`     | Meta de candidaturas enviadas; aquém dela o run expande a coleta              | `0` (off)       |
 | `DISCOVERY_CONCURRENCY`          | Fontes em paralelo                                                            | `4`             |
 | `DISCOVERY_PER_DOMAIN_DELAY_MS`  | Delay mínimo por domínio                                                      | `1500`          |
 | `DISCOVERY_USE_GENERIC_FALLBACK` | Extrator LLM para fontes `html` sem API/RSS                                   | `true`          |

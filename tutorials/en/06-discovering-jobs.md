@@ -59,6 +59,7 @@ career run --jobs-file jobs.json   # skips discovery and uses a [{url, html}] fi
 | `DISCOVERY_WORK_MODELS`          | `REMOTE,HYBRID,ONSITE` — remote-only sources drop out if you remove `REMOTE` | `REMOTE,HYBRID` |
 | `DISCOVERY_MAX_JOBS_PER_SOURCE`  | Per-source cap                                                               | `20`            |
 | `DISCOVERY_MAX_JOBS_PER_RUN`     | Global cap per run                                                           | `100`           |
+| `DISCOVERY_MIN_JOBS_PER_RUN`     | Sent-application target; below it the run expands collection                 | `0` (off)       |
 | `DISCOVERY_CONCURRENCY`          | Sources in parallel                                                          | `4`             |
 | `DISCOVERY_PER_DOMAIN_DELAY_MS`  | Minimum per-domain delay                                                     | `1500`          |
 | `DISCOVERY_USE_GENERIC_FALLBACK` | LLM extractor for `html` sources without API/RSS                             | `true`          |
