@@ -151,6 +151,30 @@ describe('loadCareerOpsConfig — fallbacks por tier', () => {
   });
 });
 
+describe('loadCareerOpsConfig — national eligibility via env', () => {
+  it('defaults: REMOTE+HYBRID with the configured cities', () => {
+    const cfg = loadCareerOpsConfig({ env: {}, envFile: '' });
+    expect(cfg.marketScope.national.workModels).toEqual(['REMOTE', 'HYBRID']);
+    expect(cfg.marketScope.national.allowedCities).toContain('Recife');
+  });
+
+  it('NATIONAL_WORK_MODELS overrides accepted models', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { NATIONAL_WORK_MODELS: 'remote' },
+      envFile: '',
+    });
+    expect(cfg.marketScope.national.workModels).toEqual(['REMOTE']);
+  });
+
+  it('ALLOWED_CITIES replaces the permitted hybrid cities', () => {
+    const cfg = loadCareerOpsConfig({
+      env: { ALLOWED_CITIES: 'São Paulo; Campinas' },
+      envFile: '',
+    });
+    expect(cfg.marketScope.national.allowedCities).toEqual(['São Paulo', 'Campinas']);
+  });
+});
+
 describe('parseEnvFile', () => {
   it('reads KEY=VALUE, ignores comments and strips quotes', () => {
     const path = join(tmpdir(), `cf-env-${Date.now()}.env`);
