@@ -64,7 +64,34 @@ Funcionalidade: Rastreamento pós-candidatura, feedback loop e modo de simulaç�
     Então o status da candidatura não é alterado automaticamente
     E a mensagem é sinalizada para conferência do usuário
 
+  Esquema do Cenário: Resolver manualmente uma pendência de ação humana
+    Dado que existe uma candidatura pendente em "NEEDS_HUMAN_INPUT" ou "READY_TO_REVIEW"
+    Quando o usuário informa o desfecho "<desfecho>" após agir por conta própria
+    Então o status da candidatura muda para "<novo_status>"
+
+    Exemplos:
+      | desfecho                         | novo_status          |
+      | candidatura concluída no site    | APPLIED              |
+      | candidatura enviada por e-mail   | APPLIED_VIA_EMAIL    |
+      | candidatura enviada por WhatsApp | APPLIED_VIA_WHATSAPP |
+      | desistência da vaga              | SKIPPED              |
+      | impossibilidade de se candidatar | FAILED               |
+
+  Cenário: Registrar manualmente um desfecho recebido fora do monitoramento
+    Dado que o monitoramento de retorno está desativado
+    Quando o usuário registra um desfecho recebido por outro canal
+    Então o status da candidatura é atualizado no histórico
+
+  Cenário: Remover uma candidatura do histórico
+    Dado que existe uma candidatura registrada que o usuário não quer mais acompanhar
+    Quando o usuário remove a candidatura do histórico
+    Então ela deixa de aparecer nas contagens e pendências
+    E a mesma vaga pode ser descoberta novamente em uma execução futura
+
 # Decisão: monitoramento de e-mail é opt-in com acesso somente leitura
 # (IMAP/Gmail read-only).
 # Decisão: classificação usa heurística primeiro e LLM leve para casos
 # ambíguos; confiança mínima 0.8 para mudar status automaticamente.
+# Decisão: marcação manual — o usuário resolve pendências, registra desfechos
+# recebidos por fora e remove registros; envio por canal confirmado na mão
+# ativa o mesmo cooldown do envio automático.

@@ -139,4 +139,58 @@ describe('JobRepository — 3-level deduplication (real SQLite)', () => {
     expect(await repo.hasWhatsappSentTo('5581999887766', 30)).toBe(true);
     expect(await repo.hasWhatsappSentTo('5581000000000', 30)).toBe(false);
   });
+
+  it('resolves a job by id, raw url or canonical url', async () => {
+    // manual marking commands accept any of the three references
+    const job = makeJob();
+    await repo.recordJob(job);
+
+    expect((await repo.findJob(job.id))?.id).toBe(job.id);
+    expect((await repo.findJob(job.url))?.id).toBe(job.id);
+    expect((await repo.findJob(`${job.canonicalUrl}?utm_source=feed`))?.id).toBe(job.id);
+    expect(await repo.findJob('https://example.com/nowhere')).toBeUndefined();
+  });
+
+  it('deletes a job together with its application records', async () => {
+    // deleteJob clears the manual queue entry and makes the URL reprocessable
+    const job = makeJob();
+    await repo.recordJob(job);
+    await repo.recordWhatsappApplication({
+      jobId: job.id,
+      recipient: '5581999887766',
+      sent: false,
+    });
+
+    expect(await repo.deleteJob(job.canonicalUrl)).toBe(true);
+    expect(await repo.getByUrl(job.canonicalUrl)).toBeUndefined();
+    expect(await repo.listWhatsappQueue()).toHaveLength(0);
+    expect(await repo.deleteJob(job.canonicalUrl)).toBe(false);
+  });
+
+  it('confirms a manual WhatsApp send from the queue and activates the cooldown', async () => {
+    // feature/15: after sending by hand, markChannelSent flips the pending row
+    const job = makeJob();
+    await repo.recordJob(job);
+    await repo.recordWhatsappApplication({
+      jobId: job.id,
+      recipient: '5581999887766',
+      sent: false,
+      subject: 'Bom dia...',
+    });
+
+    await repo.markChannelSent(job.id, 'WHATSAPP');
+
+    expect(await repo.listWhatsappQueue()).toHaveLength(0);
+    expect(await repo.hasWhatsappSentTo('5581999887766', 30)).toBe(true);
+  });
+
+  it('records a manual channel send even without a pending queue row', async () => {
+    // manual send done outside the app still counts toward the daily cap
+    const job = makeJob();
+    await repo.recordJob(job);
+
+    await repo.markChannelSent(job.id, 'EMAIL');
+
+    expect(await repo.countEmailsSentToday()).toBe(1);
+  });
 });

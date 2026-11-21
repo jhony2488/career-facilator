@@ -50,5 +50,13 @@ Funcionalidade: Candidatura por WhatsApp quando não há formulário nem e-mail
     Então o envio tenta o canal de e-mail primeiro
     E o WhatsApp só é usado se o e-mail não estiver alcançável
 
+  Cenário: Confirmar o envio manual da fila de WhatsApp
+    Dado que existe uma candidatura na fila manual de WhatsApp
+    Quando o usuário confirma que enviou a mensagem pelo próprio WhatsApp
+    Então a vaga é marcada como "APPLIED_VIA_WHATSAPP"
+    E o número passa a contar no cooldown anti-duplicidade
+
 # Decisão: modo padrão é MANUAL_QUEUE — EVOLUTION_API exige configuração explícita.
 # Decisão: precedência de canal é web > e-mail > WhatsApp > NEEDS_HUMAN_INPUT.
+# Decisão: o envio manual da fila é confirmado pelo usuário (revisão da fila ou
+# marcação direta) — a confirmação grava o envio e ativa o cooldown por número.
