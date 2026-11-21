@@ -76,7 +76,7 @@ Em `HYBRID_THRESHOLD`, vagas ≥ 88% vão sozinhas, ≥ 75% recebem material ada
 
 - **E-mail:** `career vault set smtp-main` (senha de app Gmail/Outlook) + `EMAIL_ENABLED=true` no `.env` — teto 45/dia. Guia completo em `docs/pt-BR/14-configurar-smtp-gmail-outlook.md`.
 - **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR no terminal). Default `MANUAL_QUEUE` — número+mensagem+PDF ficam no `review` para envio manual; confirme com `w` no review interativo ou `career mark <url> whatsapp` p/ ativar o cooldown do número. Doc 15.
-- **Portais com login (Gupy, LinkedIn…):** `AUTOFILL_PROFILE_DIR=./browser-profile` no `.env` + `career login <url|portal>` — browser abre p/ login manual e a sessão é reaproveitada nos runs. CAPTCHA/tela de login durante o run reabre o form visível p/ resolver na hora. Doc 10.
+- **Portais com login (Gupy, LinkedIn…):** `AUTOFILL_PROFILE_DIR=./browser-profile` no `.env` + `career login <url|portal>` — browser abre p/ login manual e a sessão é reaproveitada nos runs. CAPTCHA/tela de login durante o run reabre o form visível p/ resolver na hora. **Atenção, Gupy:** o signin é por subdomínio (`<empresa>.gupy.io`) — um login manual por empresa não basta. Grave a credencial com `career vault set login-gupy` e os muros de login passam a autenticar sozinhos. Doc 10.
 
 ## Etapa 6 — Rotina
 

@@ -76,7 +76,7 @@ Under `HYBRID_THRESHOLD`, jobs ≥ 88% go by themselves, ≥ 75% get tailored ma
 
 - **Email:** `career vault set smtp-main` (Gmail/Outlook app password) + `EMAIL_ENABLED=true` in `.env` — 45/day cap. Full guide in `docs/pt-BR/14-configurar-smtp-gmail-outlook.md`.
 - **WhatsApp:** `WHATSAPP_ENABLED=true` + `career whatsapp setup` (QR in the terminal). Default `MANUAL_QUEUE` — number+message+PDF wait in `review` for manual send; confirm with `w` in the interactive review or `career mark <url> whatsapp` to activate the per-number cooldown. Doc 15.
-- **Login-required portals (Gupy, LinkedIn…):** `AUTOFILL_PROFILE_DIR=./browser-profile` in `.env` + `career login <url|portal>` — the browser opens for manual sign-in and the session is reused on runs. CAPTCHA/login walls during a run reopen the form visibly for on-the-spot resolution. Doc 10.
+- **Login-required portals (Gupy, LinkedIn…):** `AUTOFILL_PROFILE_DIR=./browser-profile` in `.env` + `career login <url|portal>` — the browser opens for manual sign-in and the session is reused on runs. CAPTCHA/login walls during a run reopen the form visibly for on-the-spot resolution. **Gupy heads-up:** sign-in is per subdomain (`<company>.gupy.io`) — one manual login per company is not enough. Store the credential with `career vault set login-gupy` and login walls authenticate on their own. Doc 10.
 
 ## Step 6 — Daily routine
 
