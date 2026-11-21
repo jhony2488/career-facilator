@@ -247,6 +247,20 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
         ...(Number.isFinite(Number(env.SALARY_BRL)) && env.SALARY_BRL !== undefined
           ? { salaryExpectationBRL: Number(env.SALARY_BRL) }
           : {}),
+        ...(env.NATIONAL_WORK_MODELS
+          ? {
+              workModels: env.NATIONAL_WORK_MODELS.split(/[,;]/)
+                .map((s) => s.trim().toUpperCase() as WorkModel)
+                .filter(Boolean),
+            }
+          : {}),
+        ...(env.ALLOWED_CITIES
+          ? {
+              allowedCities: env.ALLOWED_CITIES.split(/[,;]/)
+                .map((s) => s.trim())
+                .filter(Boolean),
+            }
+          : {}),
       },
       international: {
         ...defaultCareerOpsConfig.marketScope.international,
