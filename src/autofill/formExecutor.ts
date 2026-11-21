@@ -22,6 +22,8 @@ export interface PageStateLike {
   fields: PageFieldState[];
   hasCaptcha: boolean;
   requiresEmailOtp: boolean;
+  /** Tela de login/auth do portal — escalonamento abre browser visível p/ o usuário logar. */
+  requiresLogin?: boolean;
   validationErrors: string[];
   alreadyAppliedBanner: boolean;
   currentStep: number;

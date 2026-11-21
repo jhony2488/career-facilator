@@ -6,10 +6,14 @@ import { buildSkillsContextBlock } from '../skills/core/skillInjector';
 import type { SkillMetadata } from '../skills/core/skillRegistry';
 import { checkEligibility } from '../geo/eligibilityGuard';
 import { decideApplicationRoute } from './autonomyEngine';
-import { matchFields, type InspectedField } from '../autofill/deterministicMatcher';
+import {
+  matchFields,
+  type FieldMatch,
+  type InspectedField,
+} from '../autofill/deterministicMatcher';
 import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
 import { closeLivePage, executeLiveFill, submitLivePage } from '../autofill/playwrightExecutor';
-import { detectBlockingSignal, escalate } from './escalationHandler';
+import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
 import { applyViaEmail } from '../email_application/emailAppCore';
 import type { SmtpTransport, CredentialVault } from '../email_application/emailDispatcher';
 import { applyViaWhatsapp } from '../whatsapp_application/whatsappAppCore';
@@ -83,6 +87,19 @@ export interface PipelineDeps {
    * default true; `false` p/ interações instantâneas (AUTOFILL_HUMAN_PACE).
    */
   humanPace?: boolean;
+  /**
+   * Escalão visível (feature/09): chamado em CAPTCHA/EMAIL_OTP antes do
+   * NEEDS_HUMAN_INPUT — o chamador pode reabrir a página num browser visível
+   * p/ o humano resolver na hora. `true` = pipeline não fecha a página
+   * (o chamador assumiu posse dela). Default: nada (fecha como sempre).
+   */
+  onHumanEscalation?: (ctx: {
+    page: PageStateLike;
+    signal: BlockingSignal;
+    matched: FieldMatch[];
+    aiAnswers: Record<string, string>;
+    resumePath?: string;
+  }) => Promise<boolean>;
 }
 
 export interface ApplicationResult {
@@ -316,6 +333,7 @@ export async function runApplicationPipeline(
       // 9. Canal: formulário web vs. e-mail — pageFactory devolve página
       // real (Playwright, dom) ou stub; finally garante fechar a página.
       const page = await deps.pageFactory(raw.url);
+      let keepPageOpen = false;
       try {
         const hasWebForm = page.fields.length > 0;
 
@@ -384,10 +402,29 @@ export async function runApplicationPipeline(
           unmatchedRequiredLabels: unmatchedRequired.map((f) => f.label),
         });
         if (signal || fill.escalated) {
-          await escalate(
-            page,
-            signal ?? { kind: 'UNKNOWN_REQUIRED_FIELD', detail: 'bloqueio no preenchimento' },
-          );
+          const effSignal: BlockingSignal = signal ?? {
+            kind: 'UNKNOWN_REQUIRED_FIELD',
+            detail: 'bloqueio no preenchimento',
+          };
+          await escalate(page, effSignal);
+          // CAPTCHA/OTP/login em página real → chamador pode reabrir visível
+          // p/ o humano resolver na hora (true = página segue aberta fora do pipeline).
+          if (
+            (effSignal.kind === 'CAPTCHA' ||
+              effSignal.kind === 'EMAIL_OTP' ||
+              effSignal.kind === 'LOGIN_REQUIRED') &&
+            deps.onHumanEscalation
+          ) {
+            keepPageOpen = await deps
+              .onHumanEscalation({
+                page,
+                signal: effSignal,
+                matched,
+                aiAnswers: assets.answers,
+                resumePath: assets.resumePath,
+              })
+              .catch(() => false);
+          }
           stages.push('NEEDS_HUMAN_INPUT');
           Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
           applications.push(app);
@@ -418,7 +455,7 @@ export async function runApplicationPipeline(
         Object.assign(app, { status: 'APPLIED' });
         applications.push(app);
       } finally {
-        await closeLivePage(page);
+        if (!keepPageOpen) await closeLivePage(page);
       }
     } catch (e) {
       await deps.repo.updateStatus(raw.url, 'FAILED').catch(() => {});

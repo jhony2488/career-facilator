@@ -63,14 +63,21 @@ export async function getJobBrowserContext(
   const headless = opts.headless ?? true;
   const viewport = pickViewport();
   const args = ['--disable-blink-features=AutomationControlled'];
+  // headless "novo" (channel:'chromium') — Chromium completo sem janela,
+  // fingerprint ~headed; fallback p/ headless clássico se o build faltar.
+  const withChannel = <T>(launch: (channel?: 'chromium') => Promise<T>): Promise<T> =>
+    headless ? launch('chromium').catch(() => launch()) : launch();
   if (opts.profileDir) {
-    context = await chromium.launchPersistentContext(opts.profileDir, {
-      headless,
-      viewport,
-      args,
-    });
+    context = await withChannel((channel) =>
+      chromium.launchPersistentContext(opts.profileDir as string, {
+        headless,
+        viewport,
+        args,
+        channel,
+      }),
+    );
   } else {
-    const launched = await chromium.launch({ headless, args });
+    const launched = await withChannel((channel) => chromium.launch({ headless, args, channel }));
     browser = launched;
     context = await launched.newContext({ viewport });
   }

@@ -18,6 +18,8 @@ export interface PageSnapshot {
   }>;
   hasCaptcha: boolean;
   requiresEmailOtp: boolean;
+  /** Tela de login/auth do portal — bloqueia a candidatura até o usuário logar. */
+  requiresLogin: boolean;
   alreadyAppliedBanner: boolean;
   validationErrors: string[];
   currentStep: number;
@@ -139,6 +141,17 @@ function snapshotScript(): PageSnapshot {
     'input[name*="otp" i], input[name*="code" i], input[id*="otp" i], input[autocomplete="one-time-code"]',
   );
 
+  // Muro de login: URL de auth OU senha visível + formulário curto (criar-conta
+  // de ATS tem vários campos — senha sozinha não basta p/ chamar de wall).
+  const passwordVisible = Array.from(document.querySelectorAll('input[type="password"]')).some(
+    isVisible,
+  );
+  const requiresLogin =
+    /login|signin|sign-in|sign_in|entrar|acesso|auth|signup|register|cadastro/i.test(
+      location.pathname,
+    ) ||
+    (passwordVisible && fields.length <= 5);
+
   const bodyText = (document.body?.innerText || '').slice(0, 5000);
   const alreadyAppliedBanner =
     /already applied|you'?ve applied|you have applied|já se candidatou|ja se candidatou|ya has aplicado|candidatura já enviada/i.test(
@@ -164,6 +177,7 @@ function snapshotScript(): PageSnapshot {
     fields,
     hasCaptcha,
     requiresEmailOtp,
+    requiresLogin,
     alreadyAppliedBanner,
     validationErrors,
     currentStep,
@@ -180,6 +194,7 @@ export function snapshotToState(snap: PageSnapshot, url: string, dom?: unknown):
     fields: snap.fields.map((f) => ({ ...f })),
     hasCaptcha: snap.hasCaptcha,
     requiresEmailOtp: snap.requiresEmailOtp,
+    requiresLogin: snap.requiresLogin,
     validationErrors: [...snap.validationErrors],
     alreadyAppliedBanner: snap.alreadyAppliedBanner,
     currentStep: snap.currentStep,
@@ -204,6 +219,7 @@ export function mergeSnapshots(
     fields: [],
     hasCaptcha: false,
     requiresEmailOtp: false,
+    requiresLogin: false,
     alreadyAppliedBanner: false,
     validationErrors: [],
     currentStep: main?.currentStep ?? 1,
@@ -215,6 +231,7 @@ export function mergeSnapshots(
     for (const f of snap.fields) merged.fields.push({ ...f, frameIdx });
     merged.hasCaptcha ||= snap.hasCaptcha;
     merged.requiresEmailOtp ||= snap.requiresEmailOtp;
+    merged.requiresLogin ||= snap.requiresLogin;
     merged.alreadyAppliedBanner ||= snap.alreadyAppliedBanner;
     merged.isShadowDom ||= snap.isShadowDom;
     for (const err of snap.validationErrors) {
@@ -382,6 +399,7 @@ export async function inspectDom(page: Page, url?: string): Promise<LivePageStat
         fields: [],
         hasCaptcha: false,
         requiresEmailOtp: false,
+        requiresLogin: false,
         alreadyAppliedBanner: false,
         validationErrors: [],
         currentStep: 1,

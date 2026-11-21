@@ -9,6 +9,7 @@
  *   career-facilitator review                       # Fila NEEDS_HUMAN_INPUT / READY_TO_REVIEW
  *   career-facilitator mark <url|id> <status>       # Marcação manual (applied/email/whatsapp/…)
  *   career-facilitator remove <url|id>              # Remove a vaga do histórico
+ *   career-facilitator login <url>                  # Browser visível p/ login manual no perfil
  *   career-facilitator status                       # Resumo do SQLite
  *   career-facilitator config                       # Roteamento de modelos resolvido do .env
  */
@@ -52,6 +53,8 @@ import {
 } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
+import type { Page } from 'playwright';
+import { executeLiveFill } from '../autofill/playwrightExecutor';
 import { followApplyLink, inspectPage } from '../scraper/pageInspector';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
@@ -101,6 +104,7 @@ const HELP = [
   '    config [path|init|get|set|unset|check]  Config global + preflight dos tiers de IA',
   '    vault [list|set|remove <ref>]           Cofre de credenciais (SMTP etc.)',
   '    whatsapp [setup|status]                 Evolution API: instância + QR no terminal',
+  '    login <url|portal>                      Browser visível p/ login manual no perfil',
   '',
   '  Outros',
   '    version                                 Versão da build',
@@ -595,6 +599,53 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
   };
 
+  // CAPTCHA/OTP → janela visível pro humano resolver na hora (feature/09):
+  // em headless reabre o form no mesmo perfil; já visível, só preserva a aba.
+  // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
+  let pendingVisiblePages = 0;
+  if (effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false') {
+    channelDeps.onHumanEscalation = async ({ page, signal, matched, aiAnswers, resumePath }) => {
+      if (!page.dom) return false;
+      const refill = { matched, aiAnswers, resumePath };
+      // Muro de login: headless → relança visível; já visível → o humano loga
+      // na própria página escalada. Enter aqui → reabre a vaga + refaz o fill.
+      if (signal.kind === 'LOGIN_REQUIRED') {
+        console.log(`\n⏸ ${signal.detail}`);
+        const ok =
+          effEnv.env.AUTOFILL_HEADLESS === 'false'
+            ? await continueAfterLogin(page.dom as Page, page.url, refill, ctx)
+            : await relaunchForLogin(page.url, refill, ctx);
+        if (!ok) return false;
+        pendingVisiblePages++;
+        console.log(
+          `   Formulário refeito — revise e envie; ` +
+            `depois 'mark ${page.url} applied' ou 'e' no review.`,
+        );
+        return true;
+      }
+      if (effEnv.env.AUTOFILL_HEADLESS === 'false') {
+        pendingVisiblePages++;
+        console.log(
+          `\n⏸ ${signal.detail} — resolva na janela aberta e envie; ` +
+            `depois confirme com 'mark ${page.url} applied' ou 'e' no review.`,
+        );
+        return true;
+      }
+      console.log(`\n⏸ ${signal.detail} — reabrindo o formulário visível p/ resolução manual…`);
+      const reopened = await relaunchEscalationPage(page.url, {
+        matched,
+        aiAnswers,
+        resumePath,
+      });
+      if (!reopened) return false;
+      pendingVisiblePages++;
+      console.log(
+        `   Resolva no browser e envie — depois 'mark ${page.url} applied' ou 'e' no review.`,
+      );
+      return true;
+    };
+  }
+
   if (config.email.enabled) {
     const fileVault = new FileCredentialVault(resolveHome('vault', effEnv.env));
     if (await fileVault.has(config.email.smtpCredentialRef)) {
@@ -691,7 +742,14 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       }
     }
   } finally {
-    await shutdownSharedBrowser();
+    if (pendingVisiblePages > 0) {
+      console.log(
+        `\n${pendingVisiblePages} formulário(s) aguardando resolução manual — ` +
+          `a janela do browser permanece aberta.`,
+      );
+    } else {
+      await shutdownSharedBrowser();
+    }
     repo.close();
   }
 
@@ -751,6 +809,158 @@ const shutdownSharedBrowser = async (): Promise<void> => {
   renderCtxPromise = null;
   await closeJobBrowser().catch(() => {});
 };
+
+/** Enter no terminal (REPL ctx.ask ou readline direto) — também sai no Ctrl+C. */
+async function waitHumanSignal(ctx: CmdCtx): Promise<void> {
+  const enter = ctx.ask
+    ? ctx.ask('')
+    : (async () => {
+        const { createInterface } = await import('node:readline');
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        try {
+          await new Promise<void>((res) => rl.question('', () => res()));
+        } finally {
+          rl.close();
+        }
+      })();
+  await Promise.race([
+    enter,
+    new Promise<void>((res) => ctx.signal?.addEventListener('abort', () => res(), { once: true })),
+  ]);
+}
+
+/**
+ * CAPTCHA/OTP em modo headless → reabre o formulário VISÍVEL no mesmo perfil
+ * (cookies/login persistem e ajudam no desafio). Fecha o contexto headless
+ * p/ liberar o SingletonLock do profileDir, relança headed e refaz o
+ * preenchimento — o humano só resolve o bloqueio e envia.
+ */
+async function relaunchEscalationPage(
+  url: string,
+  refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
+): Promise<boolean> {
+  try {
+    await shutdownSharedBrowser();
+    const ctx = await getJobBrowserContext({
+      headless: false,
+      profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+      stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
+    });
+    const page = await ctx.newPage();
+    const state = await inspectPage(page, url);
+    await executeLiveFill(state, {
+      ...refill,
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Human loga na janela (Enter aqui p/ confirmar) → reabre a URL da vaga e
+ * refaz o preenchimento p/ revisão+envio manual. Usa a página DOM viva.
+ */
+async function continueAfterLogin(
+  dom: Page,
+  url: string,
+  refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
+  ctx: CmdCtx,
+): Promise<boolean> {
+  try {
+    console.log(
+      '   Faça login na janela do browser; ao concluir, pressione Enter aqui p/ retomar a candidatura.',
+    );
+    await waitHumanSignal(ctx);
+    await dom.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    const state = await inspectPage(dom, url);
+    await executeLiveFill(state, {
+      ...refill,
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Login wall em headless → relança VISÍVEL no mesmo perfil na URL da vaga
+ * (redireciona p/ login), espera o humano autenticar e retoma o preenchimento.
+ */
+async function relaunchForLogin(
+  url: string,
+  refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
+  ctx: CmdCtx,
+): Promise<boolean> {
+  try {
+    await shutdownSharedBrowser(); // solta o lock do perfil headless
+    const browserCtx = await getJobBrowserContext({
+      headless: false,
+      profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+      stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
+    });
+    const page = await browserCtx.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    return await continueAfterLogin(page, url, refill, ctx);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `login <url>` — abre o Chromium persistente VISÍVEL na URL do portal e
+ * espera (fecha a janela ou Enter aqui). A sessão fica gravada no perfil
+ * (DISCOVERY_BROWSER_PROFILE_DIR || AUTOFILL_PROFILE_DIR) e é reaproveitada
+ * por fontes render:true e pelo autofill — headless ou não.
+ */
+/** Portais comuns — `login <portal>` abre direto sem URL completa. */
+const LOGIN_PORTALS: Record<string, string> = {
+  gupy: 'https://portal.gupy.io',
+  linkedin: 'https://www.linkedin.com',
+  indeed: 'https://www.indeed.com.br',
+  vagas: 'https://www.vagas.com.br',
+  infojobs: 'https://www.infojobs.com.br',
+  catho: 'https://www.catho.com.br',
+};
+
+async function cmdLogin(args: string[], ctx: CmdCtx): Promise<void> {
+  const url = LOGIN_PORTALS[args[0]?.toLowerCase() ?? ''] ?? args[0];
+  if (!url || !/^https?:\/\//.test(url)) {
+    console.log(
+      `Uso: login <url|${Object.keys(LOGIN_PORTALS).join('|')}> — abre o browser do perfil ` +
+        'p/ login manual (sessão reutilizada nos runs).',
+    );
+    return;
+  }
+  const profileDir =
+    config.discovery.browserProfileDir || effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined;
+  if (!profileDir) {
+    console.log(
+      'Aviso: sem AUTOFILL_PROFILE_DIR/DISCOVERY_BROWSER_PROFILE_DIR o login não persiste entre runs.',
+    );
+  }
+  const browserCtx = await getJobBrowserContext({
+    headless: false,
+    profileDir,
+    stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
+  });
+  const page = await browserCtx.newPage();
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+  console.log(`Browser aberto em ${url} — faça o login. Feche a janela ou pressione Enter.`);
+  try {
+    await Promise.race([
+      new Promise<void>((res) => browserCtx.on('close', () => res())),
+      waitHumanSignal(ctx),
+    ]);
+  } finally {
+    await shutdownSharedBrowser();
+  }
+  console.log('Login salvo no perfil do browser — próximos runs reaproveitam a sessão.');
+}
 function buildRenderText() {
   return async (url: string) => {
     renderCtxPromise ??= getJobBrowserContext(renderCtxOpts());
@@ -1382,6 +1592,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'whatsapp':
       await cmdWhatsapp(args, ctx);
+      return true;
+    case 'login':
+      await cmdLogin(args, ctx);
       return true;
     case 'version':
       console.log(careerVersion());

@@ -2,7 +2,7 @@ import type { JobStatus } from '../db/repository';
 import type { PageStateLike } from '../autofill/formExecutor';
 
 export type BlockingSignalKind =
-  'CAPTCHA' | 'EMAIL_OTP' | 'UNKNOWN_REQUIRED_FIELD' | 'SESSION_EXPIRED';
+  'CAPTCHA' | 'EMAIL_OTP' | 'LOGIN_REQUIRED' | 'UNKNOWN_REQUIRED_FIELD' | 'SESSION_EXPIRED';
 
 export interface BlockingSignal {
   kind: BlockingSignalKind;
@@ -39,6 +39,9 @@ export function detectBlockingSignal(
   }
   if (page.requiresEmailOtp) {
     return { kind: 'EMAIL_OTP', detail: 'Verificação de código por e-mail exigida' };
+  }
+  if (page.requiresLogin) {
+    return { kind: 'LOGIN_REQUIRED', detail: 'Portal exige login para prosseguir' };
   }
   if (ctx.sessionState === null) {
     return { kind: 'SESSION_EXPIRED', detail: 'Sessão autenticada expirada ou inválida' };
