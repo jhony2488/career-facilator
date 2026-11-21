@@ -42,7 +42,8 @@ import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
 import { createGenericExtractor } from '../discovery/genericExtractor';
 import { getActiveSources, listSources } from '../discovery/sourceRegistry';
 import { FileCredentialVault } from '../email_application/credentialVault';
-import { createSmtpTransport } from '../email_application/smtpTransport';
+import { createSmtpTransport, smtpCredentialFromEnv } from '../email_application/smtpTransport';
+import type { CredentialVault } from '../email_application/emailDispatcher';
 import {
   createEvolutionClient,
   createEvolutionSetup,
@@ -86,6 +87,7 @@ const HELP = [
   '  Revisão e estado',
   '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
   '    status                                  Contagens por status no jobs.sqlite',
+  '    applied [--limit N]                     Candidaturas enviadas (total por canal, hoje, recentes)',
   '',
   '  Configuração e canais',
   '    config [path|init|get|set|unset|check]  Config global + preflight dos tiers de IA',
@@ -553,10 +555,24 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         ref: config.email.smtpCredentialRef,
       });
     } else {
-      console.log(
-        `E-mail: credencial '${config.email.smtpCredentialRef}' ausente no cofre ` +
-          `— rode 'vault set ${config.email.smtpCredentialRef}'. Vagas de e-mail vão para revisão.`,
-      );
+      // Fallback env SMTP_* (uso local) — cofre continua preferido quando existe.
+      const envSmtp = smtpCredentialFromEnv(effEnv.env);
+      if (envSmtp) {
+        const envVault: CredentialVault = {
+          getCredential: async () => JSON.stringify(envSmtp),
+        };
+        channelDeps.vault = envVault;
+        channelDeps.emailTransport = createSmtpTransport({ vault: envVault, ref: 'env:smtp' });
+        console.log(
+          `E-mail: credencial via env SMTP_* (${envSmtp.user}) — ` +
+            `para guardar cifrada, 'vault set ${config.email.smtpCredentialRef}'.`,
+        );
+      } else {
+        console.log(
+          `E-mail: credencial '${config.email.smtpCredentialRef}' ausente no cofre ` +
+            `— rode 'vault set ${config.email.smtpCredentialRef}'. Vagas de e-mail vão para revisão.`,
+        );
+      }
     }
   }
 
@@ -772,6 +788,34 @@ async function cmdStatus(): Promise<void> {
   console.log(`${total} vaga(s) no banco (${DB_PATH}):`);
   for (const [status, n] of Object.entries(counts).sort()) {
     console.log(`  ${status.padEnd(20)} ${n}`);
+  }
+}
+
+/** `applied [--limit N]` — candidaturas efetivamente enviadas + recentes. */
+async function cmdApplied(args: string[]): Promise<void> {
+  const limitIdx = args.indexOf('--limit');
+  const limit = limitIdx === -1 ? 10 : Number(args[limitIdx + 1]) || 10;
+
+  const repo = openRepo();
+  const counts = await repo.countByStatus();
+  const sentToday = await repo.countEmailsSentToday();
+  const applied = await repo.listApplied(limit);
+  repo.close();
+
+  const APPLIED = ['APPLIED', 'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP'];
+  const total = APPLIED.reduce((acc, s) => acc + (counts[s] ?? 0), 0);
+  console.log(`${total} candidatura(s) enviada(s):`);
+  for (const s of APPLIED) {
+    if (counts[s]) console.log(`  ${s.padEnd(22)} ${counts[s]}`);
+  }
+  console.log(`  Hoje (e-mail)        ${sentToday}/${config.email.maxDailyEmails}`);
+
+  if (applied.length) {
+    console.log('\nRecentes:');
+    for (const j of applied) {
+      const when = j.appliedAt ? j.appliedAt.slice(0, 16).replace('T', ' ') : '—';
+      console.log(`  ${when}  ${j.status.padEnd(20)} ${j.title} — ${j.company}`);
+    }
   }
 }
 
@@ -1030,6 +1074,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'status':
       await cmdStatus();
+      return true;
+    case 'applied':
+      await cmdApplied(args);
       return true;
     case 'config':
       await cmdConfig(args, ctx);
