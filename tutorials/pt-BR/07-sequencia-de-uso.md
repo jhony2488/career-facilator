@@ -67,6 +67,8 @@ career review                 # READY_TO_REVIEW, NEEDS_HUMAN_INPUT e fila WhatsA
                               # (no shell: e=enviei web · m=e-mail · w=whatsapp · p=pular · f=falhou · x=excluir)
 career mark <url> applied     # candidatura feita na mão vira APPLIED (email|whatsapp|skipped|failed|…)
 career remove <url>           # tira a vaga do histórico — reprocessável no próximo run
+career retry [url|id]         # refaz só o estágio web das NEEDS_HUMAN_INPUT
+                              # (mesma malha login-cofre/OTP do run — sem discovery/triagem)
 career status                 # contagens por status no banco
 ```
 

@@ -52,7 +52,7 @@
 ### CLI e dados do usuário
 
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
-- Marcação manual da fila: `mark <url|id> <status>` (applied|email|whatsapp|skipped|failed|rejected|interview|assessment), `remove <url|id>` (tira do histórico → reprocessável) e `review` interativo no shell — ver `feature/12` e `feature/15`
+- Marcação manual da fila: `mark <url|id> <status>` (applied|email|whatsapp|skipped|failed|rejected|interview|assessment), `remove <url|id>` (tira do histórico → reprocessável), `retry [url|id]` (refaz o estágio web das vagas NEEDS_HUMAN_INPUT — mesma malha login-cofre/OTP do run, sem discovery/triagem) e `review` interativo no shell — ver `feature/12` e `feature/15`
 - `login <url|portal>` abre o browser visível no perfil persistente p/ login manual — a sessão é reaproveitada por fontes render:true e autofill
 - Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1
 - Precedência de env: `<home>/.env` < `./.env` < `process.env`; `career config set|get|unset|init|path` manipula o `.env` do home via `src/config/envFile.ts`

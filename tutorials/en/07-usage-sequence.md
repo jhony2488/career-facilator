@@ -67,6 +67,8 @@ career review                 # READY_TO_REVIEW, NEEDS_HUMAN_INPUT and the Whats
                               # (in the shell: e=sent on web · m=email · w=whatsapp · p=skip · f=failed · x=delete)
 career mark <url> applied     # a manual application becomes APPLIED (email|whatsapp|skipped|failed|…)
 career remove <url>           # drops the job from history — re-eligible on the next run
+career retry [url|id]         # re-runs only the web stage of NEEDS_HUMAN_INPUT jobs
+                              # (same vault-login/OTP mesh as run — no discovery/triage)
 career status                 # status counts in the database
 ```
 
