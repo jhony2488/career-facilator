@@ -82,6 +82,22 @@ Funcionalidade: Rastreamento pós-candidatura, feedback loop e modo de simulaç�
     Quando o usuário registra um desfecho recebido por outro canal
     Então o status da candidatura é atualizado no histórico
 
+  Cenário: Retestar uma candidatura pendente no formulário web
+    Dado que existe uma candidatura em "NEEDS_HUMAN_INPUT" com formulário web
+    Quando o usuário retesta a candidatura
+    Então a página é reaberta e o preenchimento é refeito com o material já gerado
+    E a candidatura pronta para envio vira "READY_TO_REVIEW"
+
+  Cenário: Reteste de vaga já enviada encerra a pendência
+    Dado que existe uma candidatura em "NEEDS_HUMAN_INPUT" com formulário web
+    Quando o usuário retesta a candidatura e a plataforma indica envio anterior
+    Então o status da candidatura muda para "APPLIED"
+
+  Cenário: Reteste preserva pendência de canal não web
+    Dado que existe uma candidatura em "NEEDS_HUMAN_INPUT" por canal de mensagem
+    Quando o usuário retesta as candidaturas pendentes
+    Então a pendência de canal de mensagem permanece para resolução manual
+
   Cenário: Remover uma candidatura do histórico
     Dado que existe uma candidatura registrada que o usuário não quer mais acompanhar
     Quando o usuário remove a candidatura do histórico
@@ -95,3 +111,6 @@ Funcionalidade: Rastreamento pós-candidatura, feedback loop e modo de simulaç�
 # Decisão: marcação manual — o usuário resolve pendências, registra desfechos
 # recebidos por fora e remove registros; envio por canal confirmado na mão
 # ativa o mesmo cooldown do envio automático.
+# Decisão: reteste (`retry`) re-executa apenas o estágio de formulário web das
+# pendências — sem repetir busca, triagem nem geração de material; bloqueios
+# seguem a mesma malha de escalonamento (credencial do cofre, OTP por e-mail).

@@ -25,6 +25,27 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Então a candidatura muda para "NEEDS_HUMAN_INPUT"
     E o formulário é reaberto em janela visível para o usuário se autenticar e retomar
 
+  Cenário: Autenticar o muro de login com a credencial guardada
+    Dado que a página da candidatura exige autenticação do usuário
+    E o usuário guardou a credencial do portal no cofre
+    Quando o sistema identifica a tela de login
+    Então a credencial é preenchida e enviada pelo próprio sistema
+    E o fluxo volta à página da candidatura com os campos refeitos
+
+  Cenário: Contornar verificação anti-robô travada via acesso por e-mail
+    Dado que a tela de login trava por verificação anti-robô irresolúvel
+    E o portal oferece acesso alternativo por e-mail
+    Quando o sistema aciona o acesso por e-mail
+    Então o link de acesso recebido na caixa do usuário é aberto na mesma sessão
+    E o fluxo volta à página da candidatura com os campos refeitos
+
+  Cenário: Resolver código de verificação lendo a caixa do usuário
+    Dado que o fluxo exige um código de verificação enviado por e-mail
+    E a caixa do usuário está configurada no cofre
+    Quando o sistema identifica a etapa de verificação
+    Então o código é lido na caixa e digitado no campo
+    E a candidatura segue para revisão sem intervenção manual
+
   Cenário: Escalonar ao encontrar campo obrigatório desconhecido
     Dado que o formulário contém um campo obrigatório sem mapeamento nem resposta gerada
     Quando o sistema tenta completar a etapa
@@ -68,3 +89,7 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
 # Decisão: muro de login — página com URL de auth ou campo de senha em formulário
 # curto é escalonada; em headless o form reabre visível, o usuário loga e a
 # candidatura é retomada com os campos refeitos (AUTOFILL_VISIBLE_ON_ESCALATION).
+# Decisão: antes de escalar, credencial do portal no cofre (login-<domínio>)
+# autentica o muro sozinha; verificação anti-robô que segura o login cai no
+# acesso por e-mail do portal (magic link) lido da caixa do usuário no cofre —
+# mesmo caminho do OTP (imap-main, ou smtp-main c/ host derivável).
