@@ -1,6 +1,9 @@
 import type { JobRepository, JobStatus, JobRecord } from '../db/repository';
 import { matchFields, type InspectedField } from '../autofill/deterministicMatcher';
 import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
+import { readAnswers } from '../autofill/answersStore';
+import { resolveHome } from '../config/paths';
+import { existsSync } from 'node:fs';
 import { closeLivePage, executeLiveFill } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
 import type { PipelineDeps } from './pipeline';
@@ -9,8 +12,8 @@ import type { MasterProfileLike } from './types';
 /**
  * Reteste de candidatura web (`retry`): reabre vagas NEEDS_HUMAN_INPUT e
  * re-executa só o estágio de formulário — sem discovery/triagem/tailoring.
- * Usa o `resumePath` persistido; `aiAnswers` = {} (campos obrigatórios sem
- * match escalam como UNKNOWN_REQUIRED_FIELD, igual ao pipeline).
+ * Usa o `resumePath` persistido + respostas do tailor (`<resume>.answers.json`)
+ * — campos obrigatórios sem match/answer escalam como UNKNOWN_REQUIRED_FIELD.
  */
 
 export interface RetryDeps {
@@ -18,6 +21,8 @@ export interface RetryDeps {
   pageFactory: (url: string) => Promise<PageStateLike>;
   onHumanEscalation?: PipelineDeps['onHumanEscalation'];
   humanPace?: boolean;
+  /** `AUTOFILL_DEBUG_FILL` — loga campo→valor→fonte no fill web. */
+  debugFill?: boolean;
 }
 
 export interface RetryResult {
@@ -55,15 +60,34 @@ export async function reapplyStoredJob(
       kind: f.kind as InspectedField['kind'],
       label: f.label,
       required: f.required,
+      name: f.name,
+      selector: f.selector,
     }));
     const { matched, unmatched } = matchFields(inspected, profile);
-    const unmatchedRequired = unmatched.filter((f) => f.required);
+    // Respostas do tailor persistidas no run — preenchem os campos que o
+    // match determinístico não cobre (antes caíam todos em UNKNOWN_…).
+    const aiAnswers = readAnswers(job.resumePath);
+    // Sem CV tailorado em registro antigo → master resume de fallback.
+    // job.resumePath é relativo ao CAREER_HOME — resolve p/ path real.
+    const masterResume = resolveHome('storage/master_resume.pdf');
+    const resumePath = job.resumePath
+      ? resolveHome(job.resumePath)
+      : existsSync(masterResume)
+        ? masterResume
+        : undefined;
+    const unmatchedRequired = unmatched.filter((f) => f.required && !aiAnswers[f.label]);
+    // Resposta REQUIRED vinda só do modelo = baixa confiança — pausa em
+    // vez de auto-submit (mesma anti-fabricação do pipeline, decisão #30).
+    const lowConfidence = unmatched.some((f) => f.required && aiAnswers[f.label] !== undefined);
+    const effectiveSubmit: SubmitMode =
+      submitMode === 'AUTO_SUBMIT' && lowConfidence ? 'PAUSE_BEFORE_SUBMIT' : submitMode;
     const fillInput = {
       matched,
-      aiAnswers: {} as Record<string, string>,
-      resumePath: job.resumePath ?? undefined,
-      submitMode,
+      aiAnswers,
+      resumePath,
+      submitMode: effectiveSubmit,
       humanPace: deps.humanPace,
+      debug: deps.debugFill,
     };
     const fill = await (page.dom ? executeLiveFill(page, fillInput) : executeFill(page, fillInput));
 
@@ -89,8 +113,8 @@ export async function reapplyStoredJob(
             signal: effSignal,
             jobUrl: job.url,
             matched,
-            aiAnswers: {},
-            resumePath: job.resumePath ?? undefined,
+            aiAnswers,
+            resumePath,
           })
           .catch(() => false);
       }

@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { extractPdfText, type PdfExtractionInput, type PdfReader } from './pdfExtractor';
 import { structureProfile, type StructurerModel } from './profileStructurer';
 import type { MasterProfileStore } from './masterProfileStore';
@@ -105,11 +106,30 @@ export async function processInbox(
   return { scanned: pending.length, results };
 }
 
-/** Aprovação humana: promove o rascunho e invalida os dados derivados. */
+/**
+ * Aprovação humana: promove o rascunho, invalida os dados derivados e
+ * RECOMPILA o artefato .json (fonte da verdade é o .md — sem isso o fill
+ * seguia usando dados do perfil antigo).
+ */
 export async function approveProfileDraft(deps: {
   store: MasterProfileStore;
+  /** Path do artefato compilado — quando presente, regravado na promoção. */
+  compiledPath?: string;
+  writeCompiled?: (path: string, json: string) => Promise<void>;
 }): Promise<ApproveResult> {
   const promoted = await deps.store.promoteDraft();
   const invalidation = invalidateDerivedData();
+  if (deps.compiledPath) {
+    const active = await deps.store.getActiveProfileMarkdown();
+    if (active) {
+      const { profile } = compileMasterProfile(active);
+      const json = JSON.stringify(
+        { version: 1, generatedAt: new Date().toISOString(), ...profile },
+        null,
+        2,
+      );
+      await (deps.writeCompiled ?? writeFile)(deps.compiledPath, json).catch(() => {});
+    }
+  }
   return { activated: promoted.activated, ...invalidation };
 }

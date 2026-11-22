@@ -388,14 +388,14 @@ export function pickApplyTarget(
   return atsHit ?? pathHit ?? textHit;
 }
 
-interface ApplyScan {
+export interface ApplyScan {
   anchors: { text: string; href: string }[];
   hasButton: boolean;
   email?: string;
 }
 
 /** Scan serializable — roda igual em page.evaluate e frame.evaluate (iframe). */
-function scanApplyScript(): ApplyScan {
+export function scanApplyScript(): ApplyScan {
   const out: ApplyScan = { anchors: [], hasButton: false };
   const RE =
     /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|postuler|bewerb|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|enviar curr[ií]culo|ver oferta|ver vaga|ver empleo|ver detalle|job details|view job|ver m[aá]s|detalhes/i;
@@ -435,8 +435,59 @@ function scanApplyScript(): ApplyScan {
 }
 
 /** "Chegou no form" = campos ou zona de upload de CV detectável. */
-function hasFormFields(state: LivePageState | null): boolean {
+export function hasFormFields(state: LivePageState | null): boolean {
   return !!state && (state.fields.length > 0 || (state.dropzones?.length ?? 0) > 0);
+}
+
+const CLICK_FALLBACK_RE =
+  /apply|candidat|aplicar|inscrev|postular|postuler|bewerb|sollicit|aplikuj|ansok|trabalhe|ver oferta|ver vaga|ver empleo|job details|view job|detalhes|ver detalle|ver m[aá]s/i;
+
+const CLICKABLE_SEL =
+  'button, [role="button"], a, [onclick], input[type="button"], ' +
+  'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]';
+
+/**
+ * Clica o primeiro elemento de candidatura visível e espera navegação na
+ * aba ou popup (retorna a página "vencedora"). `text` (agente) casa por
+ * substring literal; sem `text`, usa `CLICK_FALLBACK_RE`.
+ */
+export async function clickApplyButton(page: Page, text?: string): Promise<Page | null> {
+  const popup = page
+    .context()
+    .waitForEvent('page', { timeout: 6000 })
+    .catch(() => null);
+  const nav = page
+    .waitForNavigation({ timeout: 6000 })
+    .then(() => page)
+    .catch(() => null);
+  const candidates = text
+    ? [
+        page.getByRole('button', { name: text }).first(),
+        page.getByRole('link', { name: text }).first(),
+        page.locator(CLICKABLE_SEL).filter({ hasText: text }).first(),
+      ]
+    : [
+        page.getByRole('button', { name: CLICK_FALLBACK_RE }).first(),
+        page.getByRole('link', { name: CLICK_FALLBACK_RE }).first(),
+        page.locator(CLICKABLE_SEL).filter({ hasText: CLICK_FALLBACK_RE }).first(),
+        // Botón dentro de iframe — locator del doc principal no lo alcanza.
+        ...page
+          .frames()
+          .filter((f) => f !== page.mainFrame())
+          .slice(0, 6)
+          .map((fr) => fr.locator(CLICKABLE_SEL).filter({ hasText: CLICK_FALLBACK_RE }).first()),
+      ];
+  for (const c of candidates) {
+    try {
+      if ((await c.count()) > 0 && (await c.isVisible())) {
+        await c.click({ timeout: 3000 }).catch(() => {});
+        return (await Promise.race([popup, nav])) ?? page;
+      }
+    } catch {
+      // selector inválido/elemento desaparecido — probá o próximo
+    }
+  }
+  return null;
 }
 
 /** Un hop: link directo, link de vaga no listing, o botón JS (popup/aba). */
@@ -483,57 +534,7 @@ async function applyHop(
     }
     if (!found.hasButton) return { page, state: null, moved: false, email: found.email };
     // Botón JS: puede navegar en la misma pestaña o abrir popup — cubre los dos.
-    const popup = page
-      .context()
-      .waitForEvent('page', { timeout: 6000 })
-      .catch(() => null);
-    const nav = page
-      .waitForNavigation({ timeout: 6000 })
-      .then(() => page)
-      .catch(() => null);
-    const CLICK_RE =
-      /apply|candidat|aplicar|inscrev|postular|postuler|bewerb|sollicit|aplikuj|ansok|trabalhe|ver oferta|ver vaga|ver empleo|job details|view job|detalhes|ver detalle|ver m[aá]s/i;
-    // Candidatos por prioridad: role button/link → CSS amplio (a[javascript:],
-    // [onclick], .apply…) — el primero visible gana el click.
-    const candidates = [
-      page.getByRole('button', { name: CLICK_RE }).first(),
-      page.getByRole('link', { name: CLICK_RE }).first(),
-      page
-        .locator(
-          'button, [role="button"], a, [onclick], input[type="button"], ' +
-            'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]',
-        )
-        .filter({ hasText: CLICK_RE })
-        .first(),
-      // Botón dentro de iframe — locator del doc principal no lo alcanza.
-      ...page
-        .frames()
-        .filter((f) => f !== page.mainFrame())
-        .slice(0, 6)
-        .flatMap((fr) => [
-          fr
-            .locator(
-              'button, [role="button"], a, [onclick], input[type="button"], ' +
-                'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]',
-            )
-            .filter({ hasText: CLICK_RE })
-            .first(),
-        ]),
-    ];
-    let clicked = false;
-    for (const c of candidates) {
-      try {
-        if ((await c.count()) > 0 && (await c.isVisible())) {
-          await c.click({ timeout: 3000 }).catch(() => {});
-          clicked = true;
-          break;
-        }
-      } catch {
-        // selector inválido/elemento desaparecido — probá o próximo
-      }
-    }
-    if (!clicked) return { page, state: null, moved: false, email: found.email };
-    const winner = await Promise.race([popup, nav]);
+    const winner = await clickApplyButton(page);
     if (!winner) return { page, state: null, moved: false, email: found.email };
     const state = await inspectDom(winner).catch(() => null);
     if (winner !== page) await page.close().catch(() => {});
@@ -629,7 +630,7 @@ export async function inspectPage(page: Page, url: string): Promise<LivePageStat
   let state = await inspectDom(page, url);
   // Widget/iframe de apply tardio (ex.: form embutido da arbeitnow): sem
   // campos no primeiro pass, espera rede acalmar e re-inspeciona uma vez.
-  if (state.fields.length === 0) {
+  if (!hasFormFields(state)) {
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     state = await inspectDom(page, url);
   }

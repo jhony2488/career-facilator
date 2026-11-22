@@ -4,6 +4,10 @@ export interface InspectedField {
   required: boolean;
   inShadowDom?: boolean;
   inIframe?: boolean;
+  /** Atributo `name` do input — ajuda a casar sem depender só do label. */
+  name?: string;
+  /** Seletor data-cf-idx estável da inspeção — casa por identidade, não texto. */
+  selector?: string;
 }
 
 export interface FieldMatch {
@@ -36,7 +40,14 @@ const FIELD_SYNONYMS: Record<ProfileKey, RegExp[]> = {
   phone: [/phone/i, /telefone/i, /celular/i, /mobile/i],
   linkedin: [/linkedin/i],
   github: [/github/i],
-  portfolio: [/portfolio/i, /portf[óo]lio/i, /website/i, /personal site/i, /url$/i],
+  // `/url$/i` sozinho preenchia "Company URL"/"Job URL" com o SEU portfólio.
+  portfolio: [
+    /portfolio/i,
+    /portf[óo]lio/i,
+    /personal (site|page|url)/i,
+    /your website/i,
+    /site pessoal/i,
+  ],
 };
 
 const STANDARD_ANSWER_SYNONYMS: Array<{ answerKey: string; pattern: RegExp }> = [

@@ -55,7 +55,16 @@ import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
 import { executeLiveFill } from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
-import { followApplyChain, followApplyLink, inspectPage } from '../scraper/pageInspector';
+import {
+  followApplyChain,
+  followApplyLink,
+  hasFormFields,
+  inspectPage,
+} from '../scraper/pageInspector';
+import { agentNavigateToForm, type NavContext } from '../autofill/applyNavigator';
+import { removeAnswers } from '../autofill/answersStore';
+import { compileMasterProfile } from '../intake/profileCompiler';
+import type { NavigatorModel } from '../ai/modelFactory';
 import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
 import { mapForRestore, sessionCookiesFor, sessionRefForUrl } from '../autofill/portalSession';
 import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application/otpReader';
@@ -322,14 +331,31 @@ function openRepo(): JobRepository {
   return new JobRepository(DB_PATH);
 }
 
+/**
+ * Perfil-mestre compilado do .md — a fonte da verdade é o markdown; o .json
+ * é artefato derivado (cache de prompt). Compila na hora e regrava o artefato
+ * — bug fix: o approve não recompilava e o fill usava dados antigos/mock.
+ */
 function loadMasterProfile(): MasterProfileLike {
-  const compiled = config.profile.compiledPath;
-  if (!existsSync(compiled)) {
+  const masterPath = config.profile.masterPath;
+  if (!existsSync(masterPath)) {
     throw new CliError(
-      `Perfil compilado não encontrado em ${compiled} — rode 'import --pdf' e aprove o rascunho.`,
+      `Perfil-mestre não encontrado em ${masterPath} — rode 'import --pdf' e aprove o rascunho.`,
     );
   }
-  return JSON.parse(readFileSync(compiled, 'utf8')) as MasterProfileLike;
+  const { profile, warnings } = compileMasterProfile(readFileSync(masterPath, 'utf8'));
+  for (const w of warnings) console.log(`  ⚠ ${w}`);
+  // Regrava o artefato derivado (cache de prompt / consumidores externos).
+  try {
+    writeFileSync(
+      config.profile.compiledPath,
+      JSON.stringify({ version: 1, generatedAt: new Date().toISOString(), ...profile }, null, 2),
+      'utf8',
+    );
+  } catch {
+    // artefato não gravável — o retorno compilado já serve o run
+  }
+  return profile as MasterProfileLike;
 }
 
 function printImportResult(result: InboxItemResult): void {
@@ -540,7 +566,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   const skills = await loadSkillRegistry(skillsDir).catch(() => []);
   const repo = openRepo();
 
-  const pageFactory = makeWebPageFactory();
+  const pageFactory = makeWebPageFactory(
+    effEnv.env.AUTOFILL_AGENT_NAV !== 'false' ? clients.navigatorModel : undefined,
+  );
 
   // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) — docs 11/15.
   // Sem credencial/endpoint configurado o pipeline deixa a vaga em NEEDS_HUMAN_INPUT.
@@ -554,6 +582,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       retrieveHybrid(chunks, { keywords, jobText }, embedder),
     titleMatcher,
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    debugFill: effEnv.env.AUTOFILL_DEBUG_FILL === 'true',
   };
 
   // CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
@@ -797,7 +826,24 @@ const makeEmptyPage = (url: string): PageStateLike => ({
  * logins do usuário via contexto persistente. No exe SEA o playwright é
  * externo e o import falha — mesma degradação, com aviso uma vez por run.
  */
-function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
+/**
+ * Prompt p/ o navegador agêntico: URL da vaga + página atual + clickables —
+ * o modelo escolhe UMA ação p/ chegar ao form (nunca login/captcha/submit).
+ */
+function buildNavPrompt(ctx: NavContext, originUrl: string): string {
+  return [
+    'You are navigating a job listing to reach the real application FORM (fields or an upload zone).',
+    `ORIGIN JOB URL: ${originUrl}`,
+    `CURRENT PAGE: ${ctx.url} — ${ctx.title}`,
+    'CANDIDATE CLICKABLES (text | href):',
+    ...ctx.anchors.map((a) => `- "${a.text}" | ${a.href}`),
+    ctx.hasButton ? '- There is also an apply-like BUTTON without href.' : '',
+    'Choose ONE action. Answer JSON only: {"action":"goto"|"click"|"stop","target":"..."}',
+    'Rules: pick links/buttons that lead to the specific job application form; "click" target = exact visible button/link text; never pick login/captcha/submit — answer "stop" for those; "stop" also when the current page IS the form or nothing leads further.',
+  ].join('\n');
+}
+
+function makeWebPageFactory(navigator?: NavigatorModel): (url: string) => Promise<PageStateLike> {
   let browserUnavailableWarned = false;
   return async (url: string): Promise<PageStateLike> => {
     try {
@@ -834,13 +880,25 @@ function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
             !state.fields.some((f) => f.kind === 'file' || f.kind === 'email' || f.kind === 'tel'));
         if (thin) {
           const { state: followed, email } = await followApplyChain(page);
-          const best =
+          let best =
             followed &&
             followed.fields.length + (followed.dropzones?.length ?? 0) >
               state.fields.length + (state.dropzones?.length ?? 0)
               ? followed
               : state;
           if (email) best.contactEmail = email;
+          // Fallback agêntico (decisão #29): cadeia sem form → o modelo navega
+          // até o form. Só navega — nunca submete; falha = mesma pendência de hoje.
+          if (!hasFormFields(best) && navigator) {
+            const live = (best.dom ?? page) as Page;
+            const navState = await agentNavigateToForm(live, {
+              decide: (ctx) => navigator.decide(buildNavPrompt(ctx, url)),
+              originUrl: url,
+              onStep: (m) => console.log(`   ${m}`),
+            }).catch(() => null);
+            if (navState && email) navState.contactEmail = email;
+            if (navState) best = navState;
+          }
           return best;
         }
         return state;
@@ -1402,7 +1460,7 @@ async function cmdApprove(): Promise<void> {
     { draftPath: cfg.draftPath, masterPath: cfg.masterPath, historyDir: cfg.historyDir },
     { fs: createNodeFileStore() },
   );
-  const result = await approveProfileDraft({ store });
+  const result = await approveProfileDraft({ store, compiledPath: cfg.compiledPath });
   console.log(`Rascunho aprovado → ${cfg.masterPath}`);
   console.log(`Snapshot da versão anterior em ${cfg.historyDir}`);
   if (result.cacheInvalidated) console.log('Cache de prompt invalidado.');
@@ -1462,6 +1520,7 @@ async function cmdRemove(args: string[]): Promise<void> {
   try {
     const job = await repo.findJob(ref);
     if (!job) throw new CliError(`Vaga não encontrada: ${ref}`);
+    removeAnswers(job.resumePath); // sidecar do tailor — some junto
     await repo.deleteJob(job.id);
     console.log(`Removida: ${job.title} — ${job.company} (reprocessável no próximo run)`);
   } finally {
@@ -1497,18 +1556,21 @@ function printWhatsappQueueItem(q: {
 }
 
 /**
- * `retry [url|id]` — refaz o estágio web das vagas NEEDS_HUMAN_INPUT:
+ * `retry [--send] [url|id]` — refaz o estágio web das vagas NEEDS_HUMAN_INPUT:
  * mesma malha do run (login-cofre → passwordless → OTP-IMAP → fill), sem
- * refazer discovery/triagem/tailoring. Canal mensagem (sem form) fica p/ review.
+ * refazer discovery/triagem/tailoring. `--send` (ou FULL_AUTO) envia a
+ * candidatura ao fim; fora do auto pausa p/ revisão. Canal mensagem fica p/ review.
  */
 async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
+  const sendFlag = args.includes('--send');
+  const query = args.find((a) => a !== '--send');
   const repo = openRepo();
   const jobs: JobRecord[] = [];
-  if (args[0]) {
-    const j = await repo.findJob(args[0]);
+  if (query) {
+    const j = await repo.findJob(query);
     if (j) jobs.push(j);
     else {
-      console.log(`Vaga não encontrada: ${args[0]}`);
+      console.log(`Vaga não encontrada: ${query}`);
       repo.close();
       return;
     }
@@ -1524,16 +1586,27 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
   const profile = loadMasterProfile();
   const escalation =
     effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false' ? makeHumanEscalation(ctx) : null;
+  // Navegador agêntico (decisão #29): cliente lazy — só instanciado se a
+  // flag estiver ligada; decide() só chama modelo quando a cadeia falha.
+  const navigatorModel =
+    effEnv.env.AUTOFILL_AGENT_NAV !== 'false'
+      ? createModelClients(config, { onStage }, effEnv.env).navigatorModel
+      : undefined;
   const deps = {
     repo,
-    pageFactory: makeWebPageFactory(),
+    pageFactory: makeWebPageFactory(navigatorModel),
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    debugFill: effEnv.env.AUTOFILL_DEBUG_FILL === 'true',
     ...(escalation ? { onHumanEscalation: escalation.handler } : {}),
   };
+  // Envio: FULL_AUTO envia; `--send` é aprovação explícita do usuário —
+  // ambos respeitam a regra de consentimento; fora disso, pausa p/ revisão.
+  const submitMode =
+    config.execution.mode === 'FULL_AUTO' || sendFlag ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT';
 
   console.log(`${jobs.length} vaga(s) aguardando — refazendo o preenchimento web…`);
   for (const job of jobs) {
-    const r = await reapplyStoredJob(job, { profile, deps });
+    const r = await reapplyStoredJob(job, { profile, deps, submitMode });
     const contact = r.reason?.startsWith('CONTACT_EMAIL:')
       ? r.reason.slice('CONTACT_EMAIL:'.length)
       : null;

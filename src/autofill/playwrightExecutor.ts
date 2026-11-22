@@ -59,6 +59,11 @@ function scopeFor(dom: Page, frameIdx?: number): Page | Frame {
   return dom.frames()[frameIdx] ?? dom;
 }
 
+/** Log de depuração do fill (`AUTOFILL_DEBUG_FILL`) — mostra fonte do valor. */
+function debugLog(enabled: boolean, msg: string): void {
+  if (enabled) console.log(msg);
+}
+
 async function fillDomField(
   dom: Page,
   field: PageFieldState,
@@ -105,6 +110,18 @@ async function fillDomField(
     return false;
   }
 }
+
+/** Normaliza chaves de resposta IA ↔ label ("Salário (EUR/ano)?" ≈ "Expected salary"). */
+function normKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/** Input file: resume-ish anexa o CV; foto/avatar fica de fora do CV. */
+const RESUME_FIELD_RE = /resume|cv\b|curr[ií]culo|anexo|attach|upload/i;
+const PHOTO_FIELD_RE = /photo|foto|avatar|picture|image|headshot/i;
 
 /** Clica "Next/Continue" de wizard; retorna false quando não achou botão. */
 async function clickNext(dom: Page, humanPace: boolean): Promise<boolean> {
@@ -190,7 +207,25 @@ export async function executeLiveFill(
   if (!dom) throw new Error('executeLiveFill: live.dom ausente (use executeFill para mocks)');
 
   const { matched = [], aiAnswers = {}, resumePath, submitMode, humanPace = true } = opts;
+  const debug = opts.debug === true;
+  // Casa por SELETOR (identidade do campo) — labels duplicadas num form
+  // ("Phone" no seu bloco e no do recrutador) não recebem o mesmo valor.
+  const matchedBySelector = new Map(
+    matched.filter((m) => m.field.selector).map((m) => [m.field.selector as string, m.value]),
+  );
   const matchedByLabel = new Map(matched.map((m) => [m.field.label, m.value]));
+  const matchedByName = new Map(
+    matched.filter((m) => m.field.name).map((m) => [m.field.name as string, m.value]),
+  );
+  // aiAnswers chaveado pela pergunta do modelo — normaliza p/ bater com a
+  // label do campo ("Salário esperado (EUR/ano)?" ≈ "Expected salary").
+  const normAnswers = new Map(Object.entries(aiAnswers).map(([k, v]) => [normKey(k), v]));
+  const detValue = (f: PageFieldState): string | undefined =>
+    (f.selector && matchedBySelector.get(f.selector)) ??
+    (f.name && matchedByName.get(f.name)) ??
+    matchedByLabel.get(f.label);
+  const aiValue = (f: PageFieldState): string | undefined =>
+    aiAnswers[f.label] ?? normAnswers.get(normKey(f.label));
   let fieldsFilled = 0;
   let resumeAttached = false;
   const aiAnswersUsed = new Set<string>();
@@ -201,24 +236,40 @@ export async function executeLiveFill(
   for (let step = 0; step < MAX_STEPS; step++) {
     for (const field of live.fields) {
       if (field.kind === 'file' || !field.selector) continue;
-      const det = matchedByLabel.get(field.label);
-      const value = det ?? aiAnswers[field.label];
+      const det = detValue(field);
+      const value = det ?? aiValue(field);
       if (value === undefined) continue;
       if (await fillDomField(dom, field, value, humanPace)) {
         fieldsFilled++;
         if (det === undefined) aiAnswersUsed.add(field.label);
+        debugLog(
+          debug,
+          `  fill "${field.label}" ← ${value.slice(0, 60)} [${det === undefined ? 'AI' : 'PROFILE'}]`,
+        );
       }
     }
 
-    const fileField = live.fields.find((f) => f.kind === 'file' && f.selector);
-    if (fileField && resumePath && !resumeAttached) {
-      try {
-        await scopeFor(dom, fileField.frameIdx)
-          .locator(fileField.selector!)
-          .setInputFiles(resumePath, { timeout: 3000 });
-        resumeAttached = true;
-      } catch {
-        // upload invisível/iframe — segue; erro de validação (se houver) escalona abaixo
+    // Anexa o CV no input file CERTO: resume-ish primeiro, foto/avatar
+    // fora — tenta cada candidato até o setInputFiles dar certo.
+    if (!resumeAttached && resumePath) {
+      const fileFields = live.fields
+        .filter((f) => f.kind === 'file' && f.selector)
+        .sort(
+          (a, b) => Number(RESUME_FIELD_RE.test(b.label)) - Number(RESUME_FIELD_RE.test(a.label)),
+        );
+      for (const fileField of fileFields) {
+        if (PHOTO_FIELD_RE.test(fileField.label) && !RESUME_FIELD_RE.test(fileField.label))
+          continue;
+        try {
+          await scopeFor(dom, fileField.frameIdx)
+            .locator(fileField.selector!)
+            .setInputFiles(resumePath, { timeout: 3000 });
+          resumeAttached = true;
+          debugLog(debug, `  attach ${fileField.label} ← ${resumePath}`);
+          break;
+        } catch {
+          // upload invisível/iframe — tenta o próximo input file
+        }
       }
     }
 
@@ -248,6 +299,7 @@ export async function executeLiveFill(
 
   if (submitMode === 'AUTO_SUBMIT') {
     if (await clickSubmit(dom, humanPace)) {
+      debugLog(debug, '  submit clicked');
       live.submitted = true;
       return {
         fieldsFilled,

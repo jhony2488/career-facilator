@@ -7,19 +7,26 @@ import { JobTriageSchema } from './triageAgent';
 import type { TailorModel } from './tailorerAgent';
 import type { StructurerModel } from '../intake/profileStructurer';
 import { MasterProfileSchema } from '../intake/profileStructurer';
+import type { NavAction } from '../autofill/applyNavigator';
 import { z } from 'zod';
 import { zodSchema } from 'ai';
 import type { CareerOpsConfig, ModelRouting } from '../config/careerOps.config';
+
+/** Modelo de navegação agêntica (decisão #29) — decide 1 ação p/ achar o form. */
+export interface NavigatorModel {
+  decide(prompt: string): Promise<NavAction | null>;
+}
 
 export interface LlmClients {
   triageModel: TriageModel;
   tailorModel: TailorModel;
   structurerModel: StructurerModel;
+  navigatorModel: NavigatorModel;
 }
 
 /** Métricas normalizadas de uma chamada de modelo — agnóstico de provider. */
 export interface ModelCallStats {
-  stage: 'triage' | 'structurer' | 'tailor';
+  stage: 'triage' | 'structurer' | 'tailor' | 'navigator';
   provider: string;
   modelId: string;
   durationMs?: number;
@@ -78,7 +85,12 @@ function ollamaOptions(
  * Teto de saída por chamada — sem cap, um 3B pode divagar indefinidamente.
  * `AI_NUM_PREDICT` na env sobrescreve todos.
  */
-const NUM_PREDICT_DEFAULTS = { triage: 512, structurer: 3072, tailor: 4096 } as const;
+const NUM_PREDICT_DEFAULTS = {
+  triage: 512,
+  structurer: 3072,
+  tailor: 4096,
+  navigator: 256,
+} as const;
 
 /**
  * Structured outputs do Ollama: passar o JSON Schema em `format` força a
@@ -88,6 +100,12 @@ const NUM_PREDICT_DEFAULTS = { triage: 512, structurer: 3072, tailor: 4096 } as 
 const TRIAGE_JSON_SCHEMA = zodSchema(JobTriageSchema).jsonSchema as Record<string, unknown>;
 const PROFILE_JSON_SCHEMA = zodSchema(MasterProfileSchema).jsonSchema as Record<string, unknown>;
 const TAILOR_JSON_SCHEMA = zodSchema(TailorOutputSchema).jsonSchema as Record<string, unknown>;
+
+const NavActionSchema = z.object({
+  action: z.enum(['goto', 'click', 'stop']),
+  target: z.string().optional(),
+});
+const NAV_JSON_SCHEMA = zodSchema(NavActionSchema).jsonSchema as Record<string, unknown>;
 /** Timeout por chamada — 10 min: modelos 7-8B em CPU demoram muito além de 3 min. */
 const DEFAULT_TIMEOUT_MS = 600_000;
 
@@ -293,7 +311,27 @@ export function createModelClients(
     };
   })();
 
-  return { triageModel, tailorModel, structurerModel };
+  const navigatorModel: NavigatorModel = (() => {
+    const client = clientFor(smart, 'SMART');
+    return {
+      decide: (prompt: string) =>
+        generateStructured(
+          (p) =>
+            chatText(
+              client,
+              smart.modelId,
+              p,
+              { format: NAV_JSON_SCHEMA, numPredict: NUM_PREDICT_DEFAULTS.navigator },
+              'navigator',
+              smart.provider,
+            ),
+          prompt,
+          NavActionSchema,
+        ) as Promise<NavAction | null>,
+    };
+  })();
+
+  return { triageModel, tailorModel, structurerModel, navigatorModel };
 }
 
 /** Embedder para o retriever híbrido — provider ollama via /api/embed. */

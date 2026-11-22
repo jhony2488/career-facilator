@@ -12,6 +12,7 @@ import {
   type InspectedField,
 } from '../autofill/deterministicMatcher';
 import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
+import { writeAnswers } from '../autofill/answersStore';
 import { closeLivePage, executeLiveFill, submitLivePage } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
 import { applyViaEmail } from '../email_application/emailAppCore';
@@ -102,6 +103,8 @@ export interface PipelineDeps {
     aiAnswers: Record<string, string>;
     resumePath?: string;
   }) => Promise<boolean>;
+  /** `AUTOFILL_DEBUG_FILL` — loga campo→valor→fonte no fill web. */
+  debugFill?: boolean;
 }
 
 export interface ApplicationResult {
@@ -283,6 +286,11 @@ export async function runApplicationPipeline(
         { model: deps.tailorModel },
       );
       app.resumePath = assets.resumePath;
+      // Respostas do tailor vão p/ sidecar — o retry reusa em vez de
+      // deixar os campos em branco (decisão #30).
+      if (assets.resumePath && Object.keys(assets.answers).length) {
+        writeAnswers(assets.resumePath, assets.answers);
+      }
       stages.push('TAILORED');
 
       // 8. Motor de autonomia
@@ -379,25 +387,34 @@ export async function runApplicationPipeline(
           kind: f.kind as InspectedField['kind'],
           label: f.label,
           required: f.required,
+          name: f.name,
+          selector: f.selector,
         }));
         const { matched, unmatched } = matchFields(inspected, profile);
         const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
+        // Resposta de campo REQUIRED vinda só do modelo = baixa confiança —
+        // anti-fabricação: revisão em vez de auto-envio (mesmo em FULL_AUTO).
+        const lowConfidence = unmatched.some(
+          (f) => f.required && assets.answers[f.label] !== undefined,
+        );
+        const submitMode = (
+          route === 'AUTO_SEND' && !lowConfidence ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT'
+        ) as SubmitMode;
 
         const fill = await (page.dom
           ? executeLiveFill(page, {
               matched,
               aiAnswers: assets.answers,
               resumePath: assets.resumePath,
-              submitMode: route === 'AUTO_SEND' ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT',
+              submitMode,
               humanPace: deps.humanPace,
+              debug: deps.debugFill,
             })
           : executeFill(page, {
               matched,
               aiAnswers: assets.answers,
               resumePath: assets.resumePath,
-              submitMode: (route === 'AUTO_SEND'
-                ? 'AUTO_SUBMIT'
-                : 'PAUSE_BEFORE_SUBMIT') as SubmitMode,
+              submitMode,
             }));
 
         // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido

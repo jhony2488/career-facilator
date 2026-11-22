@@ -58,6 +58,11 @@ export interface ExecuteFillOptions {
    * e digitação caractere a caractere — reduz bot-detection. `false` = direto.
    */
   humanPace?: boolean;
+  /**
+   * `AUTOFILL_DEBUG_FILL` — loga cada campo preenchido (label → valor → fonte),
+   * anexos e o submit. Diagnóstico de "valor errado em campo X".
+   */
+  debug?: boolean;
 }
 
 export interface ExecuteFillResult {
