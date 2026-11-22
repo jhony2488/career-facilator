@@ -1,7 +1,11 @@
 import { reapplyStoredJob, type RetryDeps } from '../../../src/core/retryRunner';
 import type { JobRecord } from '../../../src/db/repository';
 import type { PageStateLike, PageFieldState } from '../../../src/autofill/formExecutor';
+import { writeAnswers } from '../../../src/autofill/answersStore';
 import { makeMasterProfile } from '../../helpers/factories';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const profile = makeMasterProfile();
 
@@ -110,5 +114,39 @@ describe('reapplyStoredJob — retry de vagas NEEDS_HUMAN_INPUT', () => {
 
     expect(r.status).toBe('FAILED');
     expect(statuses).toEqual([['https://gupy.io/job/1', 'FAILED']]);
+  });
+
+  // Sidecar do tailor: respostas de IA do run preenchem o retry — sem elas
+  // o campo obrigatório escalaria como UNKNOWN_REQUIRED_FIELD.
+  it('fills a required field from the persisted tailor answers', async () => {
+    const resume = join(mkdtempSync(join(tmpdir(), 'retry-')), 'cv.pdf');
+    writeAnswers(resume, { 'Years of Kubernetes experience': '4' });
+    const job = makeJob({ resumePath: resume });
+    const page = makePage({
+      fields: [makeField({ label: 'Years of Kubernetes experience', required: true })],
+    });
+    const { deps, statuses } = makeDeps(page);
+
+    const r = await reapplyStoredJob(job, { profile, deps });
+
+    expect(r.status).toBe('READY_TO_REVIEW');
+    expect(statuses).toEqual([['https://gupy.io/job/1', 'READY_TO_REVIEW']]);
+  });
+
+  // Mesmo campo REQUIRED respondido só por IA vira baixa confiança —
+  // AUTO_SUBMIT (--send/FULL_AUTO) é rebaixado p/ pausa (anti-fabricação).
+  it('downgrades AUTO_SUBMIT when a required field was AI-answered', async () => {
+    const resume = join(mkdtempSync(join(tmpdir(), 'retry-')), 'cv.pdf');
+    writeAnswers(resume, { 'Years of Kubernetes experience': '4' });
+    const job = makeJob({ resumePath: resume });
+    const page = makePage({
+      fields: [makeField({ label: 'Years of Kubernetes experience', required: true })],
+    });
+    const { deps, statuses } = makeDeps(page);
+
+    const r = await reapplyStoredJob(job, { profile, deps, submitMode: 'AUTO_SUBMIT' });
+
+    expect(r.status).toBe('READY_TO_REVIEW'); // pausou, não enviou
+    expect(statuses).toEqual([['https://gupy.io/job/1', 'READY_TO_REVIEW']]);
   });
 });

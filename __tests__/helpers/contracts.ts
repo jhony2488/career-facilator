@@ -195,6 +195,8 @@ export interface InspectedField {
   required: boolean;
   inShadowDom?: boolean;
   inIframe?: boolean;
+  name?: string;
+  selector?: string;
 }
 
 export interface FieldMatch {

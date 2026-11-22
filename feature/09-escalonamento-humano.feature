@@ -46,6 +46,14 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Então o código é lido na caixa e digitado no campo
     E a candidatura segue para revisão sem intervenção manual
 
+  Cenário: Navegação assistida alcança o formulário antes de escalar
+    Dado que a página da vaga esconde o formulário atrás de passos intermediários
+    E a busca determinística por botões e links não encontrou o formulário
+    Quando um agente de navegação examina os elementos clicáveis da página
+    Então ele escolhe passos que levam ao formulário de candidatura
+    E nunca executa preenchimento ou envio por conta própria
+    E sem caminho o comportamento segue o escalonamento normal
+
   Cenário: Escalonar ao encontrar campo obrigatório desconhecido
     Dado que o formulário contém um campo obrigatório sem mapeamento nem resposta gerada
     Quando o sistema tenta completar a etapa

@@ -74,6 +74,29 @@ describe('Intake pipeline: PDF → draft → approval → active profile', () =>
     expect(approved.scoresToRecalculate).toBe(true);
   });
 
+  it('approval recompiles the .json artifact from the promoted markdown', async () => {
+    // bug fix: approve promovia o .md mas o .json compilado ficava velho
+    const { store, reader, model } = setup();
+    await importResume(
+      { file: { path: 'storage/profile_inbox/cv.pdf' }, mode: 'REPLACE', source: 'INBOX' },
+      { reader, model, store },
+    );
+    let written = '';
+    await approveProfileDraft({
+      store,
+      compiledPath: 'profile.master.json',
+      writeCompiled: async (_p, j) => {
+        written = j;
+      },
+    });
+
+    const active = (await store.getActiveProfileMarkdown()) ?? '';
+    const compiled = JSON.parse(written) as { fullName: string; generatedAt: string };
+    expect(compiled.generatedAt).toBeTruthy();
+    // O artefato reflete o perfil NOVO promovido, não o antigo
+    expect(compiled.fullName).toBe(active.match(/^#\s+(.+)$/m)?.[1]);
+  });
+
   it('a document without readable text generates no draft and alerts the user', async () => {
     // feature/13: A document without readable text generates no data
     const { store, model, fs } = setup();

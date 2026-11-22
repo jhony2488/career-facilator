@@ -55,6 +55,21 @@ describe('matchFields — deterministic filling', () => {
     expect(unmatched).toHaveLength(1);
   });
 
+  it('does NOT fill someone-else urls (Company/Job URL) with the user portfolio', () => {
+    // regression: `/url$/i` jogava o portfólio do usuário em "Company URL"
+    const fields = [
+      makeField({ label: 'Company URL' }),
+      makeField({ label: 'Job posting URL' }),
+      makeField({ label: 'Portfolio Website' }),
+    ];
+
+    const { matched, unmatched } = matchFields(fields, profile);
+
+    expect(matched).toHaveLength(1);
+    expect(matched[0].field.label).toBe('Portfolio Website');
+    expect(unmatched.map((f) => f.label)).toEqual(['Company URL', 'Job posting URL']);
+  });
+
   it('uses profile standard answers for known questions', () => {
     // doc 03 (5.4): cached standard answers for recurring questions
     const fields = [makeField({ kind: 'textarea', label: 'When are you available to start?' })];
