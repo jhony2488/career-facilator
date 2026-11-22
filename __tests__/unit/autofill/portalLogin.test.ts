@@ -55,6 +55,7 @@ function fakePage(url: string, counts: Record<string, number>, disabled = false)
       first: () => ({
         count: async () => Math.min(n, 1),
         isDisabled: async () => disabled,
+        clear: async () => {},
         fill: async (v: string) => {
           fillCalls.push([sel, v]);
         },
