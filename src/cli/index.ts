@@ -38,7 +38,7 @@ import {
 import { checkProviders, type ProviderCheckResult, type TierKey } from '../ai/preflight';
 import { createOllamaClient } from '../ai/ollamaClient';
 import type { ModelRouting } from '../config/careerOps.config';
-import { JobRepository, type JobStatus } from '../db/repository';
+import { JobRepository, type JobRecord, type JobStatus } from '../db/repository';
 import { runApplicationPipeline, type PipelineResult } from '../core/pipeline';
 import { createSemanticTitleMatcher } from '../core/titleMatcher';
 import { discoverJobs, toRawJobInputs } from '../discovery/discoveryEngine';
@@ -61,6 +61,8 @@ import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
+import type { PipelineDeps } from '../core/pipeline';
+import { reapplyStoredJob } from '../core/retryRunner';
 
 // No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) —
 // stderr limpo p/ usuário do binário. Em dev (tsx) os warnings continuam.
@@ -96,6 +98,8 @@ const HELP = [
   '  Revisão e estado',
   '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
   '                                            (no shell: marca cada item interativamente)',
+  '    retry [url|id]                          Refaz o preenchimento web das vagas',
+  '                                            NEEDS_HUMAN_INPUT (mesma malha do run)',
   '    mark <url|id> <status>                  applied|email|whatsapp|skipped|failed|',
   '                                            rejected|interview|assessment',
   '    remove <url|id>                         Remove a vaga do histórico (reprocessável no run)',
@@ -535,57 +539,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   const skills = await loadSkillRegistry(skillsDir).catch(() => []);
   const repo = openRepo();
 
-  const emptyPage = (url: string): PageStateLike => ({
-    url,
-    fields: [],
-    hasCaptcha: false,
-    requiresEmailOtp: false,
-    validationErrors: [],
-    alreadyAppliedBanner: false,
-    currentStep: 1,
-    totalSteps: 1,
-    isShadowDom: false,
-    submitted: false,
-  });
-
-  // Formulário web real (feature/06): Chromium lazy — só abre na 1ª vaga com
-  // form. Falha de navegação → emptyPage → cai no canal de mensagem como antes.
-  // AUTOFILL_HEADLESS=false mostra o navegador; AUTOFILL_PROFILE_DIR reaproveita
-  // logins do usuário via contexto persistente. No exe SEA o playwright é
-  // externo e o import falha — mesma degradação, com aviso uma vez por run.
-  let browserUnavailableWarned = false;
-  const pageFactory = async (url: string): Promise<PageStateLike> => {
-    try {
-      const ctx = await getJobBrowserContext({
-        headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
-        profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
-        stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
-      });
-      const page = await ctx.newPage();
-      try {
-        const state = await inspectPage(page, url);
-        // Página de empresa sem form: o "Apply" costuma levar ao ATS real —
-        // 1 hop antes de declarar NO_CHANNEL.
-        if (state.fields.length === 0) {
-          const followed = await followApplyLink(page);
-          if (followed) return followed;
-        }
-        return state;
-      } catch {
-        await page.close().catch(() => {});
-        return emptyPage(url);
-      }
-    } catch {
-      if (!browserUnavailableWarned) {
-        browserUnavailableWarned = true;
-        console.log(
-          '⚠ Autofill web indisponível (playwright não inicializou) — ' +
-            'vagas com formulário seguem p/ e-mail, WhatsApp ou revisão.',
-        );
-      }
-      return emptyPage(url);
-    }
-  };
+  const pageFactory = makeWebPageFactory();
 
   // Canais de mensagem: e-mail (SMTP real) e WhatsApp (Evolution API) — docs 11/15.
   // Sem credencial/endpoint configurado o pipeline deixa a vaga em NEEDS_HUMAN_INPUT.
@@ -604,79 +558,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   // CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
   // em headless reabre o form no mesmo perfil; já visível, só preserva a aba.
   // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
-  let pendingVisiblePages = 0;
+  const escalation = makeHumanEscalation(ctx);
   if (effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false') {
-    channelDeps.onHumanEscalation = async ({
-      page,
-      signal,
-      jobUrl,
-      matched,
-      aiAnswers,
-      resumePath,
-    }) => {
-      if (!page.dom) return false;
-      const refill = { matched, aiAnswers, resumePath };
-      // Muro de login: 1º tenta credencial do cofre (login-<domínio>) — sem
-      // janela humana; sem credencial/falha → abre visível p/ login manual.
-      // Enter aqui → reabre a URL da VAGA + refaz o fill.
-      if (signal.kind === 'LOGIN_REQUIRED') {
-        console.log(`\n⏸ ${signal.detail}`);
-        const dom = page.dom as Page;
-        const headless = effEnv.env.AUTOFILL_HEADLESS !== 'false';
-        let ok = false;
-        if (await tryVaultPortalLogin(dom, page.url)) {
-          // Autologin feito (headless ou visível) → volta p/ vaga e refaz o fill.
-          ok = headless
-            ? await relaunchForLogin(jobUrl, refill, ctx, false)
-            : await resumeAfterLogin(dom, jobUrl, refill);
-        }
-        if (!ok) {
-          ok = headless
-            ? await relaunchForLogin(jobUrl, refill, ctx)
-            : await continueAfterLogin(dom, jobUrl, refill, ctx);
-        }
-        if (!ok) return false;
-        pendingVisiblePages++;
-        console.log(
-          `   Formulário refeito — revise e envie; ` +
-            `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
-        );
-        return true;
-      }
-      // OTP por e-mail: 1º tenta ler o código na caixa IMAP do cofre
-      // (imap-main, ou smtp-main c/ host derivável) e digitar na página.
-      if (signal.kind === 'EMAIL_OTP') {
-        const otpOk = await tryMailboxOtp(page.dom as Page, page.url, refill);
-        if (otpOk) {
-          pendingVisiblePages++;
-          console.log(
-            `   OTP aplicado do e-mail — revise e envie; ` +
-              `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
-          );
-          return true;
-        }
-      }
-      if (effEnv.env.AUTOFILL_HEADLESS === 'false') {
-        pendingVisiblePages++;
-        console.log(
-          `\n⏸ ${signal.detail} — resolva na janela aberta e envie; ` +
-            `depois confirme com 'mark ${page.url} applied' ou 'e' no review.`,
-        );
-        return true;
-      }
-      console.log(`\n⏸ ${signal.detail} — reabrindo o formulário visível p/ resolução manual…`);
-      const reopened = await relaunchEscalationPage(page.url, {
-        matched,
-        aiAnswers,
-        resumePath,
-      });
-      if (!reopened) return false;
-      pendingVisiblePages++;
-      console.log(
-        `   Resolva no browser e envie — depois 'mark ${page.url} applied' ou 'e' no review.`,
-      );
-      return true;
-    };
+    channelDeps.onHumanEscalation = escalation.handler;
   }
 
   if (config.email.enabled) {
@@ -775,9 +659,9 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       }
     }
   } finally {
-    if (pendingVisiblePages > 0) {
+    if (escalation.pendingCount() > 0) {
       console.log(
-        `\n${pendingVisiblePages} formulário(s) aguardando resolução manual — ` +
+        `\n${escalation.pendingCount()} formulário(s) aguardando resolução manual — ` +
           `a janela do browser permanece aberta.`,
       );
     } else {
@@ -892,13 +776,152 @@ async function relaunchEscalationPage(
   }
 }
 
+const makeEmptyPage = (url: string): PageStateLike => ({
+  url,
+  fields: [],
+  hasCaptcha: false,
+  requiresEmailOtp: false,
+  validationErrors: [],
+  alreadyAppliedBanner: false,
+  currentStep: 1,
+  totalSteps: 1,
+  isShadowDom: false,
+  submitted: false,
+});
+
+/**
+ * Formulário web real (feature/06): Chromium lazy — só abre na 1ª vaga com
+ * form. Falha de navegação → emptyPage → cai no canal de mensagem como antes.
+ * AUTOFILL_HEADLESS=false mostra o navegador; AUTOFILL_PROFILE_DIR reaproveita
+ * logins do usuário via contexto persistente. No exe SEA o playwright é
+ * externo e o import falha — mesma degradação, com aviso uma vez por run.
+ */
+function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
+  let browserUnavailableWarned = false;
+  return async (url: string): Promise<PageStateLike> => {
+    try {
+      const ctx = await getJobBrowserContext({
+        headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
+        profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+        stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
+      });
+      const page = await ctx.newPage();
+      try {
+        const state = await inspectPage(page, url);
+        // Página de empresa sem form: o "Apply" costuma levar ao ATS real —
+        // 1 hop antes de declarar NO_CHANNEL.
+        if (state.fields.length === 0) {
+          const followed = await followApplyLink(page);
+          if (followed) return followed;
+        }
+        return state;
+      } catch {
+        await page.close().catch(() => {});
+        return makeEmptyPage(url);
+      }
+    } catch {
+      if (!browserUnavailableWarned) {
+        browserUnavailableWarned = true;
+        console.log(
+          '⚠ Autofill web indisponível (playwright não inicializou) — ' +
+            'vagas com formulário seguem p/ e-mail, WhatsApp ou revisão.',
+        );
+      }
+      return makeEmptyPage(url);
+    }
+  };
+}
+
+/**
+ * CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
+ * cofre `login-<domínio>` e IMAP tentam sozinhos antes de escalar; em headless
+ * reabre o form no mesmo perfil; já visível, preserva a aba. `pendingCount`
+ * conta janelas deixadas abertas p/ o resumo do run/retry.
+ */
+function makeHumanEscalation(ctx: CmdCtx): {
+  handler: NonNullable<PipelineDeps['onHumanEscalation']>;
+  pendingCount: () => number;
+} {
+  let pendingVisiblePages = 0;
+  const handler: NonNullable<PipelineDeps['onHumanEscalation']> = async ({
+    page,
+    signal,
+    jobUrl,
+    matched,
+    aiAnswers,
+    resumePath,
+  }) => {
+    if (!page.dom) return false;
+    const refill = { matched, aiAnswers, resumePath };
+    // Muro de login: 1º tenta credencial do cofre (login-<domínio>) — sem
+    // janela humana; sem credencial/falha → abre visível p/ login manual.
+    // Enter aqui → reabre a URL da VAGA + refaz o fill.
+    if (signal.kind === 'LOGIN_REQUIRED') {
+      console.log(`\n⏸ ${signal.detail}`);
+      const dom = page.dom as Page;
+      const headless = effEnv.env.AUTOFILL_HEADLESS !== 'false';
+      let ok = false;
+      if (await tryVaultPortalLogin(dom, page.url)) {
+        // Autologin feito (headless ou visível) → volta p/ vaga e refaz o fill.
+        ok = headless
+          ? await relaunchForLogin(jobUrl, refill, ctx, false)
+          : await resumeAfterLogin(dom, jobUrl, refill);
+      }
+      if (!ok) {
+        ok = headless
+          ? await relaunchForLogin(jobUrl, refill, ctx)
+          : await continueAfterLogin(dom, jobUrl, refill, ctx);
+      }
+      if (!ok) return false;
+      pendingVisiblePages++;
+      console.log(
+        `   Formulário refeito — revise e envie; ` +
+          `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
+      );
+      return true;
+    }
+    // OTP por e-mail: 1º tenta ler o código na caixa IMAP do cofre
+    // (imap-main, ou smtp-main c/ host derivável) e digitar na página.
+    if (signal.kind === 'EMAIL_OTP') {
+      const otpOk = await tryMailboxOtp(page.dom as Page, page.url, refill);
+      if (otpOk) {
+        pendingVisiblePages++;
+        console.log(
+          `   OTP aplicado do e-mail — revise e envie; ` +
+            `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
+        );
+        return true;
+      }
+    }
+    if (effEnv.env.AUTOFILL_HEADLESS === 'false') {
+      pendingVisiblePages++;
+      console.log(
+        `\n⏸ ${signal.detail} — resolva na janela aberta e envie; ` +
+          `depois confirme com 'mark ${page.url} applied' ou 'e' no review.`,
+      );
+      return true;
+    }
+    console.log(`\n⏸ ${signal.detail} — reabrindo o formulário visível p/ resolução manual…`);
+    const reopened = await relaunchEscalationPage(page.url, {
+      matched,
+      aiAnswers,
+      resumePath,
+    });
+    if (!reopened) return false;
+    pendingVisiblePages++;
+    console.log(
+      `   Resolva no browser e envie — depois 'mark ${page.url} applied' ou 'e' no review.`,
+    );
+    return true;
+  };
+  return { handler, pendingCount: () => pendingVisiblePages };
+}
+
 /** Cofre c/ secret do .env + legado 'dev-only-insecure-key' (migra na leitura). */
 function makeVault(): FileCredentialVault {
-  return new FileCredentialVault(
-    resolveHome('vault', effEnv.env),
-    effEnv.env.CAREER_VAULT_SECRET,
-    ['dev-only-insecure-key'],
-  );
+  return new FileCredentialVault(resolveHome('vault', effEnv.env), effEnv.env.CAREER_VAULT_SECRET, [
+    'dev-only-insecure-key',
+  ]);
 }
 
 /**
@@ -1364,6 +1387,61 @@ function printWhatsappQueueItem(q: {
 }
 
 /**
+ * `retry [url|id]` — refaz o estágio web das vagas NEEDS_HUMAN_INPUT:
+ * mesma malha do run (login-cofre → passwordless → OTP-IMAP → fill), sem
+ * refazer discovery/triagem/tailoring. Canal mensagem (sem form) fica p/ review.
+ */
+async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
+  const repo = openRepo();
+  const jobs: JobRecord[] = [];
+  if (args[0]) {
+    const j = await repo.findJob(args[0]);
+    if (j) jobs.push(j);
+    else {
+      console.log(`Vaga não encontrada: ${args[0]}`);
+      repo.close();
+      return;
+    }
+  } else {
+    jobs.push(...(await repo.listByStatus('NEEDS_HUMAN_INPUT')));
+  }
+  if (!jobs.length) {
+    repo.close();
+    console.log('Nada aguardando — a fila NEEDS_HUMAN_INPUT está vazia.');
+    return;
+  }
+
+  const profile = loadMasterProfile();
+  const escalation =
+    effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false' ? makeHumanEscalation(ctx) : null;
+  const deps = {
+    repo,
+    pageFactory: makeWebPageFactory(),
+    humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    ...(escalation ? { onHumanEscalation: escalation.handler } : {}),
+  };
+
+  console.log(`${jobs.length} vaga(s) aguardando — refazendo o preenchimento web…`);
+  for (const job of jobs) {
+    const r = await reapplyStoredJob(job, { profile, deps });
+    const hint =
+      r.reason === 'NO_WEB_FORM'
+        ? ' (sem form web — canal e-mail/WhatsApp: use `review`/`mark`)'
+        : '';
+    console.log(`  ${r.status.padEnd(20)} ${job.url}${r.reason ? ` (${r.reason})` : ''}${hint}`);
+  }
+  if (escalation && escalation.pendingCount() > 0) {
+    console.log(
+      `\n${escalation.pendingCount()} formulário(s) aguardando resolução manual — ` +
+        `a janela do browser permanece aberta.`,
+    );
+  } else {
+    await shutdownSharedBrowser();
+  }
+  repo.close();
+}
+
+/**
  * Fila de ação humana. No shell interativo pergunta o desfecho de cada item —
  * fora dele (comando direto) só lista e aponta mark/remove.
  */
@@ -1771,6 +1849,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'scan':
       await cmdScan(args, ctx);
+      return true;
+    case 'retry':
+      await cmdRetry(args, ctx);
       return true;
     case 'review':
       await cmdReview(ctx);
