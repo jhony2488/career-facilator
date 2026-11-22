@@ -1,6 +1,7 @@
 import {
   mergeSnapshots,
   pickApplyTarget,
+  pickJobLink,
   followApplyLink,
   snapshotToState,
   type PageSnapshot,
@@ -167,6 +168,62 @@ describe('pickApplyTarget — apply link selection', () => {
         { text: 'Apply', href: base },
       ],
       base,
+    );
+    expect(target).toBeNull();
+  });
+});
+
+describe('pickJobLink — exact job inside an ATS listing', () => {
+  const listing = 'https://boards.greenhouse.io/acme';
+  const origin =
+    'https://www.arbeitnow.com/jobs/companies/skalar/senior-software-engineer-munich-363931';
+
+  it('follows the job anchor sharing ≥2 slug tokens with the origin url', () => {
+    const target = pickJobLink(
+      [
+        { text: 'Backend Engineer', href: '/acme/jobs/111' },
+        { text: 'Senior Software Engineer Munich', href: '/acme/jobs/222' },
+      ],
+      listing,
+      origin,
+    );
+    expect(target).toBe('https://boards.greenhouse.io/acme/jobs/222');
+  });
+
+  it('follows the only job anchor even with zero token overlap', () => {
+    const target = pickJobLink(
+      [
+        { text: 'Staff Engineer', href: '/acme/jobs/999' },
+        { text: 'About', href: 'https://acme.com/about' },
+      ],
+      listing,
+      origin,
+    );
+    expect(target).toBe('https://boards.greenhouse.io/acme/jobs/999');
+  });
+
+  it('returns null on a multi-job listing without token overlap — never guesses', () => {
+    const target = pickJobLink(
+      [
+        { text: 'DevOps Engineer', href: '/acme/jobs/111' },
+        { text: 'Data Scientist', href: '/acme/jobs/222' },
+      ],
+      listing,
+      origin,
+    );
+    expect(target).toBeNull();
+  });
+
+  it('skips self/mailto/javascript links and board-path anchors without job slug', () => {
+    const target = pickJobLink(
+      [
+        { text: 'Jobs', href: 'mailto:x@y.com' },
+        { text: 'Apply', href: 'javascript:void(0)' },
+        { text: 'Board', href: listing },
+        { text: 'See jobs', href: '/acme/jobs' },
+      ],
+      listing,
+      origin,
     );
     expect(target).toBeNull();
   });
