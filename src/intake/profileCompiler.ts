@@ -1,4 +1,4 @@
-import type { MasterProfile } from './masterProfile';
+import type { MasterProfile, SalaryByLevel } from './masterProfile';
 import { NOT_INFORMED } from './profileStructurer';
 import { invalidateProfileCache } from '../ai/tailorerAgent';
 
@@ -25,6 +25,8 @@ const KNOWN_SECTIONS = new Set([
   'formacao',
   'respostas padrão',
   'respostas padrao',
+  'pretensão salarial',
+  'pretensao salarial',
 ]);
 
 const clean = (v: string | undefined): string => {
@@ -50,6 +52,7 @@ export function compileMasterProfile(markdown: string): CompileResult {
   const personal = parseKeyValueBullets(section(markdown, /## Dados Pessoais/i));
   const skillsBullets = parseKeyValueBullets(section(markdown, /## Habilidades/i));
   const answers = parseKeyValueBullets(section(markdown, /## Respostas Padrão/i));
+  const salarySection = section(markdown, /## Pretens[aã]o Salarial/i);
 
   const profile: MasterProfile = {
     fullName: clean(markdown.match(/^#\s+(.+)$/m)?.[1]),
@@ -75,6 +78,7 @@ export function compileMasterProfile(markdown: string): CompileResult {
     languages: parseCsv(skillsBullets['idiomas']),
     certifications: parseCsv(skillsBullets['certificações'] ?? skillsBullets['certificacoes']),
     blockedKeywords: parseCsv(skillsBullets['palavras bloqueadas']),
+    salaryByLevel: parseSalaryByLevel(salarySection, personal),
     experiences: parseExperiences(section(markdown, /## Experi[êe]ncias/i)),
     projects: parseProjects(section(markdown, /## Projetos(?! Open Source)/i)),
     openSourceProjects: parseOpenSourceProjects(section(markdown, /## (?:Projetos )?Open Source/i)),
@@ -131,6 +135,57 @@ function parseCurrency(raw: string | undefined, pattern: RegExp): number {
   const m = raw.match(pattern);
   if (!m) return 0;
   return Number(m[1].replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+function parseSalaryByLevel(
+  sectionBody: string,
+  personal: Record<string, string>,
+): SalaryByLevel | undefined {
+  // Aceita tanto uma seção dedicada quanto chaves no Dados Pessoais.
+  const source = sectionBody || '';
+  const lines = source.split('\n').concat(Object.entries(personal).map(([k, v]) => `${k}: ${v}`));
+  const entry = (text: string | undefined) => ({
+    brl: parseCurrency(text, /r\$\s*([\d.,]+)/i),
+    usd: parseCurrency(text, /(?:us\$|usd)\s*([\d.,]+)/i),
+  });
+  const levelNames = ['junior', 'pleno', 'senior', 'júnior', 'sênior'] as const;
+  const levelMap: Record<string, keyof SalaryByLevel> = {
+    junior: 'JUNIOR',
+    júnior: 'JUNIOR',
+    jr: 'JUNIOR',
+    pleno: 'PLENO',
+    pl: 'PLENO',
+    senior: 'SENIOR',
+    sênior: 'SENIOR',
+    sr: 'SENIOR',
+  };
+  const found: Partial<SalaryByLevel> = {};
+  for (const line of lines) {
+    const m = line.match(/^[-\s]*([^:]+):\s*(.+)$/i);
+    if (!m) continue;
+    const key = m[1].trim().toLowerCase();
+    const value = m[2].trim();
+    // Match keys like "salário júnior" or "júnior: R$ 8.000 | USD 1.500".
+    const direct = levelMap[key];
+    if (direct) {
+      found[direct] = entry(value);
+      continue;
+    }
+    for (const name of levelNames) {
+      if (key.includes(name)) {
+        const mapped = levelMap[name];
+        if (mapped && !found[mapped]) found[mapped] = entry(value);
+      }
+    }
+  }
+  if (found.JUNIOR || found.PLENO || found.SENIOR) {
+    return {
+      JUNIOR: found.JUNIOR ?? entry(personal['salário júnior'] ?? personal['salario junior']),
+      PLENO: found.PLENO ?? entry(personal['salário pleno'] ?? personal['salario pleno']),
+      SENIOR: found.SENIOR ?? entry(personal['salário sênior'] ?? personal['salario senior']),
+    };
+  }
+  return undefined;
 }
 
 /** `### Role — Company (period)` + bullets de destaque. */

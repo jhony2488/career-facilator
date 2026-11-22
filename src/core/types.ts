@@ -1,3 +1,5 @@
+import type { SalaryByLevel } from '../intake/masterProfile';
+
 /** Forma mínima do perfil-mestre usada pelo pipeline e pelo matcher. */
 export interface MasterProfileLike {
   fullName: string;
@@ -13,4 +15,5 @@ export interface MasterProfileLike {
   standardAnswers: Record<string, string>;
   salaryExpectationBRL: number;
   salaryExpectationUSD: number;
+  salaryByLevel?: SalaryByLevel;
 }

@@ -2,6 +2,7 @@ import { createFetcher } from './fetcher';
 import { RateLimiter } from './rateLimiter';
 import { getActiveSources } from './sourceRegistry';
 import { getAdapter } from './adapters';
+import { isJobListingUrl } from './normalizer';
 import type {
   DiscoveryOptions,
   DiscoveryResult,
@@ -53,6 +54,7 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
 
   const allJobs: DiscoveryJob[] = [];
   const allErrors: DiscoveryError[] = [];
+  const perSource: { sourceId: string; jobs: number; errors: number }[] = [];
   let sourcesSucceeded = 0;
   let sourcesTried = 0;
   const concurrency = Math.max(1, config.discovery.concurrency);
@@ -108,16 +110,21 @@ export async function discoverJobs(opts: DiscoveryOptions): Promise<DiscoveryRes
     for (const r of results) {
       allJobs.push(...r.jobs);
       allErrors.push(...r.errors);
+      perSource.push({ sourceId: r.sourceId, jobs: r.jobs.length, errors: r.errors.length });
       if (r.jobs.length > 0 || r.errors.length === 0) sourcesSucceeded++;
     }
   }
 
-  const deduped = dedupByUrl(allJobs).filter((j) => !excluded.has(canonicalKey(j.raw.url) ?? ''));
+  const deduped = dedupByUrl(allJobs)
+    .filter((j) => !excluded.has(canonicalKey(j.raw.url) ?? ''))
+    // Última malha: nenhum adapter deve emitir página de busca (ex.: /jobs/<termo>).
+    .filter((j) => isJobListingUrl(j.raw.url));
   const limited = deduped.slice(0, globalMax);
 
   return {
     jobs: limited,
     errors: allErrors,
+    perSource,
     meta: {
       sourcesTried,
       sourcesSucceeded,

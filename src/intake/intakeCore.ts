@@ -3,6 +3,7 @@ import { extractPdfText, type PdfExtractionInput, type PdfReader } from './pdfEx
 import { structureProfile, type StructurerModel } from './profileStructurer';
 import type { MasterProfileStore } from './masterProfileStore';
 import { compileMasterProfile, invalidateDerivedData } from './profileCompiler';
+import type { CareerOpsConfig } from '../config/careerOps.config';
 import type {
   IntakeOutcome,
   ProfileConflict,
@@ -116,6 +117,8 @@ export async function approveProfileDraft(deps: {
   /** Path do artefato compilado — quando presente, regravado na promoção. */
   compiledPath?: string;
   writeCompiled?: (path: string, json: string) => Promise<void>;
+  /** Config com salários por nível (opcional — se ausente, usa os defaults). */
+  config?: CareerOpsConfig;
 }): Promise<ApproveResult> {
   const promoted = await deps.store.promoteDraft();
   const invalidation = invalidateDerivedData();
@@ -123,6 +126,17 @@ export async function approveProfileDraft(deps: {
     const active = await deps.store.getActiveProfileMarkdown();
     if (active) {
       const { profile } = compileMasterProfile(active);
+      const salaryByLevel = deps.config?.salary.byLevel;
+      if (salaryByLevel) {
+        profile.salaryByLevel = { ...salaryByLevel, ...profile.salaryByLevel };
+      }
+      if (!profile.salaryExpectationBRL) {
+        profile.salaryExpectationBRL = deps.config?.marketScope.national.salaryExpectationBRL ?? 0;
+      }
+      if (!profile.salaryExpectationUSD) {
+        profile.salaryExpectationUSD =
+          deps.config?.marketScope.international.salaryExpectationUSD ?? 0;
+      }
       const json = JSON.stringify(
         { version: 1, generatedAt: new Date().toISOString(), ...profile },
         null,

@@ -81,6 +81,14 @@ export const MasterProfileSchema = z.object({
   standardAnswers: z.record(z.string(), z.string()),
   salaryExpectationBRL: z.number().nullable(),
   salaryExpectationUSD: z.number().nullable(),
+  salaryByLevel: z
+    .object({
+      JUNIOR: z.object({ brl: z.number().nullable(), usd: z.number().nullable() }),
+      PLENO: z.object({ brl: z.number().nullable(), usd: z.number().nullable() }),
+      SENIOR: z.object({ brl: z.number().nullable(), usd: z.number().nullable() }),
+    })
+    .nullable()
+    .optional(),
 });
 
 export type ExtractedProfile = z.infer<typeof MasterProfileSchema>;
@@ -117,6 +125,7 @@ export function makeEmptyProfile(): ExtractedProfile {
     standardAnswers: {},
     salaryExpectationBRL: null,
     salaryExpectationUSD: null,
+    salaryByLevel: null,
   };
 }
 
@@ -141,6 +150,7 @@ const COMPLETENESS_RULE = [
   '  frameworks and LLM tools are NOT certifications.',
   '- blockedKeywords = [] unless the document explicitly lists words to avoid.',
   '- standardAnswers = {} always (filled manually later, never from the doc).',
+  '- salaryByLevel = null unless the document explicitly lists per-level salary expectations.',
 ].join('\n');
 
 /** Esqueleto do schema declarado no prompt — modelos pequenos precisam da forma. */
@@ -149,6 +159,7 @@ const PROFILE_JSON_SKELETON = [
   'fullName, email, phone, linkedin, github, portfolio, location, summary (strings);',
   'coreStack, languages, certifications, blockedKeywords (string arrays);',
   'seniorityYears, salaryExpectationBRL, salaryExpectationUSD (number or null);',
+  'salaryByLevel: {JUNIOR, PLENO, SENIOR}, each with {brl: number|null, usd: number|null} or null;',
   'experiences: [{role, company, period, highlights: [string]}];',
   'projects: [{name, summary, metrics: [string]}];',
   'openSourceProjects: [{name, repo, summary, metrics: [string]}];',

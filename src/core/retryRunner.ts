@@ -23,6 +23,10 @@ export interface RetryDeps {
   humanPace?: boolean;
   /** `AUTOFILL_DEBUG_FILL` — loga campo→valor→fonte no fill web. */
   debugFill?: boolean;
+  /** Defaults configuráveis para campos obrigatórios não reconhecidos. */
+  fieldDefaults?: Record<string, string>;
+  /** Limiar de similaridade das respostas do tailor (0..1). */
+  fuzzyThreshold?: number;
 }
 
 export interface RetryResult {
@@ -63,7 +67,7 @@ export async function reapplyStoredJob(
       name: f.name,
       selector: f.selector,
     }));
-    const { matched, unmatched } = matchFields(inspected, profile);
+    const { matched, unmatched } = matchFields(inspected, profile, deps.fieldDefaults);
     // Respostas do tailor persistidas no run — preenchem os campos que o
     // match determinístico não cobre (antes caíam todos em UNKNOWN_…).
     const aiAnswers = readAnswers(job.resumePath);
@@ -84,6 +88,8 @@ export async function reapplyStoredJob(
     const fillInput = {
       matched,
       aiAnswers,
+      fieldDefaults: deps.fieldDefaults,
+      fuzzyThreshold: deps.fuzzyThreshold,
       resumePath,
       submitMode: effectiveSubmit,
       humanPace: deps.humanPace,
@@ -129,6 +135,8 @@ export async function reapplyStoredJob(
     await deps.repo.updateStatus(job.url, 'APPLIED');
     return { status: 'APPLIED' };
   } catch (e) {
+    // Ctrl+C propaga como AbortError — cancela o retry, não marca FAILED.
+    if (e instanceof Error && e.name === 'AbortError') throw e;
     await deps.repo.updateStatus(job.url, 'FAILED').catch(() => {});
     return {
       status: 'FAILED',

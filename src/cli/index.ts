@@ -53,7 +53,12 @@ import {
 } from '../whatsapp_application/evolutionClient';
 import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
-import { executeLiveFill } from '../autofill/playwrightExecutor';
+import {
+  executeLiveFill,
+  findSubmitCandidates,
+  closeLivePage,
+  resumeScore,
+} from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
 import {
   followApplyChain,
@@ -63,6 +68,7 @@ import {
 } from '../scraper/pageInspector';
 import { agentNavigateToForm, type NavContext } from '../autofill/applyNavigator';
 import { removeAnswers } from '../autofill/answersStore';
+import { matchFields } from '../autofill/deterministicMatcher';
 import { compileMasterProfile } from '../intake/profileCompiler';
 import type { NavigatorModel } from '../ai/modelFactory';
 import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
@@ -108,8 +114,10 @@ const HELP = [
   '  Revisão e estado',
   '    review                                  NEEDS_HUMAN_INPUT + READY_TO_REVIEW + fila WhatsApp',
   '                                            (no shell: marca cada item interativamente)',
+  '    inspect <url>                           Abre a URL e imprime campos, matches, anexos e botões sem preencher/enviar',
   '    retry [url|id]                          Refaz o preenchimento web das vagas',
   '                                            NEEDS_HUMAN_INPUT (mesma malha do run)',
+  '    retry --send [url|id]                   Igual acima, mas clica o submit ao fim (para em não-enviado)',
   '    mark <url|id> <status>                  applied|email|whatsapp|skipped|failed|',
   '                                            rejected|interview|assessment',
   '    remove <url|id>                         Remove a vaga do histórico (reprocessável no run)',
@@ -345,6 +353,18 @@ function loadMasterProfile(): MasterProfileLike {
   }
   const { profile, warnings } = compileMasterProfile(readFileSync(masterPath, 'utf8'));
   for (const w of warnings) console.log(`  ⚠ ${w}`);
+  // O .env é a fonte das pretensões salariais (podem mudar sem reaprovar o perfil).
+  // Se o markdown não tiver salários, herdamos do config.salary.byLevel.
+  profile.salaryByLevel = {
+    ...config.salary.byLevel,
+    ...profile.salaryByLevel,
+  };
+  if (!profile.salaryExpectationBRL) {
+    profile.salaryExpectationBRL = config.marketScope.national.salaryExpectationBRL;
+  }
+  if (!profile.salaryExpectationUSD) {
+    profile.salaryExpectationUSD = config.marketScope.international.salaryExpectationUSD;
+  }
   // Regrava o artefato derivado (cache de prompt / consumidores externos).
   try {
     writeFileSync(
@@ -539,6 +559,12 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       `Fontes: ${discovery.meta.sourcesSucceeded}/${discovery.meta.sourcesTried} | ` +
         `vagas descobertas: ${discovery.jobs.length}`,
     );
+    // Resumo por fonte — mostra o que cada uma captou (ou falhou) em vez de
+    // só o agregado, p/ saber se LinkedIn/posts realmente rodaram.
+    for (const s of discovery.perSource ?? []) {
+      const flag = s.errors ? ` | ${s.errors} erro(s)` : '';
+      console.log(`  ${s.sourceId}: ${s.jobs} vaga(s)${flag}`);
+    }
     if (discovery.jobs.length === 0) {
       console.log('Nenhuma vaga descoberta. Verifique DISCOVERY_SOURCES ou --sources.');
       return;
@@ -583,6 +609,8 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     titleMatcher,
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
     debugFill: effEnv.env.AUTOFILL_DEBUG_FILL === 'true',
+    fieldDefaults: config.autofill.fieldDefaults,
+    fuzzyThreshold: config.autofill.questionSimilarityThreshold,
   };
 
   // CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
@@ -1346,6 +1374,21 @@ function buildRenderText() {
     try {
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+      // Infinite scroll (LinkedIn, feeds SPA): sem rolar só vem a primeira
+      // leva de cards. Para quando a altura para de crescer ou estoura o cap.
+      const scrollMax = Math.max(0, Number(effEnv.env.DISCOVERY_SCROLL_MAX ?? '5'));
+      let lastHeight = 0;
+      for (let i = 0; i < scrollMax; i++) {
+        const h = await page
+          .evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+            return document.body.scrollHeight;
+          })
+          .catch(() => lastHeight);
+        if (h <= lastHeight) break;
+        lastHeight = h;
+        await page.waitForTimeout(700);
+      }
       return { url: page.url(), text: await page.content(), status: resp?.status() ?? 200 };
     } finally {
       await page.close().catch(() => {});
@@ -1399,6 +1442,10 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
       `brutas: ${discovery.meta.totalRaw} | únicas: ${discovery.meta.afterDedup} | ` +
       `retornadas: ${discovery.jobs.length} | tempo: ${discovery.meta.durationMs}ms`,
   );
+  for (const s of discovery.perSource ?? []) {
+    const flag = s.errors ? ` | ${s.errors} erro(s)` : '';
+    console.log(`  ${s.sourceId}: ${s.jobs} vaga(s)${flag}`);
+  }
   for (const j of discovery.jobs) {
     console.log(`  ${j.sourceId.padEnd(20)} ${j.raw.url}`);
   }
@@ -1460,7 +1507,11 @@ async function cmdApprove(): Promise<void> {
     { draftPath: cfg.draftPath, masterPath: cfg.masterPath, historyDir: cfg.historyDir },
     { fs: createNodeFileStore() },
   );
-  const result = await approveProfileDraft({ store, compiledPath: cfg.compiledPath });
+  const result = await approveProfileDraft({
+    store,
+    compiledPath: cfg.compiledPath,
+    config: loadCareerOpsConfig(),
+  });
   console.log(`Rascunho aprovado → ${cfg.masterPath}`);
   console.log(`Snapshot da versão anterior em ${cfg.historyDir}`);
   if (result.cacheInvalidated) console.log('Cache de prompt invalidado.');
@@ -1597,6 +1648,8 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     pageFactory: makeWebPageFactory(navigatorModel),
     humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
     debugFill: effEnv.env.AUTOFILL_DEBUG_FILL === 'true',
+    fieldDefaults: config.autofill.fieldDefaults,
+    fuzzyThreshold: config.autofill.questionSimilarityThreshold,
     ...(escalation ? { onHumanEscalation: escalation.handler } : {}),
   };
   // Envio: FULL_AUTO envia; `--send` é aprovação explícita do usuário —
@@ -1605,6 +1658,7 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     config.execution.mode === 'FULL_AUTO' || sendFlag ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT';
 
   console.log(`${jobs.length} vaga(s) aguardando — refazendo o preenchimento web…`);
+  let stop = false;
   for (const job of jobs) {
     const r = await reapplyStoredJob(job, { profile, deps, submitMode });
     const contact = r.reason?.startsWith('CONTACT_EMAIL:')
@@ -1616,6 +1670,14 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
         ? ' (sem form web — canal e-mail/WhatsApp: use `review`/`mark`)'
         : '';
     console.log(`  ${r.status.padEnd(20)} ${job.url}${reason ? ` (${reason})` : ''}${hint}`);
+    // Com --send, parar no primeiro que não foi enviado para não passar
+    // silenciosamente para a próxima vaga.
+    if (sendFlag && r.status !== 'APPLIED') {
+      console.log(`\n⏹ retry --send parou em ${job.url} — status ${r.status}.`);
+      console.log(`   Resolva/marque e rode \`retry --send\` novamente.`);
+      stop = true;
+      break;
+    }
   }
   if (escalation && escalation.pendingCount() > 0) {
     console.log(
@@ -1626,6 +1688,82 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     await shutdownSharedBrowser();
   }
   repo.close();
+}
+
+/**
+ * Diagnóstico de preenchimento: abre a URL, segue a cadeia de candidatura,
+ * imprime campos, valores casados, dropzones, botões de submit e sinais de
+ * bloqueio — sem preencher ou enviar.
+ */
+async function cmdInspect(args: string[], _ctx: CmdCtx = {}): Promise<void> {
+  const url = args.find((a) => !a.startsWith('--'));
+  if (!url) throw new CliError('Uso: inspect <url> [--no-headless]');
+
+  const profile = loadMasterProfile();
+  const pageFactory = makeWebPageFactory(undefined);
+  console.log(`🔍 Inspecionando ${url}…`);
+  const page = await pageFactory(url);
+
+  const inspected: Array<{
+    kind: 'input' | 'select' | 'textarea' | 'file';
+    label: string;
+    required: boolean;
+    name?: string;
+    selector?: string;
+  }> = page.fields.map((f) => ({
+    kind: f.kind as 'input' | 'select' | 'textarea' | 'file',
+    label: f.label,
+    required: f.required,
+    name: f.name,
+    selector: f.selector,
+  }));
+  const { matched, unmatched } = matchFields(inspected, profile, config.autofill.fieldDefaults);
+  const matchedByLabel = new Map(matched.map((m) => [m.field.label, m]));
+
+  console.log(`\nURL final: ${page.url}`);
+  console.log(`Campos detectados (${page.fields.length}):`);
+  for (const f of page.fields) {
+    const m = matchedByLabel.get(f.label);
+    let value = m ? `${m.value.slice(0, 50)} [${m.source}]` : 'NÃO CASOU';
+    if (f.kind === 'file') {
+      const score = resumeScore(f);
+      if (score >= 3) value = '← CV anexado';
+      else if (score < 0) value = '← ignorado (cover/autofill/foto)';
+      else value += ' ← tenta anexar CV (não claro)';
+    }
+    console.log(
+      `  [${f.kind}] ${f.required ? '*' : ' '}${f.label} → ${value} (selector=${f.selector ?? '—'}, name=${f.name ?? '—'})`,
+    );
+  }
+
+  if (page.dropzones?.length) {
+    console.log(`\nDropzones (${page.dropzones.length}):`);
+    for (const dz of page.dropzones) {
+      console.log(`  selector=${dz.selector} frame=${dz.frameIdx ?? 0}`);
+    }
+  }
+
+  if (page.dom) {
+    const candidates = await findSubmitCandidates(page.dom as Page);
+    console.log(`\nBotões candidatos a submit (${candidates.length}):`);
+    for (const c of candidates.slice(0, 8)) {
+      console.log(`  text="${c.text}" ariaLabel="${c.ariaLabel ?? ''}"`);
+    }
+  }
+
+  const requiredUnmatched = unmatched.filter((u) => u.required);
+  console.log(`\nSinais de bloqueio:`);
+  console.log(
+    `  CAPTCHA=${page.hasCaptcha}, OTP=${page.requiresEmailOtp}, login=${page.requiresLogin ?? false}, alreadyApplied=${page.alreadyAppliedBanner}`,
+  );
+  console.log(`  validation=${page.validationErrors.join('; ') || '—'}`);
+  console.log(`  step=${page.currentStep}/${page.totalSteps}`);
+  console.log(
+    `  required unmatched=${requiredUnmatched.length} (${requiredUnmatched.map((u) => u.label).join(', ') || '—'})`,
+  );
+
+  await closeLivePage(page);
+  await shutdownSharedBrowser();
 }
 
 /**
@@ -2036,6 +2174,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'scan':
       await cmdScan(args, ctx);
+      return true;
+    case 'inspect':
+      await cmdInspect(args, ctx);
       return true;
     case 'retry':
       await cmdRetry(args, ctx);

@@ -85,6 +85,8 @@ export interface DiscoveryJob {
 export interface DiscoveryResult {
   jobs: DiscoveryJob[];
   errors: DiscoveryError[];
+  /** Resumo por fonte — preenchido pelo discoveryEngine. */
+  perSource?: Array<{ sourceId: string; jobs: number; errors: number }>;
   meta: {
     sourcesTried: number;
     sourcesSucceeded: number;

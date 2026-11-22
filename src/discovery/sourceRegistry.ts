@@ -28,11 +28,13 @@ export function getActiveSources(
     if (s.requiresAuth && !(filters.includeAuth ?? false)) return false;
 
     if (filters.regions?.length) {
-      const matches = s.regions.some((r) => filters.regions!.includes(r));
+      const matches = s.regions.some((r) => r === 'GLOBAL' || filters.regions!.includes(r));
       if (!matches) return false;
     }
     if (config.discovery.regions?.length) {
-      const matches = s.regions.some((r) => config.discovery.regions!.includes(r));
+      const matches = s.regions.some(
+        (r) => r === 'GLOBAL' || config.discovery.regions!.includes(r),
+      );
       if (!matches) return false;
     }
     if (config.discovery.workModels?.length && s.workModels?.length) {

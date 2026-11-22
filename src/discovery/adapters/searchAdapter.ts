@@ -1,6 +1,6 @@
 import { parse } from 'node-html-parser';
 import { buildSearchQueries } from '../../geo/dorkBuilder';
-import { rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
+import { isJobListingUrl, rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
 import type {
   SourceAdapter,
   SourceAdapterContext,
@@ -220,6 +220,8 @@ export const searchAdapter: SourceAdapter = {
       for (const hit of parsed) {
         if (hits.length >= maxJobs) break;
         if (site && !matchesSite(hit.url, site)) continue;
+        // Página de busca/listagem não é candidatura — ex.: linkedin.com/jobs/<termo>.
+        if (!isJobListingUrl(hit.url)) continue;
         let key: string;
         try {
           const u = new URL(hit.url);

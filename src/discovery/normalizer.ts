@@ -22,6 +22,27 @@ export function matchesTargetTitles(title: string, targets: string[]): boolean {
   return matchTargetTitle(title, targets) !== null;
 }
 
+const LINKEDIN_HOST = /(^|\.)linkedin\.com$/i;
+/** Página candidatável no LinkedIn: vaga individual ou post — nunca listagem de busca. */
+const LINKEDIN_DETAIL_RE = /\/jobs\/view\/[^?#]*\d{5,}\/?$|\/(feed\/update\/|posts\/)/i;
+
+/**
+ * Filtro de URL candidatável. Busca orgânica pode devolver páginas de
+ * listagem (ex.: `br.linkedin.com/jobs/desenvolvedor-vagas`) — sem elas
+ * entrarem na fila eles não viram "vagas" falsas nem poluem o dedup.
+ */
+export function isJobListingUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (LINKEDIN_HOST.test(u.hostname)) {
+      return LINKEDIN_DETAIL_RE.test(u.pathname);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

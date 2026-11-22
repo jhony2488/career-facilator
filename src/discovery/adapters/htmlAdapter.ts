@@ -5,7 +5,7 @@ import type {
   DiscoveryError,
   ExtractedJob,
 } from '../types';
-import { rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
+import { isJobListingUrl, rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
 
 function fail(
   ctx: SourceAdapterContext,
@@ -114,7 +114,11 @@ export const htmlAdapter: SourceAdapter = {
     }
 
     const jobs = extracted
-      .filter((j) => matchesTargetTitles(j.title, config.discovery.targetTitles))
+      .filter(
+        (j) =>
+          // O LLM pode devolver link de busca em vez de página de vaga.
+          isJobListingUrl(j.url) && matchesTargetTitles(j.title, config.discovery.targetTitles),
+      )
       .map((j) =>
         rawJobFromNormalized(
           {

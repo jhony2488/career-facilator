@@ -155,6 +155,21 @@ function buildError(sourceId: string, message: string): DiscoveryError {
 
 const AUTHWALL_RE = /authwall|\/login\b|checkpoint\/lg/i;
 
+/** geoId do LinkedIn por região — sem ele a sessão aplica a local salva do perfil. */
+const REGION_GEO_IDS: Record<string, string> = {
+  BR: '106057199', // Brasil
+  PT: '100364837', // Portugal
+  US: '103644278', // Estados Unidos
+  EU: '91000007', // União Europeia
+};
+
+/** f_WT: modelo de trabalho (1=onsite, 2=remote, 3=hybrid) — vem de DISCOVERY_WORK_MODELS. */
+const WORK_TYPE_IDS: Record<string, string> = {
+  ONSITE: '1',
+  REMOTE: '2',
+  HYBRID: '3',
+};
+
 type RenderText = NonNullable<SourceAdapterContext['renderText']>;
 
 export const linkedinAdapter: SourceAdapter = {
@@ -202,11 +217,25 @@ export const linkedinAdapter: SourceAdapter = {
       meta: metaBase(titles.length, searchesOk, jobs.length, jobs.length, jobs.length, start),
     });
 
+    // Filtros explícitos: sem geoId/location na URL a sessão logada aplica a
+    // preferência de local salva do perfil (ex.: "Recife +40km" aparecia).
+    const params = new URLSearchParams({ f_TPR: 'r86400' });
+    const regions = config.discovery.regions ?? [];
+    // GLOBAL pedido → busca remota mundial, não trava no geoId de um país.
+    const geoIds = regions.includes('GLOBAL')
+      ? []
+      : (regions.map((r) => REGION_GEO_IDS[r]).filter(Boolean) as string[]);
+    if (geoIds.length) params.set('geoId', [...new Set(geoIds)].join(','));
+    const workTypes = (config.discovery.workModels ?? [])
+      .map((w) => WORK_TYPE_IDS[w])
+      .filter(Boolean) as string[];
+    if (workTypes.length) params.set('f_WT', [...new Set(workTypes)].join(','));
+
     // Passada 1 — busca de jobs /jobs/search por título-alvo.
     for (const title of titles) {
       if (jobs.length >= maxJobs || ctx.signal?.aborted) break;
       const searchUrl =
-        `https://www.linkedin.com/jobs/search?f_TPR=r86400` +
+        `https://www.linkedin.com/jobs/search?${params.toString()}` +
         (title ? `&keywords=${encodeURIComponent(title)}` : '');
       let page: Awaited<ReturnType<RenderText>>;
       try {

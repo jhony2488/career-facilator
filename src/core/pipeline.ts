@@ -105,6 +105,10 @@ export interface PipelineDeps {
   }) => Promise<boolean>;
   /** `AUTOFILL_DEBUG_FILL` — loga campo→valor→fonte no fill web. */
   debugFill?: boolean;
+  /** Defaults configuráveis para campos obrigatórios não reconhecidos. */
+  fieldDefaults?: Record<string, string>;
+  /** Limiar de similaridade entre label e respostas do tailor (0..1). */
+  fuzzyThreshold?: number;
 }
 
 export interface ApplicationResult {
@@ -390,7 +394,7 @@ export async function runApplicationPipeline(
           name: f.name,
           selector: f.selector,
         }));
-        const { matched, unmatched } = matchFields(inspected, profile);
+        const { matched, unmatched } = matchFields(inspected, profile, deps.fieldDefaults);
         const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
         // Resposta de campo REQUIRED vinda só do modelo = baixa confiança —
         // anti-fabricação: revisão em vez de auto-envio (mesmo em FULL_AUTO).
@@ -405,6 +409,8 @@ export async function runApplicationPipeline(
           ? executeLiveFill(page, {
               matched,
               aiAnswers: assets.answers,
+              fieldDefaults: deps.fieldDefaults,
+              fuzzyThreshold: deps.fuzzyThreshold,
               resumePath: assets.resumePath,
               submitMode,
               humanPace: deps.humanPace,
@@ -413,6 +419,8 @@ export async function runApplicationPipeline(
           : executeFill(page, {
               matched,
               aiAnswers: assets.answers,
+              fieldDefaults: deps.fieldDefaults,
+              fuzzyThreshold: deps.fuzzyThreshold,
               resumePath: assets.resumePath,
               submitMode,
             }));
@@ -479,6 +487,8 @@ export async function runApplicationPipeline(
         if (!keepPageOpen) await closeLivePage(page);
       }
     } catch (e) {
+      // Ctrl+C propaga como AbortError — cancela o run, não marca FAILED.
+      if (e instanceof Error && e.name === 'AbortError') throw e;
       await deps.repo.updateStatus(raw.url, 'FAILED').catch(() => {});
       stages.push('FAILED');
       Object.assign(app, {
@@ -530,6 +540,7 @@ async function applyViaMessageChannel(
   locale.salaryExpectation = resolveSalaryExpectation(
     { jobTitle: title, jobText: markdown, currency: locale.currency },
     config,
+    profile,
   ).value;
   const jobId = title || raw.url;
 

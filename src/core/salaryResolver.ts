@@ -1,4 +1,5 @@
 import type { CareerOpsConfig } from '../config/careerOps.config';
+import type { MasterProfileLike } from './types';
 
 /**
  * Pretensão salarial por nível + adaptação à faixa da vaga:
@@ -75,11 +76,19 @@ export function resolveSalaryExpectation(
     currency: 'BRL' | 'USD';
   },
   config: CareerOpsConfig,
+  profile?: MasterProfileLike,
 ): SalaryResolution {
   const level = detectSeniorityLevel(input.jobTitle, input.jobText);
   const key = input.currency === 'BRL' ? 'brl' : 'usd';
+
+  // O perfil-mestre pode sobrescrever os defaults por nível.
+  const profileLevelValue =
+    level && profile?.salaryByLevel?.[level]?.[key] ? profile.salaryByLevel[level][key] : 0;
+  const defaultLevelValue = level ? config.salary.byLevel[level][key] : 0;
+  const levelValue = profileLevelValue || defaultLevelValue;
+
   const base = level
-    ? config.salary.byLevel[level][key]
+    ? levelValue
     : input.currency === 'BRL'
       ? config.marketScope.national.salaryExpectationBRL
       : config.marketScope.international.salaryExpectationUSD;

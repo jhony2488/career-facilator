@@ -41,7 +41,27 @@ function snapshotScript(): PageSnapshot {
     !!(el as HTMLElement).offsetHeight ||
     el.getClientRects().length > 0;
 
-  const labelFor = (el: HTMLElement): string => {
+  /** Texto visível associado a um input file escondido (dropzone/label). */
+  const visibleFileLabel = (el: HTMLElement): string | undefined => {
+    const id = el.getAttribute('id');
+    if (id) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(id)}"]`) as HTMLElement | null;
+      if (lbl && isVisible(lbl) && lbl.innerText?.trim()) return lbl.innerText.trim();
+    }
+    const wrap = el.closest('label');
+    if (wrap) {
+      const t = (wrap as HTMLElement).innerText?.trim();
+      if (t) return t;
+    }
+    const parent = el.closest('[class*="upload" i], [class*="drop" i], [class*="file" i], label');
+    if (parent) {
+      const t = (parent as HTMLElement).innerText?.trim();
+      if (t) return t;
+    }
+    return undefined;
+  };
+
+  const labelFor = (el: HTMLElement, type?: string): string => {
     // getRootNode() resolve label/for dentro do shadow root do próprio campo.
     const root = el.getRootNode() as Document | ShadowRoot;
     const id = el.getAttribute('id');
@@ -58,12 +78,14 @@ function snapshotScript(): PageSnapshot {
       const t = root.getElementById?.(labelledBy);
       if (t?.textContent?.trim()) return t.textContent!.trim();
     }
-    return (
+    const fallback = (
       el.getAttribute('aria-label') ||
       el.getAttribute('placeholder') ||
       el.getAttribute('name') ||
       ''
     ).trim();
+    if (fallback) return fallback;
+    return '';
   };
 
   const fields: PageSnapshot['fields'] = [];
@@ -80,6 +102,17 @@ function snapshotScript(): PageSnapshot {
       // <input type=file> costuma ficar display:none atrás de um label — coleta mesmo invisível
       if (!isVisible(el) && type !== 'file') continue;
       el.setAttribute('data-cf-idx', String(idx++));
+      let label = labelFor(el as HTMLElement);
+      if (type === 'file') {
+        const visible = visibleFileLabel(el as HTMLElement);
+        if (visible) label = visible;
+      }
+      const name = el.getAttribute('name') || el.getAttribute('id') || '';
+      // Pula campos sem identidade alguma (label/name/placeholder/aria-label vazios) —
+      // geralmente são inputs fantasmas/decorativos que aparecem no DOM.
+      if (!label && !name && !el.getAttribute('placeholder') && !el.getAttribute('aria-label')) {
+        continue;
+      }
       const kind =
         type === 'file'
           ? 'file'
@@ -88,10 +121,37 @@ function snapshotScript(): PageSnapshot {
             : tag === 'textarea'
               ? 'textarea'
               : 'input';
+      // Detectar "required" também pelo parente/texto do label para inputs
+      // file escondidos que não carregam o atributo.
+      let required =
+        (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true';
+      if (type === 'file' && !required) {
+        const txt = (
+          label +
+          ' ' +
+          (el.closest('label, div, section')?.textContent || '')
+        ).toLowerCase();
+        required = /\*|required|obrigat[óo]rio|mandatory|necessary|necess[áa]rio/.test(txt);
+      }
       fields.push({
         kind,
-        label: labelFor(el as HTMLElement),
-        required: (el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true',
+        label,
+        required,
+        selector: `[data-cf-idx="${idx - 1}"]`,
+        name,
+      });
+    }
+    // Contenteditable (campos de cover letter em alguns ATS) — trata como textarea
+    for (const el of Array.from(root.querySelectorAll('[contenteditable="true"]'))) {
+      if (!isVisible(el)) continue;
+      el.setAttribute('data-cf-idx', String(idx++));
+      fields.push({
+        kind: 'textarea',
+        label:
+          labelFor(el as HTMLElement) ||
+          (el as HTMLElement).getAttribute('aria-label') ||
+          'Cover letter / Additional information',
+        required: el.getAttribute('aria-required') === 'true',
         selector: `[data-cf-idx="${idx - 1}"]`,
         name: el.getAttribute('name') || el.getAttribute('id') || '',
       });
