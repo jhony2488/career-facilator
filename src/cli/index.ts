@@ -680,7 +680,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   }
 
   if (config.email.enabled) {
-    const fileVault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+    const fileVault = makeVault();
     if (await fileVault.has(config.email.smtpCredentialRef)) {
       channelDeps.vault = fileVault;
       channelDeps.emailTransport = createSmtpTransport({
@@ -892,6 +892,15 @@ async function relaunchEscalationPage(
   }
 }
 
+/** Cofre c/ secret do .env + legado 'dev-only-insecure-key' (migra na leitura). */
+function makeVault(): FileCredentialVault {
+  return new FileCredentialVault(
+    resolveHome('vault', effEnv.env),
+    effEnv.env.CAREER_VAULT_SECRET,
+    ['dev-only-insecure-key'],
+  );
+}
+
 /**
  * Credencial do cofre p/ o portal do muro (`login-<domínio>`, ex.: gupy.io →
  * login-gupy). Preenche e submete o signin na própria página — sem janela.
@@ -899,14 +908,65 @@ async function relaunchEscalationPage(
 async function tryVaultPortalLogin(dom: Page, loginUrl: string): Promise<boolean> {
   const ref = loginRefForUrl(loginUrl);
   if (!ref) return false;
-  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+  const vault = makeVault();
   if (!(await vault.has(ref).catch(() => false))) return false;
   const cred = parseLoginCredential(await vault.getCredential(ref).catch(() => ''));
   if (!cred) return false;
   console.log(`   Credencial '${ref}' no cofre — autenticando no portal…`);
-  const ok = await tryPortalLogin(dom, cred);
-  if (ok) console.log('   Login automático concluído — sessão reaproveitada no perfil.');
-  return ok;
+  const result = await tryPortalLogin(dom, cred);
+  if (result === 'passwordless') {
+    // Magic link disparado p/ e-mail → IMAP lê e abre o link no browser.
+    console.log('   Login sem senha disparado — buscando magic link no e-mail…');
+    const got = await readVaultOtp(loginUrl);
+    if (got?.link) {
+      await dom.goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+      await dom.waitForTimeout(3000);
+      return true; // sessão criada — chamador volta p/ vaga e refaz o fill
+    }
+    return false;
+  }
+  if (result === 'success')
+    console.log('   Login automático concluído — sessão reaproveitada no perfil.');
+  return result === 'success';
+}
+
+/**
+ * Credencial IMAP do cofre (`imap-main`, senão `smtp-main` c/ host derivável
+ * do domínio do e-mail) → poll das não-lidas do remetente do portal por ~90s.
+ */
+async function readVaultOtp(pageUrl: string) {
+  const vault = makeVault();
+  let credJson: string | null = null;
+  let credRef = '';
+  for (const ref of ['imap-main', 'smtp-main']) {
+    if (await vault.has(ref).catch(() => false)) {
+      credJson = await vault.getCredential(ref).catch(() => null);
+      if (credJson) {
+        credRef = ref;
+        break;
+      }
+    }
+  }
+  if (!credJson) return null;
+  // smtp-* guarda o host SMTP no JSON — só refs imap-* honram `host` (o resto
+  // deriva o host IMAP do domínio do e-mail: gmail.com → imap.gmail.com).
+  const cred = parseImapCredential(credJson, { honorHost: credRef.startsWith('imap-') });
+  if (!cred) return null;
+  try {
+    const host = new URL(pageUrl).hostname.toLowerCase();
+    const hint = host.split('.').slice(-2).join('.'); // gupy.io, linkedin.com…
+    console.log(`   Lendo ${cred.host} p/ o código/link de ${hint}…`);
+    const mailbox = imapMailbox(cred);
+    try {
+      await mailbox.connect();
+      const since = new Date(Date.now() - 10 * 60_000); // OTP foi disparado agora
+      return await fetchOtp({ mailbox, since, senderHint: hint });
+    } finally {
+      await mailbox.disconnect().catch(() => {});
+    }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -919,59 +979,35 @@ async function tryMailboxOtp(
   pageUrl: string,
   refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
 ): Promise<boolean> {
-  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
-  let credJson: string | null = null;
-  for (const ref of ['imap-main', 'smtp-main']) {
-    if (await vault.has(ref).catch(() => false)) {
-      credJson = await vault.getCredential(ref).catch(() => null);
-      if (credJson) break;
-    }
-  }
-  if (!credJson) return false;
-  const cred = parseImapCredential(credJson);
-  if (!cred) return false;
-
   try {
-    const host = new URL(pageUrl).hostname.toLowerCase();
-    const hint = host.split('.').slice(-2).join('.'); // gupy.io, linkedin.com…
-    console.log(`   Lendo ${cred.host} p/ o código de ${hint}…`);
-    const mailbox = imapMailbox(cred);
-    try {
-      await mailbox.connect();
-      const since = new Date(Date.now() - 10 * 60_000); // OTP foi disparado agora
-      const got = await fetchOtp({ mailbox, since, senderHint: hint });
-      if (!got) return false;
-      if (got.code) {
-        const field = dom
-          .locator(
-            'input[name*="otp" i], input[name*="code" i], input[id*="otp" i], ' +
-              'input[autocomplete="one-time-code"]',
-          )
-          .first();
-        if ((await field.count()) === 0) return false;
-        await field.clear().catch(() => {});
-        await field.pressSequentially(got.code, { delay: 60 });
-        const submit = dom.locator('button[type="submit"]').first();
-        if ((await submit.count()) > 0) await submit.click().catch(() => {});
-        else await field.press('Enter').catch(() => {});
-        await dom.waitForTimeout(4000);
-      } else if (got.link) {
-        await dom
-          .goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 })
-          .catch(() => {});
-        await dom.waitForTimeout(2000);
-      }
-      // Pós-OTP: o portal segue p/ o form de candidatura — refaz o fill.
-      const state = await inspectPage(dom, dom.url());
-      await executeLiveFill(state, {
-        ...refill,
-        submitMode: 'PAUSE_BEFORE_SUBMIT',
-        humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
-      });
-      return true;
-    } finally {
-      await mailbox.disconnect().catch(() => {});
+    const got = await readVaultOtp(pageUrl);
+    if (!got) return false;
+    if (got.code) {
+      const field = dom
+        .locator(
+          'input[name*="otp" i], input[name*="code" i], input[id*="otp" i], ' +
+            'input[autocomplete="one-time-code"]',
+        )
+        .first();
+      if ((await field.count()) === 0) return false;
+      await field.clear().catch(() => {});
+      await field.pressSequentially(got.code, { delay: 60 });
+      const submit = dom.locator('button[type="submit"]').first();
+      if ((await submit.count()) > 0) await submit.click().catch(() => {});
+      else await field.press('Enter').catch(() => {});
+      await dom.waitForTimeout(4000);
+    } else if (got.link) {
+      await dom.goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+      await dom.waitForTimeout(2000);
     }
+    // Pós-OTP: o portal segue p/ o form de candidatura — refaz o fill.
+    const state = await inspectPage(dom, dom.url());
+    await executeLiveFill(state, {
+      ...refill,
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+    });
+    return true;
   } catch {
     return false;
   }
@@ -1586,7 +1622,7 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
 /** Cofre de credenciais (doc 11/15): set/list/remove — segredos cifrados, nunca exibidos. */
 async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
   const [sub, ref] = args;
-  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+  const vault = makeVault();
 
   switch (sub) {
     case 'list': {

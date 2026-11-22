@@ -10,13 +10,19 @@ import type { CredentialVault } from './emailDispatcher';
  */
 export class FileCredentialVault implements CredentialVault {
   private readonly key: Buffer;
+  private readonly legacyKeys: Buffer[];
 
   constructor(
     private readonly vaultDir: string,
     secret?: string,
+    /** Segredos antigos p/ leitura+migração — ex.: 'dev-only-insecure-key'. */
+    legacySecrets: string[] = [],
   ) {
     const material = secret ?? process.env.CAREER_VAULT_SECRET ?? 'dev-only-insecure-key';
     this.key = createHash('sha256').update(material).digest();
+    this.legacyKeys = legacySecrets
+      .filter((s) => s !== material)
+      .map((s) => createHash('sha256').update(s).digest());
   }
 
   /** Payload esperado p/ SMTP: {host, port, secure, user, pass} — mas o cofre não valida formato. */
@@ -32,12 +38,23 @@ export class FileCredentialVault implements CredentialVault {
 
   async getCredential(ref: string): Promise<string> {
     const blob = Buffer.from(await fs.readFile(this.filePath(ref), 'utf-8'), 'base64');
-    const iv = blob.subarray(0, 12);
-    const tag = blob.subarray(12, 28);
-    const payload = blob.subarray(28);
-    const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(payload), decipher.final()]).toString('utf8');
+    const keys = [this.key, ...this.legacyKeys];
+    let lastErr: unknown;
+    for (let i = 0; i < keys.length; i++) {
+      try {
+        const decipher = createDecipheriv('aes-256-gcm', keys[i], blob.subarray(0, 12));
+        decipher.setAuthTag(blob.subarray(12, 28));
+        const out = Buffer.concat([decipher.update(blob.subarray(28)), decipher.final()]).toString(
+          'utf8',
+        );
+        // Migração silenciosa: decryptou c/ chave antiga → regrava c/ a atual.
+        if (i > 0) await this.setCredential(ref, out).catch(() => {});
+        return out;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr;
   }
 
   async has(ref: string): Promise<boolean> {

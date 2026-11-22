@@ -50,18 +50,26 @@ export function imapHostFor(
 }
 
 /** Credencial `imap-main` ({host…}) ou `smtp-main` ({user,pass} + host derivado). */
-export function parseImapCredential(json: string): ImapCredential | null {
+export function parseImapCredential(
+  json: string,
+  opts: { honorHost?: boolean } = {},
+): ImapCredential | null {
   try {
     const c = JSON.parse(json) as Record<string, unknown>;
     const user = String(c.user ?? c.email ?? c.username ?? '');
     const pass = String(c.pass ?? c.password ?? '');
     if (!user || !pass) return null;
-    const explicit = c.host ? String(c.host) : null;
+    // `host` do JSON só vale p/ refs imap-* — e ainda assim um host `smtp.*`
+    // é claramente erro de digitação (SMTP ≠ IMAP): ignora e deriva do e-mail.
+    const rawHost = opts.honorHost !== false && c.host ? String(c.host) : null;
+    const explicit = rawHost && !/^smtp\./i.test(rawHost) ? rawHost : null;
     const derived = imapHostFor(user);
     const host = explicit ?? derived?.host;
     if (!host) return null;
-    const secure = c.secure !== false;
-    return { host, port: Number(c.port) || 993, secure, user, pass };
+    // porta/secure do JSON só valem com host explícito; derivado → 993/TLS.
+    const secure = explicit ? c.secure !== false : (derived?.secure ?? true);
+    const port = explicit ? Number(c.port) || 993 : (derived?.port ?? 993);
+    return { host, port, secure, user, pass };
   } catch {
     return null;
   }
@@ -99,6 +107,7 @@ export function imapMailbox(cred: ImapCredential): OtpMailbox {
     secure: cred.secure,
     auth: { user: cred.user, pass: cred.pass },
     logger: false,
+    socketTimeout: 15_000, // host errado (ex.: smtp.*) não pode segurar o run
   });
   return {
     connect: () => client.connect(),
@@ -164,7 +173,10 @@ export async function fetchOtp(opts: {
   while (Date.now() < deadline) {
     await wait(pollMs);
     try {
-      const msgs = await mailbox.unreadSince(since, senderHint);
+      let msgs = await mailbox.unreadSince(since, senderHint);
+      // Remetente pode vir por relay (sendgrid etc.) — sem hit no hint,
+      // varre as não-lidas recentes atrás de algo com código/link.
+      if (msgs.length === 0 && senderHint) msgs = await mailbox.unreadSince(since);
       for (const m of msgs) {
         const code = extractOtpCode(m.text);
         const link = extractOtpLink(m.text);

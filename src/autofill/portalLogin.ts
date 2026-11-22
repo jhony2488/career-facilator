@@ -91,24 +91,29 @@ async function acceptCookieBanner(dom: Pick<Page, 'locator'>): Promise<void> {
 
 export type PortalLoginDom = Pick<Page, 'locator' | 'url' | 'waitForTimeout' | 'frames'>;
 
+export type PortalLoginResult = 'success' | 'passwordless' | 'failed';
+
 /**
- * Digita credenciais no form de login da página atual e submete. Sucesso =
- * URL sai do /signin|login OU some o input de senha (SPA sem redirect).
- * Timeout ~18s. Tenta o checkbox de verificação humana uma vez — Cloudflare
- * teimoso cai p/ resolução manual.
+ * Digita credenciais no form de login da página atual e submete.
+ * `'success'` = URL saiu do /signin|login OU some o input de senha (SPA sem
+ * redirect). `'passwordless'` = login por senha travou (CAPTCHA & cia) e o
+ * botão "Entrar sem senha" foi clicado — o magic link sai por e-mail e o
+ * chamador resolve via IMAP. `'failed'` = nada funcionou → fluxo manual.
+ * O checkbox de verificação humana é clicado no loop — o iframe do
+ * reCAPTCHA/Turnstile pode carregar segundos depois do submit.
  */
 export async function tryPortalLogin(
   dom: PortalLoginDom,
   cred: { user: string; pass: string },
-): Promise<boolean> {
+): Promise<PortalLoginResult> {
   try {
     await acceptCookieBanner(dom);
 
     const password = dom.locator('input[type="password"]:visible').first();
-    if ((await password.count()) === 0) return false;
+    if ((await password.count()) === 0) return 'failed';
 
     const userField = dom.locator(USER_FIELD_SEL).first();
-    if ((await userField.count()) === 0) return false;
+    if ((await userField.count()) === 0) return 'failed';
 
     // pressSequentially = keystrokes reais — Gupy/React não habilita o submit com .fill();
     // clear() antes: a página pode vir com resíduo de sessão anterior no campo.
@@ -126,23 +131,53 @@ export async function tryPortalLogin(
       // React habilita o botão após validar os campos — espera destravar.
       const btn = submit.first();
       for (let i = 0; i < 10 && (await btn.isDisabled()); i++) await dom.waitForTimeout(300);
-      if (await btn.isDisabled()) return false;
+      if (await btn.isDisabled()) return 'failed';
       await btn.click();
     } else {
       await password.press('Enter');
     }
 
-    // "Confirme que é humano" — clica o checkbox do frame de challenge uma vez.
-    await clickHumanVerification(dom).catch(() => false);
-
     // Sucesso = saiu da URL de auth ou a senha sumiu (SPA sem redirect).
     for (let i = 0; i < 18; i++) {
       await dom.waitForTimeout(1000);
-      if (!AUTH_URL_RE.test(dom.url())) return true;
-      if ((await dom.locator('input[type="password"]:visible').count()) === 0) return true;
+      if (!AUTH_URL_RE.test(dom.url())) return 'success';
+      if ((await dom.locator('input[type="password"]:visible').count()) === 0) return 'success';
+      // "Confirme que é humano" — retenta: o iframe do challenge carrega tarde.
+      await clickHumanVerification(dom).catch(() => false);
     }
-    return false;
+
+    // CAPTCHA segurou o login → "Entrar sem senha" dispara magic link p/ e-mail
+    // (Gupy sempre oferece; o chamador resolve o link via caixa IMAP do cofre).
+    const pwless = dom
+      .locator(
+        'button:has-text("sem senha"), a:has-text("sem senha"), ' +
+          'button:has-text("without password"), a:has-text("without password")',
+      )
+      .first();
+    if ((await pwless.count()) > 0) {
+      await pwless.click().catch(() => {});
+      await dom.waitForTimeout(1500);
+      // A tela sem senha pede o e-mail de novo — preenche e submete p/ o link sair.
+      const pwField = dom.locator(USER_FIELD_SEL).first();
+      if ((await pwField.count()) > 0) {
+        await pwField.clear().catch(() => {});
+        await pwField.pressSequentially(cred.user, { delay: 40 });
+        const send = dom
+          .locator(
+            'button[type="submit"], button:has-text("entrar"), ' +
+              'button:has-text("enviar"), button:has-text("receber"), ' +
+              'button:has-text("continue"), button:has-text("send")',
+          )
+          .first();
+        for (let i = 0; i < 10 && (await send.isDisabled()); i++) await dom.waitForTimeout(300);
+        if ((await send.count()) > 0) await send.click().catch(() => {});
+        else await pwField.press('Enter').catch(() => {});
+        await dom.waitForTimeout(1500);
+      }
+      return 'passwordless';
+    }
+    return 'failed';
   } catch {
-    return false;
+    return 'failed';
   }
 }
