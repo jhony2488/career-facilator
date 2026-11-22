@@ -110,7 +110,10 @@ export async function tryPortalLogin(
     const userField = dom.locator(USER_FIELD_SEL).first();
     if ((await userField.count()) === 0) return false;
 
-    // pressSequentially = keystrokes reais — Gupy/React não habilita o submit com .fill()
+    // pressSequentially = keystrokes reais — Gupy/React não habilita o submit com .fill();
+    // clear() antes: a página pode vir com resíduo de sessão anterior no campo.
+    await userField.clear().catch(() => {});
+    await password.clear().catch(() => {});
     await userField.pressSequentially(cred.user, { delay: 40 });
     await password.pressSequentially(cred.pass, { delay: 40 });
 

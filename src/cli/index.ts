@@ -57,6 +57,7 @@ import { executeLiveFill } from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
 import { followApplyLink, inspectPage } from '../scraper/pageInspector';
 import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
+import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application/otpReader';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
@@ -642,6 +643,19 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
         );
         return true;
       }
+      // OTP por e-mail: 1º tenta ler o código na caixa IMAP do cofre
+      // (imap-main, ou smtp-main c/ host derivável) e digitar na página.
+      if (signal.kind === 'EMAIL_OTP') {
+        const otpOk = await tryMailboxOtp(page.dom as Page, page.url, refill);
+        if (otpOk) {
+          pendingVisiblePages++;
+          console.log(
+            `   OTP aplicado do e-mail — revise e envie; ` +
+              `depois 'mark ${jobUrl} applied' ou 'e' no review.`,
+          );
+          return true;
+        }
+      }
       if (effEnv.env.AUTOFILL_HEADLESS === 'false') {
         pendingVisiblePages++;
         console.log(
@@ -893,6 +907,74 @@ async function tryVaultPortalLogin(dom: Page, loginUrl: string): Promise<boolean
   const ok = await tryPortalLogin(dom, cred);
   if (ok) console.log('   Login automático concluído — sessão reaproveitada no perfil.');
   return ok;
+}
+
+/**
+ * EMAIL_OTP: lê o código na caixa IMAP do cofre (`imap-main`, ou `smtp-main`
+ * c/ host derivável — gmail→imap.gmail.com) e digita no campo OTP da página;
+ * link de confirmação é aberto direto. Depois refaz o fill p/ revisão.
+ */
+async function tryMailboxOtp(
+  dom: Page,
+  pageUrl: string,
+  refill: Pick<Parameters<typeof executeLiveFill>[1], 'matched' | 'aiAnswers' | 'resumePath'>,
+): Promise<boolean> {
+  const vault = new FileCredentialVault(resolveHome('vault', effEnv.env));
+  let credJson: string | null = null;
+  for (const ref of ['imap-main', 'smtp-main']) {
+    if (await vault.has(ref).catch(() => false)) {
+      credJson = await vault.getCredential(ref).catch(() => null);
+      if (credJson) break;
+    }
+  }
+  if (!credJson) return false;
+  const cred = parseImapCredential(credJson);
+  if (!cred) return false;
+
+  try {
+    const host = new URL(pageUrl).hostname.toLowerCase();
+    const hint = host.split('.').slice(-2).join('.'); // gupy.io, linkedin.com…
+    console.log(`   Lendo ${cred.host} p/ o código de ${hint}…`);
+    const mailbox = imapMailbox(cred);
+    try {
+      await mailbox.connect();
+      const since = new Date(Date.now() - 10 * 60_000); // OTP foi disparado agora
+      const got = await fetchOtp({ mailbox, since, senderHint: hint });
+      if (!got) return false;
+      if (got.code) {
+        const field = dom
+          .locator(
+            'input[name*="otp" i], input[name*="code" i], input[id*="otp" i], ' +
+              'input[autocomplete="one-time-code"]',
+          )
+          .first();
+        if ((await field.count()) === 0) return false;
+        await field.clear().catch(() => {});
+        await field.pressSequentially(got.code, { delay: 60 });
+        const submit = dom.locator('button[type="submit"]').first();
+        if ((await submit.count()) > 0) await submit.click().catch(() => {});
+        else await field.press('Enter').catch(() => {});
+        await dom.waitForTimeout(4000);
+      } else if (got.link) {
+        await dom
+          .goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+          .catch(() => {});
+        await dom.waitForTimeout(2000);
+      }
+      // Pós-OTP: o portal segue p/ o form de candidatura — refaz o fill.
+      const state = await inspectPage(dom, dom.url());
+      await executeLiveFill(state, {
+        ...refill,
+        submitMode: 'PAUSE_BEFORE_SUBMIT',
+        humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
+      });
+      return true;
+    } finally {
+      await mailbox.disconnect().catch(() => {});
+    }
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -1532,6 +1614,22 @@ async function cmdVault(args: string[], ctx: CmdCtx): Promise<void> {
         console.log(
           `Credencial '${ref}' gravada criptografada — login walls de ${ref.slice(6)} ` +
             `passam a autenticar sozinhos nas candidaturas.`,
+        );
+        return;
+      }
+      // Credencial IMAP (leitura de OTP — doc 10): `imap-<x>` → {host,port,secure,user,pass}.
+      if (ref.startsWith('imap-')) {
+        const host = (await ctx.ask('IMAP host (imap.gmail.com / outlook.office365.com): ')).trim();
+        const portStr = (await ctx.ask('IMAP port (993 = TLS direto): ')).trim();
+        const user = (await ctx.ask('Usuário (seu e-mail completo): ')).trim();
+        const pass = (await ctx.ask('Senha de app (mesma do SMTP no Gmail/Outlook): ')).trim();
+        await vault.setCredential(
+          ref,
+          JSON.stringify({ host, port: Number(portStr) || 993, secure: true, user, pass }),
+        );
+        console.log(
+          `Credencial '${ref}' gravada criptografada — OTPs de e-mail passam a ser ` +
+            `lidos sozinhos da caixa ${host}.`,
         );
         return;
       }
