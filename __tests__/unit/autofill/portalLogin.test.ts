@@ -97,7 +97,7 @@ describe('tryPortalLogin', () => {
 
     const ok = await tryPortalLogin(dom as unknown as Page, cred);
 
-    expect(ok).toBe(true);
+    expect(ok).toBe('success');
     expect(fillCalls).toContainEqual([expect.stringContaining('text'), 'a@b.c']);
     expect(fillCalls).toContainEqual(['input[type="password"]:visible', 's3cret']);
   });
@@ -108,7 +108,7 @@ describe('tryPortalLogin', () => {
       'input[type="text"]': 1,
     });
 
-    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe(true);
+    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe('success');
     expect(pressed()).toBe(1);
   });
 
@@ -120,7 +120,22 @@ describe('tryPortalLogin', () => {
       true,
     );
 
-    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe(false);
+    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe('failed');
+  });
+
+  // reCAPTCHA segura o login → "Entrar sem senha" dispara magic link p/ e-mail
+  it('falls back to passwordless magic link when a captcha holds the login', async () => {
+    const { dom, fillCalls } = fakePage('https://tmsa.gupy.io/candidates/signin', {
+      'input[type="password"]': 1,
+      'input[type="text"]': 1,
+      'button[type="submit"]': 1,
+      'sem senha': 1,
+    });
+
+    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe('passwordless');
+    // tela sem senha pede o e-mail de novo — digitado 2×: login + magic link
+    const userTypes = fillCalls.filter(([sel, v]) => sel.includes('text') && v === 'a@b.c');
+    expect(userTypes).toHaveLength(2);
   });
 
   it('fails fast when there is no password field (not a login wall)', async () => {
@@ -129,6 +144,6 @@ describe('tryPortalLogin', () => {
       'input[type="text"]': 1,
     });
 
-    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe(false);
+    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe('failed');
   });
 });

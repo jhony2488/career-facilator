@@ -41,6 +41,16 @@ describe('parseImapCredential', () => {
     expect(smtp?.port).toBe(993);
   });
 
+  // cred smtp-* tem o host SMTP no JSON — honorHost=false deriva o IMAP do e-mail
+  it('ignores smtp host when honorHost is false (derives imap from email)', () => {
+    const cred = parseImapCredential(
+      '{"host":"smtp.gmail.com","port":465,"secure":true,"user":"dev@gmail.com","pass":"app-pw"}',
+      { honorHost: false },
+    );
+    expect(cred?.host).toBe('imap.gmail.com');
+    expect(cred?.port).toBe(993);
+  });
+
   it('rejects missing pass and underivable hosts', () => {
     expect(parseImapCredential('{"user":"a@b.c"}')).toBeNull();
     expect(parseImapCredential('{"user":"a@empresa.com.br","pass":"x"}')).toBeNull();
