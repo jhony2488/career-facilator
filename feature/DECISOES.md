@@ -114,5 +114,6 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 | 23 | LinkedIn autenticado | `linkedin`/`linkedin-br` com `renderText` da sessão (`career login linkedin`): jobs (`/jobs/search` + render `/jobs/view`) e posts de vagas (`/search/results/content/`, ≤10/título, gate "fala de vaga") |
 | 24 | Contato em posts LinkedIn | e-mail/link/WhatsApp do texto; sem contato → OCR tesseract.js (por+eng, `DISCOVERY_POSTS_OCR`, ≤3 imgs/post); link externo vira url; post sem canal → `NEEDS_HUMAN_INPUT` (revisão) |
 | 25 | Muro de login por subdomínio | Gupy exige sessão por `<empresa>.gupy.io` — cookie `.gupy.io` não basta: `vault set login-<domínio>` guarda {user,pass} cifrado e o signin é preenchido/submetido sozinho; falha ou ausência → fluxo manual (janela + Enter) |
+| 26 | OTP por e-mail | `vault set imap-main` ({host,port,secure,user,pass}; `smtp-main` c/ gmail/outlook deriva o host): poll ~90s nas não-lidas do remetente, extrai código 4-8 dígitos p/ digitar no campo ou abre link de confirmação; sem caixa → fluxo manual |
 | 21 | Listagem SPA sem API publica | Fonte 
 ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |
