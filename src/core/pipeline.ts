@@ -337,7 +337,8 @@ export async function runApplicationPipeline(
       const page = await deps.pageFactory(raw.url);
       let keepPageOpen = false;
       try {
-        const hasWebForm = page.fields.length > 0;
+        // Dropzone de CV conta como form — o fill anexa mesmo sem outros campos.
+        const hasWebForm = page.fields.length > 0 || (page.dropzones?.length ?? 0) > 0;
 
         if (!hasWebForm) {
           await applyViaMessageChannel(

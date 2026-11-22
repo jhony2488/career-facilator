@@ -263,20 +263,36 @@ const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
 
 /** Path de vaga específica num listing de ATS/portal — deep-link, não página do quadro. */
 const JOB_PATH_RE =
-  /\/(jobs?|position|opening|vacature|oferta|empleo|vaga|stelle|offre|career|opportunity|requisition|req|posting)\/[\w-]{4,}/i;
+  /\/(jobs?|position|opening|vacature|oferta|empleo|vaga|stelle|offre|career|opportunity|requisition|req|posting)\/[\w-]{2,}/i;
 
-const TOKEN_STOP = new Set(['job', 'jobs', 'career', 'careers', 'the', 'and', 'de', 'da', 'do', 'en', 'for', 'a', 'e', 'o', 'of', 'in', 'at', 'com', 'www']);
+const TOKEN_STOP = new Set([
+  'job',
+  'jobs',
+  'career',
+  'careers',
+  'the',
+  'and',
+  'de',
+  'da',
+  'do',
+  'en',
+  'for',
+  'a',
+  'e',
+  'o',
+  'of',
+  'in',
+  'at',
+  'com',
+  'www',
+]);
 
 /** Tokens do slug da URL (path+host) — base p/ achar a vaga exata num listing. */
 function slugTokens(url: string): Set<string> {
   try {
     const u = new URL(url);
     const text = `${u.hostname} ${u.pathname}`.toLowerCase();
-    return new Set(
-      text
-        .split(/[^\wÀ-ÿ]+/)
-        .filter((t) => t.length >= 3 && !TOKEN_STOP.has(t)),
-    );
+    return new Set(text.split(/[^\wÀ-ÿ]+/).filter((t) => t.length >= 3 && !TOKEN_STOP.has(t)));
   } catch {
     return new Set();
   }
@@ -418,9 +434,15 @@ function scanApplyScript(): ApplyScan {
   return out;
 }
 
-/** Un hop: link directo, o botón JS que navega en pestaña o abre popup. */
+/** "Chegou no form" = campos ou zona de upload de CV detectável. */
+function hasFormFields(state: LivePageState | null): boolean {
+  return !!state && (state.fields.length > 0 || (state.dropzones?.length ?? 0) > 0);
+}
+
+/** Un hop: link directo, link de vaga no listing, o botón JS (popup/aba). */
 async function applyHop(
   page: Page,
+  originUrl: string,
 ): Promise<{ page: Page; state: LivePageState | null; moved: boolean; email?: string }> {
   let found = await page.evaluate(scanApplyScript).catch(() => null);
   if (!found) return { page, state: null, moved: false };
@@ -435,7 +457,7 @@ async function applyHop(
       const ff = await fr.evaluate(scanApplyScript).catch(() => null);
       if (!ff) continue;
       if (!found.email && ff.email) found.email = ff.email;
-      const ft = pickApplyTarget(ff.anchors, fr.url());
+      const ft = pickApplyTarget(ff.anchors ?? [], fr.url());
       if (ft || ff.hasButton) {
         found = { anchors: ff.anchors, hasButton: ff.hasButton, email: found.email };
         target = ft;
@@ -443,12 +465,17 @@ async function applyHop(
       }
     }
   }
+  // Listing de vagas sem CTA genérico: escolhe a vaga EXATA por slug da URL
+  // original — nunca pega âncora de vaga aleatória (arriscaria aplicação errada).
+  if (!target && !found.hasButton) {
+    target = pickJobLink(found.anchors ?? [], page.url(), originUrl);
+  }
   try {
     if (target) {
       await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 15000 });
       let state = await inspectDom(page).catch(() => null);
       // Widget/iframe de candidatura lazy — respiro p/ montar e 1 re-inspect.
-      if (state && state.fields.length === 0) {
+      if (state && !hasFormFields(state)) {
         await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
         state = await inspectDom(page).catch(() => null);
       }
@@ -531,13 +558,14 @@ export async function followApplyChain(
   let current = page;
   let last: LivePageState | null = null;
   let email: string | undefined;
-  const visited = new Set<string>([page.url()]);
+  const originUrl = page.url();
+  const visited = new Set<string>([originUrl]);
   for (let hop = 0; hop < maxHops; hop++) {
-    const { page: p, state, moved, email: mail } = await applyHop(current);
+    const { page: p, state, moved, email: mail } = await applyHop(current, originUrl);
     if (mail && !email) email = mail;
     if (state) {
       last = state;
-      if (state.fields.length) return { state, email };
+      if (hasFormFields(state)) return { state, email };
     }
     if (!moved) break; // sin destino/botón — parar
     if (visited.has(p.url())) break; // anti-loop (ver más, paginación…)
@@ -555,7 +583,7 @@ export async function followApplyChain(
  */
 export async function followApplyLink(page: Page): Promise<LivePageState | null> {
   const { state } = await followApplyChain(page);
-  return state && state.fields.length ? state : null;
+  return hasFormFields(state) ? state : null;
 }
 
 /**

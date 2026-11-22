@@ -41,8 +41,9 @@ export async function reapplyStoredJob(
       return { status: 'APPLIED', reason: 'ALREADY_APPLIED_BANNER' };
     }
     // Página sem form web (canal e-mail/WhatsApp) — fica p/ review/manual.
+    // Dropzone de CV conta como form (o fill anexa mesmo sem outros campos).
     // Se a cadena de candidatura revelou um mailto:, reporta-o p/ o humano.
-    if (page.fields.length === 0) {
+    if (page.fields.length === 0 && !page.dropzones?.length) {
       const contact = page.contactEmail;
       return {
         status: 'NEEDS_HUMAN_INPUT',

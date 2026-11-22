@@ -806,7 +806,22 @@ function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
         profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
         stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
       });
-      const page = await ctx.newPage();
+      // Chromium pode ter morrido/janela fechada — o cache de contexto ainda
+      // parece vivo (pages() não lança); o newPage falha com "closed". Reseta
+      // o singleton e tenta 1x antes de declarar o autofill indisponível.
+      let page;
+      try {
+        page = await ctx.newPage();
+      } catch (e) {
+        if (!(e instanceof Error && /closed|Target/i.test(e.message))) throw e;
+        await closeJobBrowser();
+        const fresh = await getJobBrowserContext({
+          headless: effEnv.env.AUTOFILL_HEADLESS !== 'false',
+          profileDir: effEnv.env.AUTOFILL_PROFILE_DIR?.trim() || undefined,
+          stealth: effEnv.env.AUTOFILL_STEALTH !== 'false',
+        });
+        page = await fresh.newPage();
+      }
       try {
         const state = await inspectPage(page, url);
         // Página de empresa sin form real: cadena de candidatura multi-hop
@@ -814,12 +829,17 @@ function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
         // lo inspeccionado no parece form de candidatura (buscador/filtro:
         // ≤2 campos sin file/email/tel) — el CTA manda.
         const thin =
-          state.fields.length === 0 ||
+          (state.fields.length === 0 && !(state.dropzones?.length ?? 0)) ||
           (state.fields.length <= 2 &&
             !state.fields.some((f) => f.kind === 'file' || f.kind === 'email' || f.kind === 'tel'));
         if (thin) {
           const { state: followed, email } = await followApplyChain(page);
-          const best = followed && followed.fields.length > state.fields.length ? followed : state;
+          const best =
+            followed &&
+            followed.fields.length + (followed.dropzones?.length ?? 0) >
+              state.fields.length + (state.dropzones?.length ?? 0)
+              ? followed
+              : state;
           if (email) best.contactEmail = email;
           return best;
         }
@@ -1136,7 +1156,7 @@ async function resumeAfterLogin(
   try {
     let state = await inspectPage(dom, jobUrl);
     // Vaga c/ CTA externo (gupy etc.): o form fica atrás do link de candidatura.
-    if (state.fields.length === 0) {
+    if (state.fields.length === 0 && !(state.dropzones?.length ?? 0)) {
       state = (await followApplyLink(dom)) ?? state;
     }
     if (state.requiresLogin || state.hasCaptcha) return false; // login não pegou / challenge — cai p/ manual
