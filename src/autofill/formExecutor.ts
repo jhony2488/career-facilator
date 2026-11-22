@@ -41,6 +41,11 @@ export interface PageStateLike {
    * `unknown` de propósito: pipeline/testes nunca importam playwright.
    */
   dom?: unknown;
+  /**
+   * E-mail `mailto:` revelado na cadena de candidatura (página destino sin
+   * form pero con contacto) — el reteste lo reporta para resolución manual.
+   */
+  contactEmail?: string;
 }
 
 export interface ExecuteFillOptions {

@@ -261,6 +261,71 @@ const APPLY_PATH_RE =
 
 const SKIP_HREF_RE = /^(javascript:|#|mailto:|tel:)/i;
 
+/** Path de vaga específica num listing de ATS/portal — deep-link, não página do quadro. */
+const JOB_PATH_RE =
+  /\/(jobs?|position|opening|vacature|oferta|empleo|vaga|stelle|offre|career|opportunity|requisition|req|posting)\/[\w-]{4,}/i;
+
+const TOKEN_STOP = new Set(['job', 'jobs', 'career', 'careers', 'the', 'and', 'de', 'da', 'do', 'en', 'for', 'a', 'e', 'o', 'of', 'in', 'at', 'com', 'www']);
+
+/** Tokens do slug da URL (path+host) — base p/ achar a vaga exata num listing. */
+function slugTokens(url: string): Set<string> {
+  try {
+    const u = new URL(url);
+    const text = `${u.hostname} ${u.pathname}`.toLowerCase();
+    return new Set(
+      text
+        .split(/[^\wÀ-ÿ]+/)
+        .filter((t) => t.length >= 3 && !TOKEN_STOP.has(t)),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Listing de vagas (página do quadro ATS/portal): escolhe o link da vaga
+ * EXATA por overlap de tokens com o slug da URL original — score ≥ 2, ou
+ * único candidato. `null` em empate/zero score — não arrisca vaga errada.
+ */
+export function pickJobLink(
+  anchors: { text: string; href: string }[],
+  baseUrl: string,
+  originUrl: string,
+): string | null {
+  let base: URL;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return null;
+  }
+  const origin = slugTokens(originUrl);
+  const seen = new Set<string>();
+  let best: { href: string; score: number } | null = null;
+  let candidates = 0;
+  for (const c of anchors) {
+    const href = c.href.trim();
+    if (!href || SKIP_HREF_RE.test(href)) continue;
+    let u: URL;
+    try {
+      u = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+    if (u.href === base.href || seen.has(u.href)) continue;
+    if (!JOB_PATH_RE.test(u.pathname)) continue;
+    seen.add(u.href);
+    candidates++;
+    let score = 0;
+    const hay = `${c.text} ${u.pathname}`.toLowerCase();
+    for (const tok of origin) if (tok.length >= 4 && hay.includes(tok)) score++;
+    if (!best || score > best.score) best = { href: u.href, score };
+  }
+  if (!best) return null;
+  if (best.score >= 2 || candidates === 1) return best.href;
+  return null;
+}
+
 /**
  * Escolhe o destino de candidatura numa página de vaga sem formulário.
  * Puro/testável: `candidates` vem do evaluate; retorna URL absoluta http(s)
@@ -307,43 +372,77 @@ export function pickApplyTarget(
   return atsHit ?? pathHit ?? textHit;
 }
 
-/**
- * Página de vaga sem form visível: procura link/botão "Apply/Candidate-se",
- * navega 1 hop e re-inspeciona. Retorna o estado da página de destino se ela
- * tiver campos — senão null (fluxo segue p/ canal de mensagem, como antes).
- * Cobre href direto e botão que abre popup/target=_blank.
- */
-export async function followApplyLink(page: Page): Promise<LivePageState | null> {
-  const found = await page
-    .evaluate(() => {
-      const out: { anchors: { text: string; href: string }[]; hasButton: boolean } = {
-        anchors: [],
-        hasButton: false,
-      };
-      const RE =
-        /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|postuler|bewerb|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|enviar curr[ií]culo/i;
-      // Todas as âncoras (o seletor decide por texto ou por host de ATS).
-      for (const el of Array.from(document.querySelectorAll('a[href]')).slice(0, 300)) {
-        const href = el.getAttribute('href') ?? '';
-        if (!href) continue;
-        const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
-        out.anchors.push({ text: t.slice(0, 80), href });
-      }
-      for (const el of Array.from(
-        document.querySelectorAll('button, [role="button"], a:not([href])'),
-      )) {
-        const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
-        if (t.length <= 80 && RE.test(t)) {
-          out.hasButton = true;
-          break;
-        }
-      }
-      return out;
-    })
-    .catch(() => null);
-  if (!found) return null;
+interface ApplyScan {
+  anchors: { text: string; href: string }[];
+  hasButton: boolean;
+  email?: string;
+}
 
-  const target = pickApplyTarget(found.anchors, page.url());
+/** Scan serializable — roda igual em page.evaluate e frame.evaluate (iframe). */
+function scanApplyScript(): ApplyScan {
+  const out: ApplyScan = { anchors: [], hasButton: false };
+  const RE =
+    /\bapply\b|apply now|apply for|apply online|candidat|inscrev|inscri[çc][ãa]o|quero me candidatar|aplicar\b|postular|postuler|bewerb|sollicit|aplikuj|ansok|ans[øo][gk]|trabalhe|enviar curr[ií]culo|ver oferta|ver vaga|ver empleo|ver detalle|job details|view job|ver m[aá]s|detalhes/i;
+  // Todas as âncoras (o seletor decide por texto ou por host de ATS).
+  for (const el of Array.from(document.querySelectorAll('a[href]')).slice(0, 300)) {
+    const href = el.getAttribute('href') ?? '';
+    if (!href) continue;
+    const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
+    out.anchors.push({ text: t.slice(0, 80), href });
+  }
+  // Clickables de candidatura — além de button/role, cobre a[javascript:],
+  // a[#], elementos con onclick y divs/span com clase/id "apply" (remoteok,
+  // jobicy, wwr usam div JS pra "Apply this job").
+  for (const el of Array.from(
+    document.querySelectorAll(
+      'button, [role="button"], a, [onclick], input[type="button"], ' +
+        'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]',
+    ),
+  )) {
+    const t = ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
+    if (t.length <= 80 && RE.test(t)) {
+      out.hasButton = true;
+      break;
+    }
+  }
+  // Contacto revelado en la página (mailto:) — el reteste lo reporta.
+  const mail = Array.from(document.querySelectorAll('a[href^="mailto:"]'))
+    .map((a) =>
+      (a.getAttribute('href') ?? '')
+        .replace(/^mailto:/i, '')
+        .split('?')[0]
+        .trim(),
+    )
+    .find((m) => m.includes('@'));
+  if (mail) out.email = mail;
+  return out;
+}
+
+/** Un hop: link directo, o botón JS que navega en pestaña o abre popup. */
+async function applyHop(
+  page: Page,
+): Promise<{ page: Page; state: LivePageState | null; moved: boolean; email?: string }> {
+  let found = await page.evaluate(scanApplyScript).catch(() => null);
+  if (!found) return { page, state: null, moved: false };
+
+  let target = pickApplyTarget(found.anchors, page.url());
+  // Botão/link dentro de IFRAME — o scan do doc principal não enxerga.
+  if (!target && !found.hasButton) {
+    for (const fr of page
+      .frames()
+      .filter((f) => f !== page.mainFrame())
+      .slice(0, 6)) {
+      const ff = await fr.evaluate(scanApplyScript).catch(() => null);
+      if (!ff) continue;
+      if (!found.email && ff.email) found.email = ff.email;
+      const ft = pickApplyTarget(ff.anchors, fr.url());
+      if (ft || ff.hasButton) {
+        found = { anchors: ff.anchors, hasButton: ff.hasButton, email: found.email };
+        target = ft;
+        break;
+      }
+    }
+  }
   try {
     if (target) {
       await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -353,32 +452,110 @@ export async function followApplyLink(page: Page): Promise<LivePageState | null>
         await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
         state = await inspectDom(page).catch(() => null);
       }
-      return state && state.fields.length ? state : null;
+      return { page, state, moved: true, email: found.email };
     }
-    if (!found.hasButton) return null;
-    // Botão JS: pode navegar na mesma aba ou abrir popup — cobre os dois.
+    if (!found.hasButton) return { page, state: null, moved: false, email: found.email };
+    // Botón JS: puede navegar en la misma pestaña o abrir popup — cubre los dos.
     const popup = page
       .context()
-      .waitForEvent('page', { timeout: 4000 })
+      .waitForEvent('page', { timeout: 6000 })
       .catch(() => null);
     const nav = page
-      .waitForNavigation({ timeout: 4000 })
+      .waitForNavigation({ timeout: 6000 })
       .then(() => page)
       .catch(() => null);
-    const btn = page
-      .getByRole('button', {
-        name: /apply|candidat|aplicar|inscrev|postular|postuler|bewerb|sollicit|aplikuj|ansok|trabalhe/i,
-      })
-      .first();
-    await btn.click({ timeout: 3000 }).catch(() => {});
+    const CLICK_RE =
+      /apply|candidat|aplicar|inscrev|postular|postuler|bewerb|sollicit|aplikuj|ansok|trabalhe|ver oferta|ver vaga|ver empleo|job details|view job|detalhes|ver detalle|ver m[aá]s/i;
+    // Candidatos por prioridad: role button/link → CSS amplio (a[javascript:],
+    // [onclick], .apply…) — el primero visible gana el click.
+    const candidates = [
+      page.getByRole('button', { name: CLICK_RE }).first(),
+      page.getByRole('link', { name: CLICK_RE }).first(),
+      page
+        .locator(
+          'button, [role="button"], a, [onclick], input[type="button"], ' +
+            'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]',
+        )
+        .filter({ hasText: CLICK_RE })
+        .first(),
+      // Botón dentro de iframe — locator del doc principal no lo alcanza.
+      ...page
+        .frames()
+        .filter((f) => f !== page.mainFrame())
+        .slice(0, 6)
+        .flatMap((fr) => [
+          fr
+            .locator(
+              'button, [role="button"], a, [onclick], input[type="button"], ' +
+                'input[type="submit"], [class*="apply" i], [id*="apply" i], [data-testid*="apply" i]',
+            )
+            .filter({ hasText: CLICK_RE })
+            .first(),
+        ]),
+    ];
+    let clicked = false;
+    for (const c of candidates) {
+      try {
+        if ((await c.count()) > 0 && (await c.isVisible())) {
+          await c.click({ timeout: 3000 }).catch(() => {});
+          clicked = true;
+          break;
+        }
+      } catch {
+        // selector inválido/elemento desaparecido — probá o próximo
+      }
+    }
+    if (!clicked) return { page, state: null, moved: false, email: found.email };
     const winner = await Promise.race([popup, nav]);
-    if (!winner) return null;
+    if (!winner) return { page, state: null, moved: false, email: found.email };
     const state = await inspectDom(winner).catch(() => null);
     if (winner !== page) await page.close().catch(() => {});
-    return state && state.fields.length ? state : null;
+    return { page: winner, state, moved: true, email: found.email };
   } catch {
-    return null;
+    return { page, state: null, moved: false };
   }
+}
+
+/**
+ * Cadena de candidatura multi-hop (hasta `maxHops`, default 10): listado →
+ * página(s) intermedias → form del ATS real. Para si: encontró campos, no
+ * hay más destinos/botones, o la URL ya fue visitada (anti-loop).
+ * Devuelve el último estado inspeccionado (puede no tener campos — el
+ * llamador decide canal) más un e-mail `mailto:` encontrado en el camino.
+ * En popup, la pestaña original se cierra y `state.dom` es la nueva.
+ */
+export async function followApplyChain(
+  page: Page,
+  maxHops = 10,
+): Promise<{ state: LivePageState | null; email?: string }> {
+  let current = page;
+  let last: LivePageState | null = null;
+  let email: string | undefined;
+  const visited = new Set<string>([page.url()]);
+  for (let hop = 0; hop < maxHops; hop++) {
+    const { page: p, state, moved, email: mail } = await applyHop(current);
+    if (mail && !email) email = mail;
+    if (state) {
+      last = state;
+      if (state.fields.length) return { state, email };
+    }
+    if (!moved) break; // sin destino/botón — parar
+    if (visited.has(p.url())) break; // anti-loop (ver más, paginación…)
+    visited.add(p.url());
+    current = p;
+  }
+  return { state: last, email };
+}
+
+/**
+ * Página de vaga sem form visível: sigue la cadena de candidatura (hasta 10
+ * hops — listado → intermedias → form del ATS real). Retorna el estado de
+ * destino solo si tiene campos — senão null (canal de mensagem, como antes).
+ * Cobre href direto e botão que abre popup/target=_blank.
+ */
+export async function followApplyLink(page: Page): Promise<LivePageState | null> {
+  const { state } = await followApplyChain(page);
+  return state && state.fields.length ? state : null;
 }
 
 /**

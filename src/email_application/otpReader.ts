@@ -19,7 +19,7 @@ export interface OtpMessage {
 export interface OtpMailbox {
   connect(): Promise<void>;
   /** Mensagens não-lidas recebidas após `since`, mais novas primeiro. */
-  unreadSince(since: Date, senderHint?: string): Promise<OtpMessage[]>;
+  unreadSince(since: Date, senderHint?: string, unseenOnly?: boolean): Promise<OtpMessage[]>;
   disconnect(): Promise<void>;
 }
 
@@ -99,7 +99,9 @@ export function extractOtpLink(text: string): string | null {
   return null;
 }
 
-/** Cliente real via imapflow — INBOX, não-lidas desde `since`, filtro opcional de remetente. */
+/** Cliente real via imapflow — INBOX + Spam (magic links caem no lixo com
+ * frequência; a pasta é localizada pelo specialUse `\\Junk`, à prova de
+ * localização de conta). */
 export function imapMailbox(cred: ImapCredential): OtpMailbox {
   const client = new ImapFlow({
     host: cred.host,
@@ -109,8 +111,51 @@ export function imapMailbox(cred: ImapCredential): OtpMailbox {
     logger: false,
     socketTimeout: 15_000, // host errado (ex.: smtp.*) não pode segurar o run
   });
+  let junkPath: string | null = null;
+  const searchIn = async (
+    path: string,
+    since: Date,
+    senderHint: string | undefined,
+    unseenOnly: boolean,
+  ): Promise<OtpMessage[]> => {
+    const lock = await client.getMailboxLock(path);
+    try {
+      const query: Record<string, unknown> = { since };
+      if (unseenOnly) query.seen = false;
+      if (senderHint) query.from = senderHint;
+      const found = await client.search(query, { uid: true });
+      const uids = Array.isArray(found) ? found : [];
+      const msgs: OtpMessage[] = [];
+      for (const uid of uids.slice(-5).reverse()) {
+        const m = await client.fetchOne(
+          String(uid),
+          { envelope: true, bodyParts: ['text'] },
+          { uid: true },
+        );
+        if (!m) continue;
+        const text = m.bodyParts?.get('text')?.toString('utf8') ?? '';
+        msgs.push({
+          from: m.envelope?.from?.[0]?.address ?? '',
+          subject: m.envelope?.subject ?? '',
+          text,
+        });
+      }
+      return msgs;
+    } finally {
+      lock.release();
+    }
+  };
   return {
-    connect: () => client.connect(),
+    connect: async () => {
+      await client.connect();
+      try {
+        const boxes = await client.list();
+        const junk = boxes.find((b) => b.specialUse === '\\Junk');
+        junkPath = junk?.path ?? null;
+      } catch {
+        junkPath = null; // lista falhou → só INBOX
+      }
+    },
     disconnect: async () => {
       try {
         await client.logout();
@@ -118,32 +163,11 @@ export function imapMailbox(cred: ImapCredential): OtpMailbox {
         // já desconectado
       }
     },
-    unreadSince: async (since, senderHint) => {
-      const lock = await client.getMailboxLock('INBOX');
-      try {
-        const query: Record<string, unknown> = { seen: false, since };
-        if (senderHint) query.from = senderHint;
-        const found = await client.search(query, { uid: true });
-        const uids = Array.isArray(found) ? found : [];
-        const msgs: OtpMessage[] = [];
-        for (const uid of uids.slice(-5).reverse()) {
-          const m = await client.fetchOne(
-            String(uid),
-            { envelope: true, bodyParts: ['text'] },
-            { uid: true },
-          );
-          if (!m) continue;
-          const text = m.bodyParts?.get('text')?.toString('utf8') ?? '';
-          msgs.push({
-            from: m.envelope?.from?.[0]?.address ?? '',
-            subject: m.envelope?.subject ?? '',
-            text,
-          });
-        }
-        return msgs;
-      } finally {
-        lock.release();
-      }
+    unreadSince: async (since, senderHint, unseenOnly = true) => {
+      const inbox = await searchIn('INBOX', since, senderHint, unseenOnly);
+      if (!junkPath) return inbox;
+      const junk = await searchIn(junkPath, since, senderHint, unseenOnly).catch(() => []);
+      return [...inbox, ...junk];
     },
   };
 }
@@ -166,17 +190,25 @@ export async function fetchOtp(opts: {
   timeoutMs?: number;
   pollMs?: number;
   waitMs?: (ms: number) => Promise<void>;
+  /** Feedback a cada poll — CLI usa p/ mostrar que a espera está ativa. */
+  onTick?: (elapsedMs: number, timeoutMs: number) => void;
 }): Promise<OtpFetchResult | null> {
-  const { mailbox, since, senderHint, timeoutMs = 90_000, pollMs = 5000 } = opts;
+  const { mailbox, since, senderHint, timeoutMs = 90_000, pollMs = 5000, onTick } = opts;
   const wait = opts.waitMs ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const deadline = Date.now() + timeoutMs;
+  const started = Date.now();
+  const deadline = started + timeoutMs;
   while (Date.now() < deadline) {
     await wait(pollMs);
+    onTick?.(Date.now() - started, timeoutMs);
     try {
+      // Progressão de tolerância: remetente exato+não-lido → lido também
+      // (o usuário pode já ter aberto o e-mail noutro aparelho) → qualquer
+      // remetente (o código pode vir por relay tipo sendgrid).
       let msgs = await mailbox.unreadSince(since, senderHint);
-      // Remetente pode vir por relay (sendgrid etc.) — sem hit no hint,
-      // varre as não-lidas recentes atrás de algo com código/link.
+      if (msgs.length === 0 && senderHint)
+        msgs = await mailbox.unreadSince(since, senderHint, false);
       if (msgs.length === 0 && senderHint) msgs = await mailbox.unreadSince(since);
+      if (msgs.length === 0) msgs = await mailbox.unreadSince(since, undefined, false);
       for (const m of msgs) {
         const code = extractOtpCode(m.text);
         const link = extractOtpLink(m.text);

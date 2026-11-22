@@ -55,8 +55,9 @@ import { retrieveHybrid } from '../ai/rag/profileRetriever';
 import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager';
 import { executeLiveFill } from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
-import { followApplyLink, inspectPage } from '../scraper/pageInspector';
+import { followApplyChain, followApplyLink, inspectPage } from '../scraper/pageInspector';
 import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
+import { mapForRestore, sessionCookiesFor, sessionRefForUrl } from '../autofill/portalSession';
 import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application/otpReader';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
@@ -808,11 +809,19 @@ function makeWebPageFactory(): (url: string) => Promise<PageStateLike> {
       const page = await ctx.newPage();
       try {
         const state = await inspectPage(page, url);
-        // Página de empresa sem form: o "Apply" costuma levar ao ATS real —
-        // 1 hop antes de declarar NO_CHANNEL.
-        if (state.fields.length === 0) {
-          const followed = await followApplyLink(page);
-          if (followed) return followed;
+        // Página de empresa sin form real: cadena de candidatura multi-hop
+        // (listado → intermedias → ATS real, hasta 10 saltos). También cuando
+        // lo inspeccionado no parece form de candidatura (buscador/filtro:
+        // ≤2 campos sin file/email/tel) — el CTA manda.
+        const thin =
+          state.fields.length === 0 ||
+          (state.fields.length <= 2 &&
+            !state.fields.some((f) => f.kind === 'file' || f.kind === 'email' || f.kind === 'tel'));
+        if (thin) {
+          const { state: followed, email } = await followApplyChain(page);
+          const best = followed && followed.fields.length > state.fields.length ? followed : state;
+          if (email) best.contactEmail = email;
+          return best;
         }
         return state;
       } catch {
@@ -924,11 +933,77 @@ function makeVault(): FileCredentialVault {
   ]);
 }
 
+/** Digita o código no campo OTP da página e submete (Enter se não houver botão). */
+async function typeOtpAndSubmit(dom: Page, code: string): Promise<boolean> {
+  const field = dom
+    .locator(
+      'input[name*="otp" i], input[name*="code" i], input[name*="token" i], ' +
+        'input[id*="otp" i], input[id*="code" i], ' +
+        'input[autocomplete="one-time-code"]',
+    )
+    .first();
+  if ((await field.count()) === 0) return false;
+  await field.clear().catch(() => {});
+  await field.pressSequentially(code, { delay: 60 });
+  const submit = dom.locator('button[type="submit"]').first();
+  if ((await submit.count()) > 0) await submit.click().catch(() => {});
+  else await field.press('Enter').catch(() => {});
+  await dom.waitForTimeout(4000);
+  return true;
+}
+
+/**
+ * Snapshot de sessão do cofre (`session-<domínio>`): cookies da última sessão
+ * bem-sucedida injetados no contexto — resolve o muro SEM login nem e-mail
+ * quando o token ainda é válido; serve outros subdomínios do mesmo portal.
+ */
+async function trySessionRestore(dom: Page, url: string): Promise<boolean> {
+  const ref = sessionRefForUrl(url);
+  if (!ref) return false;
+  const vault = makeVault();
+  const json = await vault.getCredential(ref).catch(() => null);
+  if (!json) return false;
+  let cookies: Parameters<typeof mapForRestore>[0];
+  try {
+    cookies = JSON.parse(json) as typeof cookies;
+  } catch {
+    return false;
+  }
+  const mapped = mapForRestore(cookies, url);
+  if (!mapped.length) return false;
+  console.log(`   Snapshot '${ref}' no cofre — restaurando sessão do portal…`);
+  try {
+    await dom.context().addCookies(mapped);
+    await dom.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    await dom.waitForTimeout(2500);
+    const onAuthUrl = /signin|sign-in|signup|auth/i.test(dom.url());
+    const hasPassword = (await dom.locator('input[type="password"]:visible').count()) > 0;
+    if (onAuthUrl && hasPassword) return false; // token expirou — cai no login
+    console.log('   Sessão restaurada — muro resolvido sem login.');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Grava os cookies do domínio no cofre p/ o próximo muro de login (doc 10). */
+async function savePortalSession(dom: Page): Promise<void> {
+  const ref = sessionRefForUrl(dom.url());
+  if (!ref) return;
+  try {
+    const cookies = sessionCookiesFor(await dom.context().cookies(), dom.url());
+    if (cookies.length > 0) await makeVault().setCredential(ref, JSON.stringify(cookies));
+  } catch {
+    // snapshot é best-effort — não quebra o fluxo
+  }
+}
+
 /**
  * Credencial do cofre p/ o portal do muro (`login-<domínio>`, ex.: gupy.io →
  * login-gupy). Preenche e submete o signin na própria página — sem janela.
  */
 async function tryVaultPortalLogin(dom: Page, loginUrl: string): Promise<boolean> {
+  if (await trySessionRestore(dom, loginUrl)) return true;
   const ref = loginRefForUrl(loginUrl);
   if (!ref) return false;
   const vault = makeVault();
@@ -938,18 +1013,32 @@ async function tryVaultPortalLogin(dom: Page, loginUrl: string): Promise<boolean
   console.log(`   Credencial '${ref}' no cofre — autenticando no portal…`);
   const result = await tryPortalLogin(dom, cred);
   if (result === 'passwordless') {
-    // Magic link disparado p/ e-mail → IMAP lê e abre o link no browser.
-    console.log('   Login sem senha disparado — buscando magic link no e-mail…');
+    // Gupy manda CÓDIGO p/ digitar na própria tela (ou link mágico) — IMAP lê.
+    console.log('   Login sem senha disparado — buscando código/link no e-mail…');
     const got = await readVaultOtp(loginUrl);
-    if (got?.link) {
+    if (got?.code) {
+      if (await typeOtpAndSubmit(dom, got.code)) {
+        await savePortalSession(dom);
+        console.log('   Código digitado — sessão criada; retomando a candidatura.');
+        return true;
+      }
+    } else if (got?.link) {
       await dom.goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
       await dom.waitForTimeout(3000);
+      await savePortalSession(dom);
+      console.log('   Magic link aberto — sessão criada; retomando a candidatura.');
       return true; // sessão criada — chamador volta p/ vaga e refaz o fill
     }
+    console.log(
+      '   Código/link não chegou ou não foi lido — a tela "sem senha" precisa ' +
+        'do e-mail preenchido e submetido p/ disparar.',
+    );
     return false;
   }
-  if (result === 'success')
+  if (result === 'success') {
+    await savePortalSession(dom);
     console.log('   Login automático concluído — sessão reaproveitada no perfil.');
+  } else console.log('   Login automático não concluiu — verificação do portal segurou o envio.');
   return result === 'success';
 }
 
@@ -978,12 +1067,23 @@ async function readVaultOtp(pageUrl: string) {
   try {
     const host = new URL(pageUrl).hostname.toLowerCase();
     const hint = host.split('.').slice(-2).join('.'); // gupy.io, linkedin.com…
-    console.log(`   Lendo ${cred.host} p/ o código/link de ${hint}…`);
+    console.log(`   Lendo ${cred.host} p/ o código/link de ${hint} (até ~90s)…`);
     const mailbox = imapMailbox(cred);
     try {
       await mailbox.connect();
       const since = new Date(Date.now() - 10 * 60_000); // OTP foi disparado agora
-      return await fetchOtp({ mailbox, since, senderHint: hint });
+      let lastShown = 0;
+      return await fetchOtp({
+        mailbox,
+        since,
+        senderHint: hint,
+        onTick: (elapsed) => {
+          if (elapsed - lastShown >= 15_000) {
+            lastShown = elapsed;
+            console.log(`   …aguardando o e-mail (${Math.round(elapsed / 1000)}s)`);
+          }
+        },
+      });
     } finally {
       await mailbox.disconnect().catch(() => {});
     }
@@ -1006,19 +1106,7 @@ async function tryMailboxOtp(
     const got = await readVaultOtp(pageUrl);
     if (!got) return false;
     if (got.code) {
-      const field = dom
-        .locator(
-          'input[name*="otp" i], input[name*="code" i], input[id*="otp" i], ' +
-            'input[autocomplete="one-time-code"]',
-        )
-        .first();
-      if ((await field.count()) === 0) return false;
-      await field.clear().catch(() => {});
-      await field.pressSequentially(got.code, { delay: 60 });
-      const submit = dom.locator('button[type="submit"]').first();
-      if ((await submit.count()) > 0) await submit.click().catch(() => {});
-      else await field.press('Enter').catch(() => {});
-      await dom.waitForTimeout(4000);
+      if (!(await typeOtpAndSubmit(dom, got.code))) return false;
     } else if (got.link) {
       await dom.goto(got.link, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
       await dom.waitForTimeout(2000);
@@ -1057,6 +1145,7 @@ async function resumeAfterLogin(
       submitMode: 'PAUSE_BEFORE_SUBMIT',
       humanPace: effEnv.env.AUTOFILL_HUMAN_PACE !== 'false',
     });
+    await savePortalSession(dom); // sessão válida → snapshot p/ o próximo muro
     return true;
   } catch {
     return false;
@@ -1075,7 +1164,8 @@ async function continueAfterLogin(
 ): Promise<boolean> {
   try {
     console.log(
-      '   Faça login na janela do browser; ao concluir, pressione Enter aqui p/ retomar a candidatura.',
+      '   Fluxo automático não concluiu — faça login manual na janela do browser; ' +
+        'ao concluir, pressione Enter aqui p/ retomar a candidatura.',
     );
     await waitHumanSignal(ctx);
     return await resumeAfterLogin(dom, jobUrl, refill);
@@ -1424,11 +1514,15 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
   console.log(`${jobs.length} vaga(s) aguardando — refazendo o preenchimento web…`);
   for (const job of jobs) {
     const r = await reapplyStoredJob(job, { profile, deps });
+    const contact = r.reason?.startsWith('CONTACT_EMAIL:')
+      ? r.reason.slice('CONTACT_EMAIL:'.length)
+      : null;
+    const reason = contact ? `canal e-mail: ${contact}` : r.reason;
     const hint =
-      r.reason === 'NO_WEB_FORM'
+      contact || r.reason === 'NO_WEB_FORM'
         ? ' (sem form web — canal e-mail/WhatsApp: use `review`/`mark`)'
         : '';
-    console.log(`  ${r.status.padEnd(20)} ${job.url}${r.reason ? ` (${r.reason})` : ''}${hint}`);
+    console.log(`  ${r.status.padEnd(20)} ${job.url}${reason ? ` (${reason})` : ''}${hint}`);
   }
   if (escalation && escalation.pendingCount() > 0) {
     console.log(

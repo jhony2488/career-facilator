@@ -156,7 +156,7 @@ export async function tryPortalLogin(
       .first();
     if ((await pwless.count()) > 0) {
       await pwless.click().catch(() => {});
-      await dom.waitForTimeout(1500);
+      await dom.waitForTimeout(3000); // navegação p/ tela "sem senha" pode demorar
       // A tela sem senha pede o e-mail de novo — preenche e submete p/ o link sair.
       const pwField = dom.locator(USER_FIELD_SEL).first();
       if ((await pwField.count()) > 0) {
@@ -166,13 +166,14 @@ export async function tryPortalLogin(
           .locator(
             'button[type="submit"], button:has-text("entrar"), ' +
               'button:has-text("enviar"), button:has-text("receber"), ' +
+              'button:has-text("acessar"), button:has-text("continuar"), ' +
               'button:has-text("continue"), button:has-text("send")',
           )
           .first();
         for (let i = 0; i < 10 && (await send.isDisabled()); i++) await dom.waitForTimeout(300);
         if ((await send.count()) > 0) await send.click().catch(() => {});
         else await pwField.press('Enter').catch(() => {});
-        await dom.waitForTimeout(1500);
+        await dom.waitForTimeout(2000);
       }
       return 'passwordless';
     }

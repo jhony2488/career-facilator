@@ -41,8 +41,13 @@ export async function reapplyStoredJob(
       return { status: 'APPLIED', reason: 'ALREADY_APPLIED_BANNER' };
     }
     // Página sem form web (canal e-mail/WhatsApp) — fica p/ review/manual.
+    // Se a cadena de candidatura revelou um mailto:, reporta-o p/ o humano.
     if (page.fields.length === 0) {
-      return { status: 'NEEDS_HUMAN_INPUT', reason: 'NO_WEB_FORM' };
+      const contact = page.contactEmail;
+      return {
+        status: 'NEEDS_HUMAN_INPUT',
+        reason: contact ? `CONTACT_EMAIL:${contact}` : 'NO_WEB_FORM',
+      };
     }
 
     const inspected: InspectedField[] = page.fields.map((f) => ({
