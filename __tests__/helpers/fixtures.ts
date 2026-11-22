@@ -143,6 +143,11 @@ Multi-tenant dashboard platform
 ## Respostas Padrão
 - Disponibilidade: Imediata
 - Pretensão salarial: A combinar conforme faixa do mercado
+
+## Pretensão Salarial
+- Júnior: R$ 6.000 | USD 1.200
+- Pleno: R$ 12.000 | USD 3.000
+- Sênior: R$ 22.000 | USD 6.000
 `;
 
 /** "Scanned" PDF — the reader returns pages but no extractable text. */

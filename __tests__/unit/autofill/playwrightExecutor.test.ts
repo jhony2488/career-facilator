@@ -28,11 +28,17 @@ function fakeEl(overrides: Record<string, jest.Mock | undefined> = {}) {
 
 function fakeScope(elements: Record<string, ReturnType<typeof fakeEl>> = {}) {
   const fallback = fakeEl();
+  const first = () => fallback;
+  const filter = (_opts: { hasText?: string | RegExp }) => ({ first });
   return {
-    locator: jest.fn((sel: string) => ({ first: () => elements[sel] ?? fallback })),
-    getByLabel: jest.fn(() => ({ first: () => fallback })),
+    locator: jest.fn((sel: string) => ({
+      first: () => elements[sel] ?? fallback,
+      filter,
+    })),
+    getByLabel: jest.fn(() => ({ first, filter })),
     getByRole: jest.fn((_role: string, _opts?: { name?: RegExp }) => ({
-      first: () => fallback,
+      first,
+      filter,
     })),
   };
 }

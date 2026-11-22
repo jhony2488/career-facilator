@@ -12,6 +12,16 @@ describe('compileMasterProfile', () => {
     expect(result.profile.experiences[0].company).toBe('TechCorp');
   });
 
+  it('parses per-level salary expectations from a dedicated section', () => {
+    const result = compileMasterProfile(SAMPLE_MASTER_MD);
+
+    expect(result.profile.salaryByLevel).toEqual({
+      JUNIOR: { brl: 6000, usd: 1200 },
+      PLENO: { brl: 12000, usd: 3000 },
+      SENIOR: { brl: 22000, usd: 6000 },
+    });
+  });
+
   it('adopts manual edits made to the master file', () => {
     // feature/13: Manual edit of the master profile is adopted
     const edited = SAMPLE_MASTER_MD.replace('Dev Tester', 'Dev Tester Edited');

@@ -206,6 +206,29 @@ describe('searchAdapter', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it('drops LinkedIn search/listing URLs but keeps job view and post URLs', async () => {
+    const config = makeConfig();
+    config.discovery.searchEngine = 'duckduckgo';
+    const html = `<html><body>
+    <div class="result"><a class="result__a" href="https://br.linkedin.com/jobs/desenvolvedor-vagas">Vagas dev</a><a class="result__snippet">listagem</a></div>
+    <div class="result"><a class="result__a" href="https://www.linkedin.com/jobs/view/backend-dev-123456789">Backend Dev</a><a class="result__snippet">vaga individual</a></div>
+    <div class="result"><a class="result__a" href="https://www.linkedin.com/search/results/content/?keywords=dev">Busca LinkedIn</a><a class="result__snippet">busca</a></div>
+    </body></html>`;
+
+    const result = await searchAdapter.discover({
+      config,
+      source: makeSearchSource({
+        adapterConfig: { dorkTemplates: ['{query}'], titleFilter: false },
+      }),
+      fetcher: serpFetcher({ 'html.duckduckgo.com': { text: html } }),
+      maxJobs: 10,
+    });
+
+    expect(result.jobs.map((j) => j.raw.url)).toEqual([
+      'https://www.linkedin.com/jobs/view/backend-dev-123456789',
+    ]);
+  });
+
   it('caps collected hits at maxJobs', async () => {
     const config = makeConfig();
     config.discovery.searchEngine = 'duckduckgo';

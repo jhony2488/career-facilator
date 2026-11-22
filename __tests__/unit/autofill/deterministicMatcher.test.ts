@@ -70,6 +70,16 @@ describe('matchFields — deterministic filling', () => {
     expect(unmatched.map((f) => f.label)).toEqual(['Company URL', 'Job posting URL']);
   });
 
+  it('splits fullName into first/last name for separate fields', () => {
+    // regression: First Name e Last Name recebiam o nome completo
+    const fields = [makeField({ label: 'First Name' }), makeField({ label: 'Last Name' })];
+    const { matched } = matchFields(fields, profile);
+
+    const byLabel = new Map(matched.map((m) => [m.field.label, m.value]));
+    expect(byLabel.get('First Name')).toBe('Dev');
+    expect(byLabel.get('Last Name')).toBe('Tester');
+  });
+
   it('uses profile standard answers for known questions', () => {
     // doc 03 (5.4): cached standard answers for recurring questions
     const fields = [makeField({ kind: 'textarea', label: 'When are you available to start?' })];

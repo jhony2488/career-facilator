@@ -202,7 +202,7 @@ export interface InspectedField {
 export interface FieldMatch {
   field: InspectedField;
   value: string;
-  source: 'PROFILE' | 'STANDARD_ANSWER' | 'AI_GENERATED';
+  source: 'PROFILE' | 'STANDARD_ANSWER' | 'AI_GENERATED' | 'DEFAULT';
 }
 
 export interface BlockingSignal {

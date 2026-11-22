@@ -10,3 +10,4 @@ src/config/profile.master.md
 *.feature
 src/skills/library/
 src/config/profile.master.json
+.env.example
