@@ -42,7 +42,7 @@ describe('parseLoginCredential', () => {
 });
 
 /** Page mínima: locator(count) por seletor + url mutável. */
-function fakePage(url: string, counts: Record<string, number>) {
+function fakePage(url: string, counts: Record<string, number>, disabled = false) {
   const fillCalls: Array<[string, string]> = [];
   let pressed = 0;
   let clicked = 0;
@@ -54,7 +54,11 @@ function fakePage(url: string, counts: Record<string, number>) {
       count: async () => n,
       first: () => ({
         count: async () => Math.min(n, 1),
+        isDisabled: async () => disabled,
         fill: async (v: string) => {
+          fillCalls.push([sel, v]);
+        },
+        pressSequentially: async (v: string) => {
           fillCalls.push([sel, v]);
         },
         press: async () => {
@@ -69,6 +73,7 @@ function fakePage(url: string, counts: Record<string, number>) {
   let ticks = 0;
   const dom = {
     locator,
+    frames: () => [],
     url: () => (ticks >= 2 ? url : 'https://tmsa.gupy.io/candidates/signin'),
     waitForLoadState: async () => {},
     waitForTimeout: async () => {
@@ -104,6 +109,17 @@ describe('tryPortalLogin', () => {
 
     expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe(true);
     expect(pressed()).toBe(1);
+  });
+
+  // React não habilita o submit enquanto valida campos — espera esgotada → falha
+  it('fails when the submit stays disabled after typing', async () => {
+    const { dom } = fakePage(
+      'https://tmsa.gupy.io/candidates/signin',
+      { 'input[type="password"]': 1, 'input[type="text"]': 1, 'button[type="submit"]': 1 },
+      true,
+    );
+
+    expect(await tryPortalLogin(dom as unknown as Page, cred)).toBe(false);
   });
 
   it('fails fast when there is no password field (not a login wall)', async () => {
