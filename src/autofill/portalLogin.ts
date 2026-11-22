@@ -89,10 +89,7 @@ async function acceptCookieBanner(dom: Pick<Page, 'locator'>): Promise<void> {
   await btn.click({ timeout: 2000 }).catch(() => {});
 }
 
-export type PortalLoginDom = Pick<
-  Page,
-  'locator' | 'url' | 'waitForTimeout' | 'frames'
->;
+export type PortalLoginDom = Pick<Page, 'locator' | 'url' | 'waitForTimeout' | 'frames'>;
 
 /**
  * Digita credenciais no form de login da página atual e submete. Sucesso =

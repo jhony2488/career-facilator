@@ -56,11 +56,7 @@ import { getJobBrowserContext, closeJobBrowser } from '../scraper/browserManager
 import { executeLiveFill } from '../autofill/playwrightExecutor';
 import type { Page } from 'playwright';
 import { followApplyLink, inspectPage } from '../scraper/pageInspector';
-import {
-  loginRefForUrl,
-  parseLoginCredential,
-  tryPortalLogin,
-} from '../autofill/portalLogin';
+import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
@@ -609,7 +605,14 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
   let pendingVisiblePages = 0;
   if (effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false') {
-    channelDeps.onHumanEscalation = async ({ page, signal, jobUrl, matched, aiAnswers, resumePath }) => {
+    channelDeps.onHumanEscalation = async ({
+      page,
+      signal,
+      jobUrl,
+      matched,
+      aiAnswers,
+      resumePath,
+    }) => {
       if (!page.dom) return false;
       const refill = { matched, aiAnswers, resumePath };
       // Muro de login: 1º tenta credencial do cofre (login-<domínio>) — sem
@@ -907,7 +910,7 @@ async function resumeAfterLogin(
     if (state.fields.length === 0) {
       state = (await followApplyLink(dom)) ?? state;
     }
-    if (state.requiresLogin) return false; // login não pegou — cai p/ manual
+    if (state.requiresLogin || state.hasCaptcha) return false; // login não pegou / challenge — cai p/ manual
     await executeLiveFill(state, {
       ...refill,
       submitMode: 'PAUSE_BEFORE_SUBMIT',
