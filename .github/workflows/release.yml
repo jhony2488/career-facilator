@@ -22,7 +22,7 @@ jobs:
             asset: career-windows-x64.exe
           - os: macos-latest
             asset: career-macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             asset: career-macos-x64
           - os: ubuntu-latest
             asset: career-linux-x64
@@ -44,7 +44,7 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           PKG=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME diverge de package.json version $PKG — bump a versão antes de taggear."
+            echo "::error::Tag $GITHUB_REF_NAME diverge de package.json version $PKG â€” bump a versÃ£o antes de taggear."
             exit 1
           fi
 
@@ -74,7 +74,7 @@ jobs:
           STATUS=$("$BIN" runtime status)
           echo "$STATUS"
           echo "$STATUS" | grep -q 'carrega' || {
-            echo "::error::playwright não carregou no binário — runtime sidecar não está sendo resolvido"
+            echo "::error::playwright nÃ£o carregou no binÃ¡rio â€” runtime sidecar nÃ£o estÃ¡ sendo resolvido"
             exit 1
           }
 
@@ -98,7 +98,7 @@ jobs:
             asset: career-windows-x64.exe
           - os: macos-latest
             asset: career-macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             asset: career-macos-x64
           - os: ubuntu-latest
             asset: career-linux-x64
@@ -165,17 +165,17 @@ jobs:
           files: dist-release/*
           generate_release_notes: true
           body: |
-            Executáveis single-file do CareerFacilator AI — sem Node.js necessário.
+            ExecutÃ¡veis single-file do CareerFacilator AI â€” sem Node.js necessÃ¡rio.
 
-            **Instalação (recomendado — pacote completo)**
-            Baixe o `career-<os>-<arch>.zip` do seu sistema e descompacte: ele traz o executável + `career-runtime/` (Playwright + Chromium + pdf-parse + tesseract) + `skills/` + `.env.example`. Todos os recursos funcionam igual à instalação por código — autofill de formulários, fontes autenticadas (LinkedIn/Gupy), OCR de posts, leitura de PDF com camada de texto.
+            **InstalaÃ§Ã£o (recomendado â€” pacote completo)**
+            Baixe o `career-<os>-<arch>.zip` do seu sistema e descompacte: ele traz o executÃ¡vel + `career-runtime/` (Playwright + Chromium + pdf-parse + tesseract) + `skills/` + `.env.example`. Todos os recursos funcionam igual Ã  instalaÃ§Ã£o por cÃ³digo â€” autofill de formulÃ¡rios, fontes autenticadas (LinkedIn/Gupy), OCR de posts, leitura de PDF com camada de texto.
 
-            - Windows: `career-windows-x64.zip` — o SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"
-            - macOS: `career-macos-arm64.zip` (Apple Silicon) ou `career-macos-x64.zip` (Intel) — `xattr -dr com.apple.quarantine <pasta>` p/ liberar exe + Chromium (Gatekeeper)
-            - Linux: `career-linux-x64.zip` — `chmod +x`; o Chromium pode pedir libs de sistema (`npx playwright install-deps chromium` ou equivalente)
+            - Windows: `career-windows-x64.zip` â€” o SmartScreen pode avisar (binÃ¡rio sem assinatura): "Mais informaÃ§Ãµes â†’ Executar mesmo assim"
+            - macOS: `career-macos-arm64.zip` (Apple Silicon) ou `career-macos-x64.zip` (Intel) â€” `xattr -dr com.apple.quarantine <pasta>` p/ liberar exe + Chromium (Gatekeeper)
+            - Linux: `career-linux-x64.zip` â€” `chmod +x`; o Chromium pode pedir libs de sistema (`npx playwright install-deps chromium` ou equivalente)
 
-            **Só o binário** (`career-<os>-<arch>[.exe]` sozinho): roda discovery por APIs/RSS, triagem, e-mail, WhatsApp e fila de revisão; depois `career runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` e completa os recursos de browser/PDF/OCR ao lado do exe. Sem o runtime, formulários web degradam p/ e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
+            **SÃ³ o binÃ¡rio** (`career-<os>-<arch>[.exe]` sozinho): roda discovery por APIs/RSS, triagem, e-mail, WhatsApp e fila de revisÃ£o; depois `career runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` e completa os recursos de browser/PDF/OCR ao lado do exe. Sem o runtime, formulÃ¡rios web degradam p/ e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
 
-            **Interface gráfica** (`career-ui-<os>-<arch>.<ext>`): app desktop nativo (Tauri) com o mesmo dashboard local — `career ui` no binário CLI abre a mesma interface no navegador.
+            **Interface grÃ¡fica** (`career-ui-<os>-<arch>.<ext>`): app desktop nativo (Tauri) com o mesmo dashboard local â€” `career ui` no binÃ¡rio CLI abre a mesma interface no navegador.
 
-            **Configuração:** `career config init` cria `~/.careerfacilator/.env`; um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele (o `.env` da pasta do exe sobrepõe o do diretório de trabalho). Biblioteca de skills: pasta `skills/` já inclusa no zip. Detalhes completos: `tutorials/pt-BR/08-executavel-release.md` / `tutorials/en/08-release-executable.md`.
+            **ConfiguraÃ§Ã£o:** `career config init` cria `~/.careerfacilator/.env`; um `.env` com `CAREER_HOME=.` na pasta do exe mantÃ©m os dados portÃ¡teis ao lado dele (o `.env` da pasta do exe sobrepÃµe o do diretÃ³rio de trabalho). Biblioteca de skills: pasta `skills/` jÃ¡ inclusa no zip. Detalhes completos: `tutorials/pt-BR/08-executavel-release.md` / `tutorials/en/08-release-executable.md`.
