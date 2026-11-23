@@ -31,9 +31,7 @@ function getChromium(stealth: boolean): Promise<BrowserType> {
             loadRuntimeModule<{ chromium: BrowserType & { use(p: unknown): void } }>(
               'playwright-extra',
             ),
-            loadRuntimeModule<{ default: () => unknown }>(
-              'puppeteer-extra-plugin-stealth',
-            ),
+            loadRuntimeModule<{ default: () => unknown }>('puppeteer-extra-plugin-stealth'),
           ]);
           chromium.use(stealthPlugin());
           return chromium;

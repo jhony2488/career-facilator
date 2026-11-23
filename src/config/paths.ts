@@ -29,11 +29,7 @@ export function careerHome(env: EnvMap = process.env, opts: HomeAnchor = {}): st
 }
 
 /** Caminho absoluto passa direto; relativo resolve sob careerHome. */
-export function resolveHome(
-  rel: string,
-  env: EnvMap = process.env,
-  opts: HomeAnchor = {},
-): string {
+export function resolveHome(rel: string, env: EnvMap = process.env, opts: HomeAnchor = {}): string {
   return isAbsolute(rel) ? rel : join(careerHome(env, opts), rel);
 }
 

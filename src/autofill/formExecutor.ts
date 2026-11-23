@@ -214,7 +214,7 @@ function fuzzyValue(
   if (answers[label] !== undefined) return answers[label];
   const target = tokenSet(label);
   let best: { key: string; score: number } | null = null;
-  for (const [key, value] of Object.entries(answers)) {
+  for (const key of Object.keys(answers)) {
     const score = jaccard(target, tokenSet(key));
     if (score >= threshold && (!best || score > best.score)) best = { key, score };
   }

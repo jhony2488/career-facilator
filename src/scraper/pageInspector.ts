@@ -61,7 +61,7 @@ function snapshotScript(): PageSnapshot {
     return undefined;
   };
 
-  const labelFor = (el: HTMLElement, type?: string): string => {
+  const labelFor = (el: HTMLElement, _type?: string): string => {
     // getRootNode() resolve label/for dentro do shadow root do próprio campo.
     const root = el.getRootNode() as Document | ShadowRoot;
     const id = el.getAttribute('id');

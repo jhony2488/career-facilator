@@ -108,8 +108,7 @@ const seaOpts = { exeDir: SEA_DIR };
 const config = loadCareerOpsConfig(seaOpts);
 const effEnv = loadEffectiveEnv(seaOpts);
 const HOME = careerHome(effEnv.env, seaOpts);
-const DB_PATH =
-  effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', effEnv.env, seaOpts);
+const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', effEnv.env, seaOpts);
 
 const HELP = [
   'Comandos:',
@@ -1746,7 +1745,6 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     config.execution.mode === 'FULL_AUTO' || sendFlag ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT';
 
   console.log(`${jobs.length} vaga(s) aguardando — refazendo o preenchimento web…`);
-  let stop = false;
   for (const job of jobs) {
     const r = await reapplyStoredJob(job, { profile, deps, submitMode });
     const contact = r.reason?.startsWith('CONTACT_EMAIL:')
@@ -1763,7 +1761,6 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     if (sendFlag && r.status !== 'APPLIED') {
       console.log(`\n⏹ retry --send parou em ${job.url} — status ${r.status}.`);
       console.log(`   Resolva/marque e rode \`retry --send\` novamente.`);
-      stop = true;
       break;
     }
   }

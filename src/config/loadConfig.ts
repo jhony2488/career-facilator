@@ -157,9 +157,7 @@ export function loadEffectiveEnv(opts: LoadConfigOptions = {}): EffectiveEnv {
     .filter((p): p is string => Boolean(p))
     .map((p) => resolve(p));
   const homeFileEnv =
-    filesEnabled && !alreadyRead.includes(resolve(homeEnvFile))
-      ? parseEnvFile(homeEnvFile)
-      : {};
+    filesEnabled && !alreadyRead.includes(resolve(homeEnvFile)) ? parseEnvFile(homeEnvFile) : {};
 
   return { env: { ...homeFileEnv, ...localFileEnvMerged, ...procEnv }, home, homeEnvFile };
 }

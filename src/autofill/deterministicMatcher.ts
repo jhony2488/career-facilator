@@ -37,7 +37,7 @@ type ProfileKey =
 /** Dicionário de sinônimos de rótulos → chave do perfil (doc 03 §5.4). */
 const FIELD_SYNONYMS: Record<ProfileKey, RegExp[]> = {
   // Ordem importa: First/Last Name são testados antes de Full Name/Name.
-  firstName: [/\bfirst\s*name\b/i, /\bnome\b(?![\s_\-](?:completo|sobrenome))/i],
+  firstName: [/\bfirst\s*name\b/i, /\bnome\b(?![\s_-](?:completo|sobrenome))/i],
   lastName: [/\blast\s*name\b/i, /\bsobrenome\b/i, /\bsurname\b/i],
   fullName: [/\bfull\s*name\b/i, /\byour\s*name\b/i, /^name$/i, /nome completo/i],
   email: [/e-?mail/i, /email address/i, /correo/i],

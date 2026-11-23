@@ -60,7 +60,7 @@ export async function agentNavigateToForm(
   const visited = new Set<string>([page.url()]);
   for (let step = 0; step < maxSteps && Date.now() < deadline; step++) {
     let scan;
-    let title = '';
+    let title: string;
     try {
       [scan, title] = await Promise.all([
         page.evaluate(scanApplyScript),
