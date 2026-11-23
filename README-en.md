@@ -113,12 +113,12 @@ Individual paths override via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `P
 
 Download the package from the [Releases](https://github.com/jhony2488/career-facilitator/releases) tab — **no Node.js required**:
 
-| Package                   | First use                                                                               |
-| ------------------------- | ---------------------------------------------------------------------------------------- |
-| `career-windows-x64.zip`  | SmartScreen may warn (unsigned binary): "More info → Run anyway"                         |
-| `career-macos-arm64.zip`  | `xattr -dr com.apple.quarantine <folder>` — frees exe + Chromium (Gatekeeper)            |
-| `career-macos-x64.zip`    | same, for Intel                                                                          |
-| `career-linux-x64.zip`    | `chmod +x`; Chromium may need system libs (`playwright install-deps chromium` equivalent) |
+| Package                  | First use                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `career-windows-x64.zip` | SmartScreen may warn (unsigned binary): "More info → Run anyway"                          |
+| `career-macos-arm64.zip` | `xattr -dr com.apple.quarantine <folder>` — frees exe + Chromium (Gatekeeper)             |
+| `career-macos-x64.zip`   | same, for Intel                                                                           |
+| `career-linux-x64.zip`   | `chmod +x`; Chromium may need system libs (`playwright install-deps chromium` equivalent) |
 
 The ZIP ships the SEA executable + `career-runtime/` (Playwright + Chromium, pdf-parse, tesseract + tessdata) + `skills/` + `.env.example` — **every feature works like the source install** (form autofill, authenticated sources, post-image OCR, text-layer PDF). If you download just the binary (`career-<os>-<arch>[.exe]`), `career runtime setup` later fetches `career-runtime-<os>-<arch>.tar.gz` from the release; `runtime status` diagnoses what's missing. Without the runtime, web forms degrade to e-mail, WhatsApp or `NEEDS_HUMAN_INPUT`.
 

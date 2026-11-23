@@ -148,16 +148,16 @@ career config set AI_SMART_MODEL llama-3.3-70b-versatile
 career config set GROQ_API_KEY gsk_...
 ```
 
-| Provider | Env de API key | Env de base URL (custom) |
-|---|---|---|
-| `deepseek` | `DEEPSEEK_API_KEY` | `DEEPSEEK_BASE_URL` |
-| `groq` | `GROQ_API_KEY` | `GROQ_BASE_URL` |
-| `openai` | `OPENAI_API_KEY` | `OPENAI_BASE_URL` |
-| `kimi`/`moonshot` | `KIMI_API_KEY` | `KIMI_BASE_URL` |
-| `openrouter` | `OPENROUTER_API_KEY` | `OPENROUTER_BASE_URL` |
-| `together` | `TOGETHER_API_KEY` | `TOGETHER_BASE_URL` |
-| `anthropic` | `ANTHROPIC_API_KEY` | — (sem adapter nativo) |
-| `gemini` | `GEMINI_API_KEY` | use o endpoint compat da Google |
+| Provider          | Env de API key       | Env de base URL (custom)        |
+| ----------------- | -------------------- | ------------------------------- |
+| `deepseek`        | `DEEPSEEK_API_KEY`   | `DEEPSEEK_BASE_URL`             |
+| `groq`            | `GROQ_API_KEY`       | `GROQ_BASE_URL`                 |
+| `openai`          | `OPENAI_API_KEY`     | `OPENAI_BASE_URL`               |
+| `kimi`/`moonshot` | `KIMI_API_KEY`       | `KIMI_BASE_URL`                 |
+| `openrouter`      | `OPENROUTER_API_KEY` | `OPENROUTER_BASE_URL`           |
+| `together`        | `TOGETHER_API_KEY`   | `TOGETHER_BASE_URL`             |
+| `anthropic`       | `ANTHROPIC_API_KEY`  | — (sem adapter nativo)          |
+| `gemini`          | `GEMINI_API_KEY`     | use o endpoint compat da Google |
 
 Tiers: `AI_LOCAL_*` (triagem), `AI_FAST_*` (respostas de formulário), `AI_SMART_*` (tailoring/raciocínio). Também aceitam `AI_<TIER>_BASE_URL` por tier.
 
@@ -316,21 +316,21 @@ career inspect <url>                 # diagnostica um form sem preencher
 
 ## 14. Resolução de problemas
 
-| Sintoma | Causa provável | Ação |
-|---|---|---|
-| `playwright indisponível` / forms caem em revisão | `career-runtime/` ausente | `runtime setup` ou use o ZIP completo; `runtime status` confirma |
-| Chromium não abre no Linux | libs de sistema ausentes | ver §2 (apt) |
-| macOS "não é possível verificar o desenvolvedor" | quarentena | `xattr -dr com.apple.quarantine .` na pasta |
-| SmartScreen/antivírus | binário/Chromium sem assinatura | liberar execução (§2) |
-| PDF de CV sai mal | PDF escaneado (sem camada de texto) | reexporte o CV com texto selecionável |
-| OCR não roda offline | `tessdata/` ausente | runtime completo ou `CAREER_RUNTIME` correto |
-| `.env` ignorado | está na pasta errada | `.env` do exe > `.env` do cwd — `config path`/`config get` mostram a fonte |
-| `config init` falha | `~/.careerfacilator` sem permissão | use `CAREER_HOME=.` no `.env` do exe (portátil) |
-| Ollama "connection refused" | serviço parado | `ollama serve` + `ollama pull <modelo>` |
-| Provider remoto 401 | API key | `config set <P>_API_KEY ...` + `config check` |
-| Mudou de pasta e perdeu dados | `CAREER_HOME` relativo mudou | no exe, `CAREER_HOME` ancora na pasta do binário — leve a pasta inteira |
-| `tar` não encontrado no `runtime setup` | Windows muito antigo | baixe o `.zip` completo no lugar |
-| Node antigo gerando o exe | `node:sqlite` exige Node ≥ 22.13 | só afeta quem compila; binários prontos já vêm ok |
+| Sintoma                                           | Causa provável                      | Ação                                                                       |
+| ------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| `playwright indisponível` / forms caem em revisão | `career-runtime/` ausente           | `runtime setup` ou use o ZIP completo; `runtime status` confirma           |
+| Chromium não abre no Linux                        | libs de sistema ausentes            | ver §2 (apt)                                                               |
+| macOS "não é possível verificar o desenvolvedor"  | quarentena                          | `xattr -dr com.apple.quarantine .` na pasta                                |
+| SmartScreen/antivírus                             | binário/Chromium sem assinatura     | liberar execução (§2)                                                      |
+| PDF de CV sai mal                                 | PDF escaneado (sem camada de texto) | reexporte o CV com texto selecionável                                      |
+| OCR não roda offline                              | `tessdata/` ausente                 | runtime completo ou `CAREER_RUNTIME` correto                               |
+| `.env` ignorado                                   | está na pasta errada                | `.env` do exe > `.env` do cwd — `config path`/`config get` mostram a fonte |
+| `config init` falha                               | `~/.careerfacilator` sem permissão  | use `CAREER_HOME=.` no `.env` do exe (portátil)                            |
+| Ollama "connection refused"                       | serviço parado                      | `ollama serve` + `ollama pull <modelo>`                                    |
+| Provider remoto 401                               | API key                             | `config set <P>_API_KEY ...` + `config check`                              |
+| Mudou de pasta e perdeu dados                     | `CAREER_HOME` relativo mudou        | no exe, `CAREER_HOME` ancora na pasta do binário — leve a pasta inteira    |
+| `tar` não encontrado no `runtime setup`           | Windows muito antigo                | baixe o `.zip` completo no lugar                                           |
+| Node antigo gerando o exe                         | `node:sqlite` exige Node ≥ 22.13    | só afeta quem compila; binários prontos já vêm ok                          |
 
 ## 15. Diferenças binário × instalação por código
 

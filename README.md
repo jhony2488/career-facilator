@@ -113,12 +113,12 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 Baixe o pacote da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js**:
 
-| Pacote                    | Primeiro uso                                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `career-windows-x64.zip`  | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"        |
-| `career-macos-arm64.zip`  | `xattr -dr com.apple.quarantine <pasta>` — libera exe + Chromium (Gatekeeper)                       |
-| `career-macos-x64.zip`    | idem, para Intel                                                                                    |
-| `career-linux-x64.zip`    | `chmod +x`; Chromium pode pedir libs de sistema (`playwright install-deps chromium` equivalente)    |
+| Pacote                   | Primeiro uso                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `career-windows-x64.zip` | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"      |
+| `career-macos-arm64.zip` | `xattr -dr com.apple.quarantine <pasta>` — libera exe + Chromium (Gatekeeper)                    |
+| `career-macos-x64.zip`   | idem, para Intel                                                                                 |
+| `career-linux-x64.zip`   | `chmod +x`; Chromium pode pedir libs de sistema (`playwright install-deps chromium` equivalente) |
 
 O ZIP traz o executável SEA + `career-runtime/` (Playwright + Chromium, pdf-parse, tesseract + tessdata) + `skills/` + `.env.example` — **todos os recursos funcionam igual à instalação por código** (autofill de formulários, fontes autenticadas, OCR de posts, PDF com camada de texto). Quem baixar só o binário (`career-<os>-<arch>[.exe]`) completa depois com `career runtime setup` (baixa o `career-runtime-<os>-<arch>.tar.gz` do release); `runtime status` diagnostica o que falta. Sem o runtime, formulários web degradam para e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
 

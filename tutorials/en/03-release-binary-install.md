@@ -6,12 +6,12 @@ Download a package with a single executable plus external resources. No Node.js 
 
 Open the **[Releases](https://github.com/jhony2488/career-facilitator/releases)** tab in the GitHub repository and pick the **ZIP** for your system (recommended — ships complete):
 
-| System                  | Package                    |
-| ----------------------- | -------------------------- |
-| Windows                 | `career-windows-x64.zip`   |
-| macOS (Apple Silicon)   | `career-macos-arm64.zip`   |
-| macOS (Intel)           | `career-macos-x64.zip`     |
-| Linux                   | `career-linux-x64.zip`     |
+| System                | Package                  |
+| --------------------- | ------------------------ |
+| Windows               | `career-windows-x64.zip` |
+| macOS (Apple Silicon) | `career-macos-arm64.zip` |
+| macOS (Intel)         | `career-macos-x64.zip`   |
+| Linux                 | `career-linux-x64.zip`   |
 
 Inside the ZIP:
 

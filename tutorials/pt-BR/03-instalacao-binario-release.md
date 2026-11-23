@@ -6,12 +6,12 @@ Baixe um pacote com executável único + recursos externos. Não precisa instala
 
 Acesse a aba **[Releases](https://github.com/jhony2488/career-facilitator/releases)** do repositório no GitHub e escolha o **ZIP** do seu sistema (recomendado — já vem completo):
 
-| Sistema                    | Pacote                     |
-| -------------------------- | -------------------------- |
-| Windows                    | `career-windows-x64.zip`   |
-| macOS (Apple Silicon)      | `career-macos-arm64.zip`   |
-| macOS (Intel)              | `career-macos-x64.zip`     |
-| Linux                      | `career-linux-x64.zip`     |
+| Sistema               | Pacote                   |
+| --------------------- | ------------------------ |
+| Windows               | `career-windows-x64.zip` |
+| macOS (Apple Silicon) | `career-macos-arm64.zip` |
+| macOS (Intel)         | `career-macos-x64.zip`   |
+| Linux                 | `career-linux-x64.zip`   |
 
 Dentro do ZIP:
 
