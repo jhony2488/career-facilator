@@ -13,3 +13,8 @@ career-*-x64*
 !.env.example
 
 browser-profile
+
+# Perfil-mestre é dado do usuário — criado por 'import'/'approve'.
+# Referência de formato: src/config/profile.master.example.md
+src/config/profile.master.md
+src/config/profile.master.json

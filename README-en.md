@@ -133,7 +133,7 @@ Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Win
 3. The system generates `storage/profile.draft.md` — **review before approving** (anti-fabrication: nothing enters the profile without coming from your document or manual edit)
 4. Approve with `approve` — the active profile lives at `src/config/profile.master.md` (editable by hand) and is compiled to `profile.master.json` (prompt-cache artifact)
 
-> Without a configured model, `import` only validates the PDF and produces a minimal draft. Meanwhile, you can fill `profile.master.md` manually following the seed format (includes Open Source Projects section).
+> Without a configured model, `import` only validates the PDF and produces a minimal draft. Meanwhile, you can fill `profile.master.md` manually following the format of [src/config/profile.master.example.md](src/config/profile.master.example.md) (includes Open Source Projects section). `profile.master.{md,json}` is your data — not versioned (gitignored).
 
 ### Suggested usage sequence
 

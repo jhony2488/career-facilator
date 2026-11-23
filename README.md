@@ -133,7 +133,7 @@ Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` �
 3. O sistema gera `storage/profile.draft.md` — **revise antes de aprovar** (anti-fabricação: nada entra no perfil sem vir de documento seu ou de edição manual)
 4. Aprove com `approve` — o perfil ativo fica em `src/config/profile.master.md` (editável à mão) e é compilado para `profile.master.json` (artefato do prompt-cache)
 
-> Sem modelo configurado, o `import` apenas valida o PDF e gera rascunho mínimo. Enquanto isso, você pode preencher `profile.master.md` manualmente seguindo o formato do seed (inclui seção de Projetos Open Source).
+> Sem modelo configurado, o `import` apenas valida o PDF e gera rascunho mínimo. Enquanto isso, você pode preencher `profile.master.md` manualmente seguindo o formato de [src/config/profile.master.example.md](src/config/profile.master.example.md) (inclui seção de Projetos Open Source). O `profile.master.{md,json}` é dado seu — não é versionado (gitignore).
 
 ### Sequência sugerida de uso
 
