@@ -25,7 +25,7 @@ export interface EnvExampleSection {
 }
 
 const KEY_RE = /^#?\s*([A-Z][A-Z0-9_]*)=(.*?)(?:\s+#\s?(.*))?$/;
-const SECTION_RE = /^#\s*(?:={2,}|-{2,})\s*(.+?)\s*(?:={2,}|-{2,})\s*$/;
+const SECTION_RE = /^#\s*[=\-─]{2,}\s*(.+?)\s*[=\-─]{2,}\s*$/u;
 
 export function parseEnvExample(content: string): EnvExampleSection[] {
   const sections: EnvExampleSection[] = [];

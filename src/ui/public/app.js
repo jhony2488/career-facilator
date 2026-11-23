@@ -1,5 +1,6 @@
 /* CareerFacilator AI — UI local. Vanilla JS, sem build.
- * Token de sessão vem em ?token= na URL e vai no header X-UI-Token. */
+ * Token de sessão vem em ?token= na URL e vai no header X-UI-Token.
+ * Dual-audiência: simples por padrão; detalhes técnicos em <details>/Avançado. */
 'use strict';
 
 // ── infra ──────────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ const el = (tag, attrs = {}, children = []) => {
   if (attrs.text !== undefined) e.textContent = attrs.text;
   if (attrs.html !== undefined) e.innerHTML = attrs.html;
   for (const [k, v] of Object.entries(attrs.attrs ?? {})) e.setAttribute(k, v);
-  for (const c of children) e.append(c);
+  for (const c of children) if (c) e.append(c);
   return e;
 };
 const panel = (id) => document.getElementById(`panel-${id}`);
@@ -43,6 +44,44 @@ function toast(msg) {
   setTimeout(() => d.classList.add('hidden'), 2600);
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+// ── labels amigáveis (mapas do i18n; fallback = nome técnico) ────────────────
+const JOB_STATUSES = [
+  'DISCOVERED',
+  'TRIAGED',
+  'TAILORED',
+  'READY_TO_REVIEW',
+  'APPLIED',
+  'APPLIED_VIA_EMAIL',
+  'APPLIED_VIA_WHATSAPP',
+  'NEEDS_HUMAN_INPUT',
+  'SKIPPED',
+  'FAILED',
+  'REJECTED',
+  'INTERVIEW',
+  'ASSESSMENT_INVITED',
+];
+const jobLabel = (s) => dict[`job.${s}`] ?? s;
+const taskLabel = (s) => dict[`task.${s}`] ?? s;
+const srcLabel = (s) => dict[`src.${s}`] ?? s;
+const statusPill = (s) => `<span class="pill" title="${s}">${jobLabel(s)}</span>`;
+const taskPill = (s) =>
+  `<span class="pill ${s === 'done' ? 'ok' : s === 'running' ? 'acc' : 'err'}" title="${s}">${taskLabel(s)}</span>`;
+
+// Card de erro reutilizável (aba inteira falhou — mostra mensagem + retry).
+function errorCard(id, err) {
+  const p = panel(id);
+  p.innerHTML = '';
+  const retry = el('button', { class: 'primary', text: t('err.retry') });
+  retry.onclick = () => show(id);
+  p.append(
+    el('div', { class: 'card err-card' }, [
+      el('h2', { text: t('err.title') }),
+      el('p', { text: err?.message ?? String(err) }),
+      retry,
+    ]),
+  );
+}
 
 // ── tabs ───────────────────────────────────────────────────────────────────
 const TABS = ['dashboard', 'config', 'jobs', 'queue', 'vault', 'profile', 'runtime', 'terminal'];
@@ -60,46 +99,112 @@ function show(id) {
   current = id;
   for (const t2 of TABS) panel(t2).classList.toggle('hidden', t2 !== id);
   renderTabs();
-  RENDER[id]?.();
+  const fn = RENDER[id];
+  if (fn) fn().catch((e) => errorCard(id, e));
 }
+const sub = (key) => el('p', { class: 'muted', text: t(key) });
 
 // ── dashboard ──────────────────────────────────────────────────────────────
 async function rDash() {
   const p = panel('dashboard');
   p.innerHTML = `<h2>${t('tab.dashboard')}</h2><p class="muted">${t('common.loading')}</p>`;
-  const [meta, status, taskList] = await Promise.all([api('meta'), api('status'), api('tasks')]);
-  p.innerHTML = '';
+  const [meta, status, taskList, prof, env] = await Promise.all([
+    api('meta'),
+    api('status'),
+    api('tasks'),
+    api('profile').catch(() => ({})),
+    api('env').catch(() => ({ entries: [] })),
+  ]);
+  p.innerHTML = `<h2>${t('tab.dashboard')}</h2>`;
+
+  // ── Primeiros passos (onboarding) ───────────────────────────────────────
+  const steps = [
+    { ok: !!prof.master, label: 'onb.profile', target: 'profile' },
+    {
+      ok: (env.entries ?? []).some((e) => /PROVIDER|OLLAMA_MODEL|_API_KEY/.test(e.key) && e.value),
+      label: 'onb.ai',
+      target: 'config',
+    },
+    { ok: Object.values(status.counts ?? {}).some((n) => n > 0), label: 'onb.jobs', target: null },
+    { ok: false, label: 'onb.queue', target: 'queue' },
+  ];
+  steps[3].ok = steps[2].ok && !!(status.counts?.NEEDS_HUMAN_INPUT || status.counts?.READY_TO_REVIEW);
+  const doneAll = steps.slice(0, 3).every((s) => s.ok);
+  const nextIdx = steps.findIndex((s) => !s.ok);
+  const onb = el('div', { class: `card onb ${doneAll ? 'ok' : ''}` }, [
+    el('h2', { text: doneAll ? t('onb.done_title') : t('onb.title') }),
+    ...steps.map((s, i) => {
+      const row = el('div', { class: `onb-step ${s.ok ? 'done' : i === nextIdx ? 'next' : ''}` }, [
+        el('span', {
+          class: 'onb-mark',
+          text: s.ok ? '✓' : `${i + 1}`,
+        }),
+        el('span', { class: 'onb-txt', text: t(s.label) }),
+      ]);
+      if (!s.ok && s.target && i === nextIdx) {
+        const go = el('button', { class: 'primary', text: t('onb.go') });
+        go.onclick = () => show(s.target);
+        row.append(go);
+      } else if (!s.ok && i === nextIdx && s.label === 'onb.jobs') {
+        const go = el('button', { class: 'primary', text: t('onb.go') });
+        go.onclick = () => {
+          show('terminal');
+          runTask(['discover']);
+        };
+        row.append(go);
+      }
+      return row;
+    }),
+  ]);
+
   const kv = el('dl', { class: 'kv' }, [
     el('dt', { text: t('dash.version') }),
-    el('dd', { text: `${meta.version} ${meta.sea ? '(SEA)' : '(dev)'}` }),
-    el('dt', { text: t('dash.platform') }),
-    el('dd', { text: meta.platform }),
+    el('dd', { text: meta.version }),
     el('dt', { text: t('dash.home') }),
     el('dd', { text: meta.home }),
     el('dt', { text: t('dash.db') }),
     el('dd', { text: meta.dbPath }),
-    el('dt', { text: meta.exeDir ? t('dash.exe') : t('dash.cwd') }),
-    el('dd', { text: meta.exeDir ?? meta.cwd }),
   ]);
+  const countEntries = Object.entries(status.counts ?? {}).sort();
   const stats = el(
     'div',
     {},
-    Object.entries(status.counts)
-      .sort()
-      .map(([k, n]) =>
-        el('span', { class: 'stat' }, [el('b', { text: String(n) }), el('span', { text: k })]),
-      ),
+    countEntries.map(([k, n]) =>
+      el('span', { class: 'stat' }, [el('b', { text: String(n) }), el('span', { text: jobLabel(k) })]),
+    ),
   );
   const rows = taskList.tasks
     .slice(0, 8)
     .map(
       (tk) =>
-        `<tr><td class="muted">${tk.startedAt.slice(11, 19)}</td><td>${esc(tk.argv.join(' '))}</td><td><span class="pill ${tk.status === 'done' ? 'ok' : tk.status === 'running' ? 'acc' : 'err'}">${tk.status}</span></td></tr>`,
+        `<tr><td class="muted">${tk.startedAt.slice(11, 19)}</td><td>${esc(tk.argv.join(' '))}</td><td>${taskPill(tk.status)}</td></tr>`,
     )
     .join('');
+  const tech = el('details', {}, [
+    el('summary', { text: t('adv.details') }),
+    el('dl', { class: 'kv' }, [
+      el('dt', { text: t('dash.platform') }),
+      el('dd', { text: meta.platform }),
+      el('dt', { text: meta.exeDir ? t('dash.exe') : t('dash.cwd') }),
+      el('dd', { text: meta.exeDir ?? meta.cwd }),
+      ...(meta.exePath
+        ? [
+            el('dt', { text: t('dash.cli') }),
+            el('dd', {}, [
+              el('code', { text: meta.exePath }),
+              el('div', { class: 'muted', text: t('dash.cli_hint') }),
+            ]),
+          ]
+        : []),
+    ]),
+  ]);
   p.append(
-    el('div', { class: 'card' }, [el('h2', { text: t('dash.meta') }), kv]),
-    el('div', { class: 'card' }, [el('h2', { text: t('dash.counts') }), stats]),
+    onb,
+    el('div', { class: 'card' }, [el('h2', { text: t('dash.meta') }), kv, tech]),
+    el('div', { class: 'card' }, [
+      el('h2', { text: t('dash.counts') }),
+      countEntries.length ? stats : el('p', { class: 'muted', text: t('jobs.empty') }),
+    ]),
     el('div', { class: 'card' }, [
       el('h2', { text: t('dash.tasks') }),
       el('table', { html: rows || `<tr><td class="muted">${t('common.none')}</td></tr>` }),
@@ -108,6 +213,7 @@ async function rDash() {
 }
 
 // ── config ─────────────────────────────────────────────────────────────────
+const ESSENTIAL_SECTIONS = 5; // primeiras seções do .env.example ficam abertas
 async function rConfig() {
   const p = panel('config');
   p.innerHTML = `<h2>${t('config.title')}</h2><p class="muted">${t('common.loading')}</p>`;
@@ -118,15 +224,14 @@ async function rConfig() {
 
   const rowHtml = (key, e, def, comment) => {
     const val = e ? esc(e.value) : `<span class="muted">${t('common.none')}</span>`;
-    const src = e
-      ? `<span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${e.source}</span>`
-      : '';
+    const src = e ? `<span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${srcLabel(e.source)}</span>` : '';
     const defTxt = def ? ` <span class="muted">(default: ${esc(def)})</span>` : '';
     const commentTxt = comment
       ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(comment)}</div>`
       : '';
     return (
-      `<tr><td class="env-key"><code>${esc(key)}</code>${commentTxt}</td>` +
+      `<tr data-search="${esc(`${key} ${comment ?? ''}`).toLowerCase()}">` +
+      `<td class="env-key"><code>${esc(key)}</code>${commentTxt}</td>` +
       `<td class="env-val" title="${esc(e?.value ?? def ?? '')}">${val}${defTxt}</td>` +
       `<td>${src}</td>` +
       `<td class="env-act"><button data-edit="${esc(key)}">${t('act.edit')}</button>` +
@@ -140,6 +245,7 @@ async function rConfig() {
     `<th class="w-act"></th></tr>${rows}</table>`;
 
   p.innerHTML = `<h2>${t('config.title')}</h2>`;
+  p.append(sub('config.sub'));
 
   // ── Importar .env ──────────────────────────────────────────────────────
   const file = el('input', { attrs: { type: 'file', accept: '.env,text/plain' } });
@@ -162,12 +268,13 @@ async function rConfig() {
 
   // ── Links p/ tutoriais ─────────────────────────────────────────────────
   const REPO = 'https://github.com/jhony2488/career-facilitator/blob/main';
+  const langDir = (document.documentElement.lang ?? 'pt-BR') === 'pt-BR' ? 'pt-BR' : 'en';
+  const tutFile = (ptName, enName) => (langDir === 'pt-BR' ? ptName : enName);
   const LINKS = [
-    ['tutorials/pt-BR/04-configurando-ollama.md', t('config.link_ollama')],
-    ['tutorials/pt-BR/05-configurando-ias-remotas.md', t('config.link_remote')],
-    ['tutorials/pt-BR/03-instalacao-binario-release.md', t('config.link_exe')],
-    ['docs/pt-BR/09-configuracao.md', t('config.link_configdoc')],
-    ['docs/pt-BR/16-interface-grafica.md', t('config.link_ui')],
+    [tutFile('04-configurando-ollama.md', '04-setting-up-ollama.md'), t('config.link_ollama')],
+    [tutFile('05-configurando-ias-remotas.md', '05-setting-up-remote-llms.md'), t('config.link_remote')],
+    [tutFile('03-instalacao-binario-release.md', '03-release-binary-install.md'), t('config.link_exe')],
+    [tutFile('09-interface-grafica.md', '09-graphical-interface.md'), t('config.link_ui')],
   ];
   const linksCard = el('div', { class: 'card' }, [
     el('h2', { text: t('config.links') }),
@@ -175,36 +282,66 @@ async function rConfig() {
       el('div', { class: 'env-link' }, [
         el('a', {
           text: label,
-          attrs: { href: `${REPO}/${path}`, target: '_blank', rel: 'noopener' },
+          attrs: {
+            href: `${REPO}/tutorials/${langDir}/${path}`,
+            target: '_blank',
+            rel: 'noopener',
+          },
         }),
       ]),
     ),
   ]);
 
-  // ── Catálogo por seção (do .env.example) + extras setados ─────────────
+  // ── Catálogo: essenciais abertos, resto em <details> + busca ────────────
   const cards = [];
-  for (const sec of example?.sections ?? []) {
+  const sections = example?.sections ?? [];
+  sections.forEach((sec, i) => {
     const rows = sec.items
       .map((it) => rowHtml(it.key, setMap[it.key], it.default, it.comment))
       .join('');
-    cards.push(
-      el('div', { class: 'card' }, [
-        el('h2', { text: sec.title }),
-        el('div', { class: 'env-scroll', html: tableHtml(rows) }),
-      ]),
-    );
-  }
+    const body = el('div', { class: 'env-scroll', html: tableHtml(rows) });
+    if (i < ESSENTIAL_SECTIONS) {
+      cards.push(el('div', { class: 'card env-section' }, [el('h2', { text: sec.title }), body]));
+    } else {
+      cards.push(
+        el('div', { class: 'card env-section adv' }, [
+          el('details', {}, [el('summary', { text: sec.title }), body]),
+        ]),
+      );
+    }
+  });
   if (extras.length) {
     cards.push(
-      el('div', { class: 'card' }, [
-        el('h2', { text: t('config.extras') }),
-        el('div', {
-          class: 'env-scroll',
-          html: tableHtml(extras.map((e) => rowHtml(e.key, e)).join('')),
-        }),
+      el('div', { class: 'card env-section adv' }, [
+        el('details', {}, [
+          el('summary', { text: t('config.extras') }),
+          el('div', {
+            class: 'env-scroll',
+            html: tableHtml(extras.map((e) => rowHtml(e.key, e)).join('')),
+          }),
+        ]),
       ]),
     );
   }
+
+  // Busca filtra linhas e abre <details> que contenham match.
+  const search = el('input', {
+    attrs: { type: 'text', placeholder: t('config.search'), style: 'width:100%;margin-bottom:8px' },
+  });
+  search.oninput = () => {
+    const q = search.value.trim().toLowerCase();
+    for (const card of cards) {
+      let any = false;
+      for (const tr of card.querySelectorAll('tr[data-search]')) {
+        const hit = !q || tr.dataset.search.includes(q);
+        tr.classList.toggle('hidden', !hit);
+        any = any || hit;
+      }
+      const det = card.querySelector('details');
+      if (det) det.open = !!q && any;
+      card.classList.toggle('hidden', !!q && !any);
+    }
+  };
 
   const files = el('dl', { class: 'kv' }, [
     el('dt', { text: t('config.file_home') }),
@@ -217,11 +354,12 @@ async function rConfig() {
   ]);
 
   p.append(
+    search,
     el('div', { class: 'card' }, [
       el('div', { class: 'row' }, [file, impBtn]),
       paste,
       el('p', { class: 'muted', text: t('config.hint') }),
-      files,
+      el('details', {}, [el('summary', { text: t('config.files_title') }), files]),
     ]),
     linksCard,
     ...cards,
@@ -232,47 +370,38 @@ async function rConfig() {
     const btn = ev.target.closest('button');
     if (!btn || (!btn.dataset.edit && !btn.dataset.del)) return;
     const key = btn.dataset.edit ?? btn.dataset.del;
-    if (btn.dataset.edit) {
-      const value = prompt(`${t('config.value_for')} ${key}`);
-      if (value === null) return;
-      await api(`env/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ value }),
-      });
-      toast(t('msg.saved'));
-    } else {
-      if (!confirm(`${t('msg.confirm_remove')} ${key}?`)) return;
-      await api(`env/${encodeURIComponent(key)}`, { method: 'DELETE' });
-      toast(t('msg.deleted'));
+    try {
+      if (btn.dataset.edit) {
+        const value = prompt(`${t('config.value_for')} ${key}`);
+        if (value === null) return;
+        await api(`env/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ value }),
+        });
+        toast(t('msg.saved'));
+      } else {
+        if (!confirm(`${t('msg.confirm_remove')} ${key}?`)) return;
+        await api(`env/${encodeURIComponent(key)}`, { method: 'DELETE' });
+        toast(t('msg.deleted'));
+      }
+      rConfig();
+    } catch (e) {
+      toast(`${t('msg.err')} ${e.message}`);
     }
-    rConfig();
   };
 }
 
 // ── jobs ───────────────────────────────────────────────────────────────────
-const STATUSES = [
-  '',
-  'DISCOVERED',
-  'TRIAGED',
-  'TAILORED',
-  'READY_TO_REVIEW',
-  'APPLIED',
-  'APPLIED_VIA_EMAIL',
-  'APPLIED_VIA_WHATSAPP',
-  'NEEDS_HUMAN_INPUT',
-  'SKIPPED',
-  'FAILED',
-  'REJECTED',
-  'INTERVIEW',
-  'ASSESSMENT_INVITED',
-];
 async function rJobs() {
   const p = panel('jobs');
   p.innerHTML = `<h2>${t('jobs.title')}</h2>`;
+  p.append(sub('jobs.sub'));
   const sel = el(
     'select',
     {},
-    STATUSES.map((s) => el('option', { text: s || t('jobs.all'), attrs: { value: s } })),
+    ['', ...JOB_STATUSES].map((s) =>
+      el('option', { text: s ? jobLabel(s) : t('jobs.all'), attrs: { value: s } }),
+    ),
   );
   const q = el('input', { attrs: { type: 'text', placeholder: t('jobs.search') } });
   const btn = el('button', { class: 'primary', text: t('jobs.apply') });
@@ -286,17 +415,23 @@ async function rJobs() {
       `jobs?limit=300${status ? `&status=${status}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}`,
     );
     if (!jobs.length) {
-      tbl.innerHTML = `<p class="muted">${t('jobs.empty')}</p>`;
+      const go = el('button', { class: 'primary', text: t('jobs.empty_go') });
+      go.onclick = () => {
+        show('terminal');
+        runTask(['discover']);
+      };
+      tbl.innerHTML = '';
+      tbl.append(el('p', { class: 'muted', text: t('jobs.empty') }), go);
       return;
     }
-    tbl.innerHTML = `<table><tr><th>${t('jobs.jobtitle')}</th><th>${t('jobs.company')}</th><th>${t('jobs.status')}</th><th>${t('jobs.score')}</th><th>${t('jobs.actions')}</th></tr>${jobs
+    tbl.innerHTML = `<div class="env-scroll"><table><tr><th>${t('jobs.jobtitle')}</th><th>${t('jobs.company')}</th><th>${t('jobs.status')}</th><th>${t('jobs.score')}</th><th>${t('jobs.actions')}</th></tr>${jobs
       .map(
         (j) =>
           `<tr><td><a href="${esc(j.url)}" target="_blank" style="color:var(--accent)">${esc(j.title ?? j.url)}</a></td>` +
-          `<td>${esc(j.company ?? '—')}</td><td><span class="pill">${j.status}</span></td>` +
+          `<td>${esc(j.company ?? '—')}</td><td>${statusPill(j.status)}</td>` +
           `<td>${j.fitScore ?? '—'}</td><td>${actionBtns(j.id)}</td></tr>`,
       )
-      .join('')}</table>`;
+      .join('')}</table></div>`;
   }
   tbl.onclick = jobActions(loadJobs, () => [sel.value, q.value]);
   await loadJobs('', '');
@@ -336,6 +471,7 @@ async function rQueue() {
   p.innerHTML = `<h2>${t('tab.queue')}</h2><p class="muted">${t('common.loading')}</p>`;
   const { human, review, whatsapp } = await api('jobs/queue');
   p.innerHTML = `<h2>${t('tab.queue')}</h2>`;
+  p.append(sub('queue.sub'));
   const section = (title, items) => {
     if (!items?.length) return null;
     return el('div', { class: 'card' }, [
@@ -378,6 +514,68 @@ async function rVault() {
   const p = panel('vault');
   p.innerHTML = `<h2>${t('vault.title')}</h2><p class="muted">${t('common.loading')}</p>`;
   const { refs } = await api('vault');
+  p.innerHTML = `<h2>${t('vault.title')}</h2>`;
+  p.append(sub('vault.sub'));
+
+  // Modo rápido (SMTP) × JSON avançado
+  const modeQuick = el('button', { class: 'mode-btn active', text: t('vault.mode_quick') });
+  const modeJson = el('button', { class: 'mode-btn', text: t('vault.mode_json') });
+  const quickBox = el('div');
+  const jsonBox = el('div', { class: 'hidden' });
+  modeQuick.onclick = () => {
+    modeQuick.classList.add('active');
+    modeJson.classList.remove('active');
+    quickBox.classList.remove('hidden');
+    jsonBox.classList.add('hidden');
+  };
+  modeJson.onclick = () => {
+    modeJson.classList.add('active');
+    modeQuick.classList.remove('active');
+    jsonBox.classList.remove('hidden');
+    quickBox.classList.add('hidden');
+  };
+
+  // — rápida: campos SMTP → JSON interno
+  const qRef = el('input', { attrs: { type: 'text', value: 'smtp-main' } });
+  const qHost = el('input', { attrs: { type: 'text', placeholder: 'smtp.gmail.com' } });
+  const qPort = el('input', { attrs: { type: 'number', value: 587, style: 'width:90px' } });
+  const qUser = el('input', { attrs: { type: 'text', placeholder: 'meu@email.com' } });
+  const qPass = el('input', { attrs: { type: 'password', placeholder: t('vault.q_pass') } });
+  const qSecure = el('input', { attrs: { type: 'checkbox' } });
+  const qSave = el('button', { class: 'primary', text: t('vault.save') });
+  qSave.onclick = async () => {
+    const secret = JSON.stringify({
+      host: qHost.value.trim(),
+      port: Number(qPort.value) || 587,
+      secure: qSecure.checked,
+      user: qUser.value.trim(),
+      pass: qPass.value,
+    });
+    try {
+      await api(`vault/${encodeURIComponent(qRef.value.trim() || 'smtp-main')}`, {
+        method: 'PUT',
+        body: JSON.stringify({ secret }),
+      });
+      toast(t('msg.saved'));
+      rVault();
+    } catch (e) {
+      toast(`${t('msg.err')} ${e.message}`);
+    }
+  };
+  quickBox.append(
+    el('div', { class: 'row' }, [el('span', { class: 'muted', text: t('vault.q_ref') }), qRef]),
+    el('div', { class: 'row' }, [
+      el('span', { class: 'muted', text: 'SMTP' }),
+      qHost,
+      el('span', { class: 'muted', text: 'port' }),
+      qPort,
+      el('label', { class: 'muted' }, [qSecure, document.createTextNode(' ' + t('vault.q_secure'))]),
+    ]),
+    el('div', { class: 'row' }, [qUser, qPass]),
+    el('div', { class: 'row' }, [qSave]),
+  );
+
+  // — avançada: ref + JSON cru
   const refIn = el('input', { attrs: { type: 'text', placeholder: 'smtp-main' } });
   const secretIn = el('textarea', { attrs: { rows: 5, placeholder: t('vault.secret') } });
   const save = el('button', { class: 'primary', text: t('vault.save') });
@@ -388,7 +586,7 @@ async function rVault() {
     try {
       secret = JSON.stringify(JSON.parse(secret));
     } catch {
-      toast(`${t('msg.err')} JSON inválido`);
+      toast(`${t('msg.err')} ${t('vault.bad_json')}`);
       return;
     }
     await api(`vault/${encodeURIComponent(ref)}`, {
@@ -398,6 +596,14 @@ async function rVault() {
     toast(t('msg.saved'));
     rVault();
   };
+  jsonBox.append(
+    el('p', { class: 'muted', text: t('vault.ref') }),
+    refIn,
+    el('p', { class: 'muted', text: t('vault.secret') }),
+    secretIn,
+    el('div', { class: 'row', attrs: { style: 'margin-top:8px' } }, [save]),
+  );
+
   const list = el('table', {
     html: refs.length
       ? refs
@@ -415,16 +621,12 @@ async function rVault() {
     toast(t('msg.deleted'));
     rVault();
   };
-  p.innerHTML = `<h2>${t('vault.title')}</h2>`;
   p.append(
     el('div', { class: 'card' }, [el('h2', { text: t('vault.refs') }), list]),
     el('div', { class: 'card' }, [
-      el('h2', { text: t('vault.add') }),
-      el('p', { class: 'muted', text: t('vault.ref') }),
-      refIn,
-      el('p', { class: 'muted', text: t('vault.secret') }),
-      secretIn,
-      el('div', { class: 'row', attrs: { style: 'margin-top:8px' } }, [save]),
+      el('div', { class: 'row mode-row' }, [modeQuick, modeJson]),
+      quickBox,
+      jsonBox,
     ]),
   );
 }
@@ -435,6 +637,7 @@ async function rProfile() {
   p.innerHTML = `<h2>${t('profile.title')}</h2><p class="muted">${t('common.loading')}</p>`;
   const prof = await api('profile');
   p.innerHTML = `<h2>${t('profile.title')}</h2>`;
+  p.append(sub('profile.sub'));
   const md = el('textarea', { attrs: { rows: 18 } });
   md.value = prof.master ?? '';
   const save = el('button', { class: 'primary', text: t('profile.save') });
@@ -443,10 +646,10 @@ async function rProfile() {
     toast(r.warnings?.length ? `${t('msg.saved')} (⚠ ${r.warnings.length})` : t('msg.saved'));
   };
   const file = el('input', { attrs: { type: 'file', accept: 'application/pdf' } });
-  const imp = el('button', { text: t('profile.import') });
+  const imp = el('button', { class: 'primary', text: t('profile.import') });
   imp.onclick = async () => {
     const f = file.files[0];
-    if (!f) return;
+    if (!f) return toast(t('profile.pick_pdf'));
     const b64 = await new Promise((res, rej) => {
       const r = new FileReader();
       r.onload = () => res(r.result.split(',')[1]);
@@ -465,10 +668,14 @@ async function rProfile() {
   approve.onclick = () => runTask(['approve']);
   p.append(
     el('div', { class: 'card' }, [
+      el('p', { class: 'muted', text: t('profile.steps') }),
       el('div', { class: 'row' }, [file, imp, runImport, approve]),
-      el('p', { class: 'muted', text: prof.master ? prof.masterPath : t('profile.no_master') }),
-      md,
-      el('div', { class: 'row', attrs: { style: 'margin-top:8px' } }, [save]),
+      el('details', {}, [
+        el('summary', { text: t('profile.advanced') }),
+        el('p', { class: 'muted', text: prof.master ? prof.masterPath : t('profile.no_master') }),
+        md,
+        el('div', { class: 'row', attrs: { style: 'margin-top:8px' } }, [save]),
+      ]),
     ]),
     prof.draft
       ? el('div', { class: 'card' }, [
@@ -484,74 +691,94 @@ async function rRuntime() {
   const p = panel('runtime');
   p.innerHTML = `<h2>${t('runtime.title')}</h2><p class="muted">${t('common.loading')}</p>`;
   const rt = await api('runtime');
+  const missing = [
+    ['runtime.node_modules', rt.nodeModules],
+    ['runtime.browsers', rt.browsers],
+    ['runtime.tessdata', rt.tessdata],
+    ['runtime.skills', rt.skills],
+    ['runtime.playwright', rt.playwright],
+  ].filter(([, ok]) => !ok);
+  const allOk = missing.length === 0;
   const row = (k, ok) =>
     `<tr><td>${k}</td><td><span class="pill ${ok ? 'ok' : 'err'}">${ok ? 'ok' : '—'}</span></td></tr>`;
   const setup = el('button', { class: 'primary', text: t('runtime.setup') });
   setup.onclick = () => runTask(['runtime', 'setup']);
   p.innerHTML = `<h2>${t('runtime.title')}</h2>`;
+  p.append(sub('runtime.sub'));
   p.append(
-    el('div', { class: 'card' }, [
-      el('dl', { class: 'kv' }, [
-        el('dt', { text: t('runtime.dir') }),
-        el('dd', { text: rt.runtimeDir ?? '(nenhum)' }),
-        el('dt', { text: t('runtime.candidates') }),
-        el('dd', { text: (rt.candidates ?? []).join(' | ') }),
-      ]),
-      el('table', {
-        html:
-          row(t('runtime.node_modules'), rt.nodeModules) +
-          row(t('runtime.browsers'), rt.browsers) +
-          row(t('runtime.tessdata'), rt.tessdata) +
-          row(t('runtime.skills'), rt.skills) +
-          row(t('runtime.playwright'), rt.playwright),
+    el('div', { class: `card verdict ${allOk ? 'ok' : 'warn'}` }, [
+      el('h2', {
+        text: allOk ? t('runtime.all_ok') : t('runtime.missing'),
       }),
-      el('div', { class: 'row', attrs: { style: 'margin-top:10px' } }, [setup]),
+      allOk
+        ? el('p', { class: 'muted', text: t('runtime.all_ok_desc') })
+        : el('div', {}, [
+            el('p', { class: 'muted', text: t('runtime.missing_desc') }),
+            el('div', { class: 'row' }, [setup]),
+          ]),
+    ]),
+    el('div', { class: 'card' }, [
+      el('details', {}, [
+        el('summary', { text: t('adv.details') }),
+        el('dl', { class: 'kv' }, [
+          el('dt', { text: t('runtime.dir') }),
+          el('dd', { text: rt.runtimeDir ?? '(nenhum)' }),
+          el('dt', { text: t('runtime.candidates') }),
+          el('dd', { text: (rt.candidates ?? []).join(' | ') }),
+        ]),
+        el('table', {
+          html:
+            row(t('runtime.node_modules'), rt.nodeModules) +
+            row(t('runtime.browsers'), rt.browsers) +
+            row(t('runtime.tessdata'), rt.tessdata) +
+            row(t('runtime.skills'), rt.skills) +
+            row(t('runtime.playwright'), rt.playwright),
+        }),
+      ]),
     ]),
   );
 }
 
-// ── terminal ───────────────────────────────────────────────────────────────
+// ── executar (terminal) ────────────────────────────────────────────────────
+// Ações comuns — label+descrição amigáveis; argv roda o binário como subprocesso.
+const ACTIONS = [
+  { id: 'discover', argv: ['discover'], warn: false },
+  { id: 'discover_dry', argv: ['discover', '--dry-run'], warn: false },
+  { id: 'run', argv: ['run'], warn: true },
+  { id: 'run_dry', argv: ['run', '--dry-run'], warn: false },
+  { id: 'review', argv: ['review'], warn: false },
+  { id: 'retry', argv: ['retry', '--send'], warn: true },
+  { id: 'status', argv: ['status'], warn: false },
+  { id: 'import', argv: ['import', '--inbox'], warn: false },
+  { id: 'approve', argv: ['approve'], warn: false },
+  { id: 'config_check', argv: ['config', 'check'], warn: false },
+];
 const CMD_PRESETS = [
   'discover',
-  'discover --dry-run',
   'discover --export jobs.json',
-  'run --dry-run',
-  'run',
   'scan remoteok',
-  'review',
-  'retry --send',
-  'status',
+  'retry',
   'applied',
-  'import --inbox',
-  'approve',
-  'config check',
   'vault list',
   'whatsapp status',
   'login',
   'runtime status',
+  'config get EXECUTION_MODE',
 ];
+let watchTask = null; // preenchido quando a aba Executar é construída
 async function rTerminal() {
   const p = panel('terminal');
   if (p.dataset.built) return;
   p.dataset.built = '1';
-  const sel = el(
-    'select',
-    {},
-    CMD_PRESETS.map((c) => el('option', { text: c })),
-  );
-  const argsIn = el('input', { attrs: { type: 'text', placeholder: t('term.args'), size: 20 } });
-  const run = el('button', { class: 'primary', text: t('term.run') });
   const input = el('input', { attrs: { type: 'text', placeholder: t('term.input') } });
   const send = el('button', { text: t('term.send') });
   const kill = el('button', { class: 'danger', text: t('term.kill') });
   const out = el('pre', { class: 'console' });
   let taskId = null;
-  const term = async (argv) => {
+  const watch = (id) => {
     if (es) es.close();
-    const { task } = await api('tasks', { method: 'POST', body: JSON.stringify({ argv }) });
-    taskId = task.id;
-    out.textContent = `$ ${task.argv.join(' ')}\n`;
-    es = new EventSource(`/api/tasks/${task.id}/events?token=${token}`);
+    taskId = id;
+    es = new EventSource(`/api/tasks/${id}/events?token=${token}`);
     es.onmessage = (ev) => {
       const d = JSON.parse(ev.data);
       if (d.chunk) {
@@ -561,15 +788,59 @@ async function rTerminal() {
       if (d.done) es.close();
     };
     es.onerror = () => es.close();
-    toast(`${t('msg.task_started')} ${task.id.slice(0, 8)}`);
+  };
+  const term = async (argv) => {
+    const { task } = await api('tasks', { method: 'POST', body: JSON.stringify({ argv }) });
+    out.textContent = `$ ${task.argv.join(' ')}\n`;
+    watch(task.id);
+    toast(`${t('msg.task_started')}`);
     renderTasks();
   };
+
+  // ── Ações comuns ─────────────────────────────────────────────────────────
+  const actionGrid = el(
+    'div',
+    { class: 'action-grid' },
+    ACTIONS.map((a) => {
+      const b = el('button', {
+        class: `action-btn ${a.warn ? 'warn' : ''}`,
+        attrs: { title: a.argv.join(' ') },
+      });
+      b.append(
+        el('span', { class: 'action-label', text: t(`action.${a.id}`) }),
+        el('span', { class: 'action-desc', text: t(`action.${a.id}.desc`) }),
+      );
+      b.onclick = async () => {
+        if (a.warn && !confirm(t(`action.${a.id}.confirm`))) return;
+        try {
+          await term(a.argv);
+        } catch (e) {
+          toast(`${t('msg.err')} ${e.message}`);
+        }
+      };
+      return b;
+    }),
+  );
+
+  // ── Avançado ────────────────────────────────────────────────────────────
+  const sel = el(
+    'select',
+    {},
+    CMD_PRESETS.map((c) => el('option', { text: c })),
+  );
+  const argsIn = el('input', { attrs: { type: 'text', placeholder: t('term.args'), size: 20 } });
+  const run = el('button', { class: 'primary', text: t('term.run') });
   run.onclick = () => {
     const argv = [...sel.value.split(' '), ...argsIn.value.trim().split(' ')]
       .map((s) => s.trim())
       .filter(Boolean);
-    term(argv);
+    if (argv.length) term(argv);
   };
+  const adv = el('details', {}, [
+    el('summary', { text: t('term.advanced') }),
+    el('div', { class: 'row' }, [sel, argsIn, run]),
+  ]);
+
   send.onclick = () => {
     if (taskId && input.value)
       api(`tasks/${taskId}/input`, {
@@ -582,37 +853,35 @@ async function rTerminal() {
   const tasksBox = el('div');
   async function renderTasks() {
     const { tasks } = await api('tasks');
-    tasksBox.innerHTML = `<table>${tasks
-      .slice(0, 10)
-      .map(
-        (tk) =>
-          `<tr><td class="muted">${tk.id.slice(0, 8)}</td><td>${esc(tk.argv.join(' '))}</td>` +
-          `<td><span class="pill ${tk.status === 'done' ? 'ok' : tk.status === 'running' ? 'acc' : 'err'}">${tk.status}</span></td>` +
-          `<td><button data-view="${tk.id}">${t('act.edit')}</button></td></tr>`,
-      )
-      .join('')}</table>`;
+    tasksBox.innerHTML = tasks.length
+      ? `<table>${tasks
+          .slice(0, 10)
+          .map(
+            (tk) =>
+              `<tr><td>${esc(tk.argv.join(' '))}</td>` +
+              `<td>${taskPill(tk.status)}</td>` +
+              `<td><button data-view="${tk.id}">${t('term.view')}</button></td></tr>`,
+          )
+          .join('')}</table>`
+      : `<p class="muted">${t('common.none')}</p>`;
     tasksBox.onclick = (ev) => {
       const b = ev.target.closest('button[data-view]');
       if (b) {
-        if (es) es.close();
-        taskId = b.dataset.view;
         out.textContent = '';
-        es = new EventSource(`/api/tasks/${taskId}/events?token=${token}`);
-        es.onmessage = (ev) => {
-          const d = JSON.parse(ev.data);
-          if (d.chunk) {
-            out.textContent += d.chunk;
-            out.scrollTop = out.scrollHeight;
-          }
-          if (d.done) es.close();
-        };
+        watch(b.dataset.view);
       }
     };
   }
+  watchTask = watch;
   p.innerHTML = `<h2>${t('term.title')}</h2>`;
   p.append(
-    el('div', { class: 'card row' }, [sel, argsIn, run]),
-    el('div', { class: 'card' }, [out, el('div', { class: 'row' }, [input, send, kill])]),
+    sub('term.sub'),
+    el('div', { class: 'card' }, [actionGrid, adv]),
+    el('div', { class: 'card' }, [
+      out,
+      el('div', { class: 'row' }, [input, send, kill]),
+      el('p', { class: 'muted', text: t('term.input_hint') }),
+    ]),
     el('div', { class: 'card' }, [el('h2', { text: t('term.task') }), tasksBox]),
   );
   renderTasks();
@@ -621,10 +890,12 @@ function runTask(argv) {
   current = 'terminal';
   show('terminal');
   setTimeout(() => {
-    api('tasks', { method: 'POST', body: JSON.stringify({ argv }) }).then((r) => {
-      toast(`${t('msg.task_started')} ${r.task.id.slice(0, 8)}`);
-      rTerminal();
-    });
+    api('tasks', { method: 'POST', body: JSON.stringify({ argv }) })
+      .then((r) => {
+        toast(`${t('msg.task_started')}`);
+        if (watchTask) watchTask(r.task.id);
+      })
+      .catch((e) => toast(`${t('msg.err')} ${e.message}`));
   }, 50);
 }
 

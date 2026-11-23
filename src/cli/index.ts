@@ -146,7 +146,7 @@ const HELP = [
   '    login <url|portal>                      Browser visível p/ login manual no perfil',
   '    runtime [status|setup]                  Runtime do exe: diagnóstico ou download',
   '                                            (career-runtime/ ao lado do binário)',
-  '    ui [--port N] [--no-open]               Interface gráfica local (dashboard no browser)',
+  '    ui [--port N] [--no-open]               Interface gráfica local (janela app/desktop)',
   '    serve [--port N]                        Só o servidor da UI (usado pelo app desktop)',
   '',
   '  Outros',

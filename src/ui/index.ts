@@ -16,15 +16,47 @@ export interface ServeUiOptions {
   exeDir?: string;
 }
 
+/**
+ * Abre a UI em janela "app-mode" (--app=): a página vira uma janela nativa sem
+ * abas nem barra de endereço — comportamento de app desktop mesmo sem o pacote
+ * Tauri. Edge é pré-instalado no Windows 10/11; Chrome/Chromium e a abertura
+ * comum são fallbacks em ordem.
+ */
 export function openBrowser(url: string): void {
-  const opener =
+  const candidates: Array<{ cmd: string; args: string[] }> =
     process.platform === 'win32'
-      ? { cmd: 'cmd', args: ['/c', 'start', '""', url] }
+      ? [
+          { cmd: 'cmd', args: ['/c', 'start', '""', 'msedge', `--app=${url}`] },
+          { cmd: 'cmd', args: ['/c', 'start', '""', 'chrome', `--app=${url}`] },
+          { cmd: 'cmd', args: ['/c', 'start', '""', url] },
+        ]
       : process.platform === 'darwin'
-        ? { cmd: 'open', args: [url] }
-        : { cmd: 'xdg-open', args: [url] };
-  const child = spawn(opener.cmd, opener.args, { detached: true, stdio: 'ignore', shell: false });
-  child.unref();
+        ? [
+            { cmd: 'open', args: ['-na', 'Google Chrome', '--args', `--app=${url}`] },
+            { cmd: 'open', args: [url] },
+          ]
+        : [
+            { cmd: 'google-chrome', args: [`--app=${url}`] },
+            { cmd: 'chromium', args: [`--app=${url}`] },
+            { cmd: 'xdg-open', args: [url] },
+          ];
+  const tryNext = (i: number): void => {
+    if (i >= candidates.length) return;
+    const c = candidates[i];
+    let child;
+    try {
+      child = spawn(c.cmd, c.args, { detached: true, stdio: 'ignore' });
+    } catch {
+      tryNext(i + 1);
+      return;
+    }
+    child.on('error', () => tryNext(i + 1));
+    child.on('spawn', () => {
+      child.removeAllListeners('error');
+      child.unref();
+    });
+  };
+  tryNext(0);
 }
 
 export async function serveUi(opts: ServeUiOptions = {}): Promise<UiServerHandle> {

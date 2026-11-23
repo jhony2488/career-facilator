@@ -15,6 +15,8 @@ module.exports = tseslint.config(
       'scripts/**',
       'bin/**',
       'probe-*.mjs',
+      'desktop/**',
+      'src/ui/public/**',
     ],
   },
   js.configs.recommended,

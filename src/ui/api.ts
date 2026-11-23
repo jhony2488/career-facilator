@@ -125,6 +125,9 @@ export async function handleApi(
         home: home(),
         dbPath: dbPath(),
         exeDir: deps.exeDir ?? null,
+        // Binário CLI embutido — no app desktop é o sidecar que o usuário
+        // também pode chamar direto no terminal.
+        exePath: isSea() ? process.execPath : null,
         cwd: process.cwd(),
       });
       return true;
