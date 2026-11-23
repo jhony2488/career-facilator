@@ -23,4 +23,5 @@ Versão em português disponível em [`../pt-BR/`](../pt-BR/README.md).
 | 13 | [Profile Intake](13-profile-intake.md) | `src/intake/` module: PDF → Markdown master profile with human review |
 | 14 | [SMTP Setup — Gmail/Outlook](14-smtp-gmail-outlook-setup.md) | App password guide, credential vault and the 45 e-mails/day cap |
 | 15 | [WhatsApp Application](15-whatsapp-application.md) | Manual queue or Evolution API with template text + resume PDF |
-| 16 | [Tutorials](../../tutorials/en/README.md) | Step-by-step install guides (repo, npm global, release binaries), AI model configuration, job discovery and suggested usage sequence |
+| 16 | [Graphical Interface](16-graphical-interface.md) | Local web dashboard `career ui` + Tauri desktop app — config, queue, vault and commands via UI |
+| 17 | [Tutorials](../../tutorials/en/README.md) | Step-by-step install guides (repo, npm global, release binaries), AI model configuration, job discovery and suggested usage sequence |

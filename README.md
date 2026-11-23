@@ -124,6 +124,10 @@ O ZIP traz o executável SEA + `career-runtime/` (Playwright + Chromium, pdf-par
 
 O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele — o `.env` da pasta do exe sobrepõe o do diretório de trabalho. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide com ela). Referência completa de execução/configuração: [tutorials/pt-BR/08-executavel-release.md](tutorials/pt-BR/08-executavel-release.md).
 
+### Interface gráfica
+
+`career ui` abre um **dashboard web local** (bind em `127.0.0.1` + token de sessão) no navegador — configuração completa, vagas/fila, cofre, perfil, runtime e um terminal que roda qualquer comando com saída ao vivo. Para uma janela nativa, o release traz o **app desktop** (`career-ui-<os>-<arch>`: `.exe` NSIS no Windows, `.dmg` no macOS arm64/x64, `.AppImage` no Linux) com o binário e o runtime embutidos. Detalhes: [tutorials/pt-BR/09-interface-grafica.md](tutorials/pt-BR/09-interface-grafica.md) e [docs/pt-BR/16-interface-grafica.md](docs/pt-BR/16-interface-grafica.md).
+
 Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS arm64+x64/Linux (Node SEA single-file + runtime sidecar) → ZIPs e tarballs anexados ao release.
 
 ### Ingestão do seu perfil (currículo)

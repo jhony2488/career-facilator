@@ -52,6 +52,7 @@
 ### CLI e dados do usuário
 
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
+- `career ui` / `career serve` sobem a **interface gráfica local** (`src/ui/` — node:http em 127.0.0.1 + token de sessão; assets de `src/ui/public/` viram sea assets no exe). Comandos rodam como subprocesso do próprio binário (stdout→SSE, stdin alimentável); env mascarado+fonte, cofre só refs. App desktop Tauri em `desktop/` (externalBin=exe + career-runtime + skills) — build via `npm run build:desktop` (Rust só no CI) — ver `docs/pt-BR/16-interface-grafica.md`
 - Marcação manual da fila: `mark <url|id> <status>` (applied|email|whatsapp|skipped|failed|rejected|interview|assessment), `remove <url|id>` (tira do histórico → reprocessável), `retry [url|id]` (refaz o estágio web das vagas NEEDS_HUMAN_INPUT — mesma malha login-cofre/OTP do run, sem discovery/triagem) e `review` interativo no shell — ver `feature/12` e `feature/15`
 - `login <url|portal>` abre o browser visível no perfil persistente p/ login manual — a sessão é reaproveitada por fontes render:true e autofill
 - Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1

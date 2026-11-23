@@ -10,3 +10,5 @@
 8. [Release executable — full execution & configuration](08-release-executable.md)
 
 [Portuguese version](../pt-BR/README.md)
+
+9. [Graphical interface (dashboard + desktop app)](09-graphical-interface.md)

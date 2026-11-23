@@ -124,6 +124,10 @@ The ZIP ships the SEA executable + `career-runtime/` (Playwright + Chromium, pdf
 
 The executable uses the **same configuration** as the other modes: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it, and a `.env` with `CAREER_HOME=.` next to the exe keeps data portable — the exe-folder `.env` outranks the working-directory `.env`. `career --version` shows the `package.json` version (the release validates the `v*` tag matches it). Full execution/configuration reference: [tutorials/en/08-release-executable.md](tutorials/en/08-release-executable.md).
 
+### Graphical interface
+
+`career ui` opens a **local web dashboard** (bound to `127.0.0.1` + session token) in the browser — full configuration, jobs/queue, vault, profile, runtime and a terminal that runs any command with live output. For a native window, the release ships a **desktop app** (`career-ui-<os>-<arch>`: NSIS `.exe` on Windows, `.dmg` on macOS arm64/x64, `.AppImage` on Linux) with the binary and runtime embedded. Details: [tutorials/en/09-graphical-interface.md](tutorials/en/09-graphical-interface.md) and [docs/en/16-graphical-interface.md](docs/en/16-graphical-interface.md).
+
 Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Windows/macOS arm64+x64/Linux matrix (Node SEA single-file + runtime sidecar) → ZIPs and tarballs attached to the release.
 
 ### Ingesting your profile (resume)
