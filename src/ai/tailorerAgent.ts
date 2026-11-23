@@ -83,8 +83,21 @@ export async function tailorResume(input: TailorInput, deps: TailorDeps): Promis
   return {
     resumeMarkdown: output.resumeMarkdown,
     answers: output.answers,
-    resumePath: `storage/generated_resumes/${input.job.id}.pdf`,
+    // job.id pode ser título/URL com chars ilegais em filename (/, :, ?, espaços)
+    resumePath: `storage/generated_resumes/${slugFilename(input.job.id)}.pdf`,
   };
+}
+
+/** Filename seguro: [a-z0-9._-], colapsa o resto em '-', até 80 chars. */
+export function slugFilename(id: string): string {
+  const slug = id
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') /* combining marks U+0300–U+036F */
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
+  return (slug || 'job').slice(0, 80);
 }
 
 export function invalidateProfileCache(): void {

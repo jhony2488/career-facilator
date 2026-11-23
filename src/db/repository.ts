@@ -162,13 +162,13 @@ export class JobRepository {
       );
   }
 
-  async updateStatus(url: string, status: JobStatus): Promise<void> {
+  async updateStatus(url: string, status: JobStatus, resumePath?: string | null): Promise<void> {
     const appliedAt = APPLIED_STATUSES.includes(status) ? new Date().toISOString() : null;
     this.db
       .prepare(
-        'UPDATE jobs SET status = ?, applied_at = COALESCE(?, applied_at) WHERE url = ? OR canonical_url = ?',
+        'UPDATE jobs SET status = ?, applied_at = COALESCE(?, applied_at), resume_path = COALESCE(?, resume_path) WHERE url = ? OR canonical_url = ?',
       )
-      .run(status, appliedAt, url, canonicalizeUrl(url));
+      .run(status, appliedAt, resumePath ?? null, url, canonicalizeUrl(url));
   }
 
   async getByUrl(canonicalUrl: string): Promise<JobRecord | undefined> {

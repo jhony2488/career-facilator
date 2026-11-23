@@ -1,6 +1,7 @@
 import { cleanJobHtml } from '../scraper/domCleaner';
 import { triageJob, type TriageModel, type JobTriageResult } from '../ai/triageAgent';
 import { tailorResume, type TailorModel } from '../ai/tailorerAgent';
+import { buildResumePdf, fallbackResumeMarkdown } from '../generator/resumeBuilder';
 import { selectRelevantSkills } from '../skills/core/skillSelector';
 import { buildSkillsContextBlock } from '../skills/core/skillInjector';
 import type { SkillMetadata } from '../skills/core/skillRegistry';
@@ -289,11 +290,28 @@ export async function runApplicationPipeline(
         },
         { model: deps.tailorModel },
       );
-      app.resumePath = assets.resumePath;
+      // Materializa o PDF adaptado ANTES de qualquer uso (feature/05): o
+      // resumePath passa a ser absoluto sob o home de dados e o arquivo existe
+      // de verdade — sem ele, o anexo no form abria o seletor nativo e travava.
+      app.resumePath = undefined;
+      if (assets.resumePath) {
+        try {
+          const absPath = resolveHome(assets.resumePath);
+          const markdown = assets.resumeMarkdown?.trim() || fallbackResumeMarkdown(profile);
+          await buildResumePdf({ resumeMarkdown: markdown, outputPath: absPath });
+          app.resumePath = absPath;
+        } catch {
+          // Sem arquivo materializado não há anexo possível — escala.
+          stages.push('NEEDS_HUMAN_INPUT');
+          Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'RESUME_PDF_FAILED' });
+          applications.push(app);
+          continue;
+        }
+      }
       // Respostas do tailor vão p/ sidecar — o retry reusa em vez de
       // deixar os campos em branco (decisão #30).
-      if (assets.resumePath && Object.keys(assets.answers).length) {
-        writeAnswers(assets.resumePath, assets.answers);
+      if (app.resumePath && Object.keys(assets.answers).length) {
+        writeAnswers(app.resumePath, assets.answers);
       }
       stages.push('TAILORED');
 
@@ -329,6 +347,8 @@ export async function runApplicationPipeline(
         scope,
         status: 'DISCOVERED',
         discoveredAt: new Date().toISOString(),
+        // Path absoluto do PDF materializado — persistido p/ o retry reanexar.
+        resumePath: app.resumePath ?? null,
       });
 
       if (route === 'DEFER') {
@@ -359,7 +379,7 @@ export async function runApplicationPipeline(
             clean.title ?? '',
             markdown,
             scope,
-            assets.resumePath,
+            app.resumePath,
             skills,
             profile,
             config,
@@ -411,7 +431,7 @@ export async function runApplicationPipeline(
               aiAnswers: assets.answers,
               fieldDefaults: deps.fieldDefaults,
               fuzzyThreshold: deps.fuzzyThreshold,
-              resumePath: assets.resumePath,
+              resumePath: app.resumePath,
               submitMode,
               humanPace: deps.humanPace,
               debug: deps.debugFill,
@@ -421,7 +441,7 @@ export async function runApplicationPipeline(
               aiAnswers: assets.answers,
               fieldDefaults: deps.fieldDefaults,
               fuzzyThreshold: deps.fuzzyThreshold,
-              resumePath: assets.resumePath,
+              resumePath: app.resumePath,
               submitMode,
             }));
 
@@ -450,7 +470,7 @@ export async function runApplicationPipeline(
                 jobUrl: raw.url,
                 matched,
                 aiAnswers: assets.answers,
-                resumePath: assets.resumePath,
+                resumePath: app.resumePath,
               })
               .catch(() => false);
           }
