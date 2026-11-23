@@ -3,9 +3,20 @@
 // Consumido pelo empacotamento (package-release.mjs) e pelo runtime setup.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const req = createRequire(import.meta.url);
+
+/** Versão realmente instalada no projeto — mantém runtime e dev alinhados. */
+const installedVersion = (name) => {
+  try {
+    return req(`${name}/package.json`).version;
+  } catch {
+    return pkg.dependencies?.[name] ?? 'latest';
+  }
+};
 
 // Pacotes externos do bundle SEA — carregados via createRequire no exe.
 const RUNTIME_PKGS = [
@@ -26,7 +37,7 @@ writeFileSync(
   JSON.stringify({ name: 'career-runtime', private: true }, null, 2) + '\n',
 );
 
-const specs = RUNTIME_PKGS.map((n) => `${n}@${pkg.dependencies?.[n] ?? 'latest'}`);
+const specs = RUNTIME_PKGS.map((n) => `${n}@${installedVersion(n)}`);
 console.log(`npm install (runtime): ${specs.join(' ')}`);
 const install = spawnSync(
   'npm',

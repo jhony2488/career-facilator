@@ -59,25 +59,37 @@ export function runtimeDir(env: NodeJS.ProcessEnv = process.env): string | null 
 }
 
 /**
- * Carrega um pacote externo do runtime. Tenta `import()` primeiro (dev/tsx e
- * pacotes embutidos no bundle); falhando, tenta `createRequire` contra cada
- * candidato de runtime — os pacotes CJS do sidecar resolvem suas próprias
- * deps internas (worker files, wasm, etc.). O último candidato é o
- * packageRoot, que resolve o node_modules do projeto em dev/testes.
+ * Carrega um pacote externo do runtime.
+ * - Dev/tsx: `import()` normal contra o node_modules do projeto.
+ * - SEA: `createRequire` contra cada candidato de runtime PRIMEIRO — a pasta
+ *   sidecar é a fonte de verdade do binário (import() resolveria o
+ *   node_modules do projeto quando o exe roda dentro do repo, mascarando o
+ *   runtime e quebrando a versão do browser); import() vira último recurso.
+ * Os pacotes CJS do sidecar resolvem suas deps internas por caminho real
+ * (worker files, wasm, browsers).
  */
 export async function loadRuntimeModule<T = unknown>(
   name: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<T> {
   let lastErr: unknown;
-  try {
-    return (await import(name)) as T;
-  } catch (e) {
-    lastErr = e;
+  if (!isSea()) {
+    try {
+      return (await import(name)) as T;
+    } catch (e) {
+      lastErr = e;
+    }
   }
   for (const dir of runtimeDirCandidates(env)) {
     try {
       return createRequire(join(dir, 'runtime-marker.cjs'))(name) as T;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (isSea()) {
+    try {
+      return (await import(name)) as T;
     } catch (e) {
       lastErr = e;
     }
