@@ -4,15 +4,15 @@
 // O sidecar carrega `career-runtime/` (CAREER_RUNTIME aponta p/ o recurso
 // empacotado) e morre junto com a janela/app.
 use std::sync::Mutex;
-use tauri::{
-    process::{Command, CommandChild, CommandEvent},
-    Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
-};
+use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 
 struct Sidecar(Mutex<Option<CommandChild>>);
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let rt_dir = app
                 .path()
@@ -20,7 +20,9 @@ fn main() {
                 .ok()
                 .map(|d| d.join("career-runtime"));
 
-            let mut cmd = Command::new_sidecar("career")
+            let mut cmd = app
+                .shell()
+                .sidecar("career")
                 .map_err(|e| format!("sidecar 'career' não encontrado no pacote: {e}"))?
                 .args(["serve", "--port", "0", "--no-open"]);
             if let Some(dir) = rt_dir {
