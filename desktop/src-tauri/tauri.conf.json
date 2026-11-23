@@ -4,7 +4,7 @@
   "version": "0.9.0",
   "identifier": "dev.careerfacilator.ui",
   "build": {
-    "frontendDist": "../src/ui/public"
+    "frontendDist": "../../src/ui/public"
   },
   "app": {
     "windows": [],
