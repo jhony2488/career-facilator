@@ -133,10 +133,7 @@ export function writeSimplePdf(pages: PdfLine[][]): Buffer {
   const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(' ');
   objs[1] = Buffer.from(`<< /Type /Pages /Kids [ ${kids} ] /Count ${pages.length} >>`, 'latin1');
   objs[2] = Buffer.from(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`, 'latin1');
-  objs[3] = Buffer.from(
-    `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`,
-    'latin1',
-  );
+  objs[3] = Buffer.from(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`, 'latin1');
   pages.forEach((lines, i) => {
     const pageObj = 5 + i * 2;
     const contentObj = pageObj + 1;
