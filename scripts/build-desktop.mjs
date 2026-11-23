@@ -50,6 +50,26 @@ for (const [src, dest] of [
 }
 console.log(`binaries staged: career-${triple}${ext} + career-runtime/ + skills/`);
 
+// O resource glob `binaries/skills/**` do bundler falha duro quando a pasta sobe
+// vazia/ausente (ex.: zip do CI sem skills). Garante ≥1 arquivo e avisa —
+// o app empacota sem skills (degrada p/ nenhuma skill ativa) em vez de quebrar.
+let skillsHasFiles = false;
+try {
+  skillsHasFiles = readdirSync(join(BIN, 'skills'), { withFileTypes: true }).some((e) =>
+    e.isDirectory() ? readdirSync(join(BIN, 'skills', e.name)).length > 0 : e.isFile(),
+  );
+} catch {
+  mkdirSync(join(BIN, 'skills'), { recursive: true });
+}
+if (!skillsHasFiles) {
+  console.warn('aviso: skills/ veio vazio ou ausente no pacote CLI — bundling sem library.');
+  writeFileSync(join(BIN, 'skills', 'README.txt'), 'skills library ausente neste pacote\n');
+}
+for (const name of ['career-runtime', 'skills']) {
+  const files = walkAll(join(BIN, name)).length;
+  console.log(`binaries/${name}: ${files} arquivo(s)`);
+}
+
 // ── Ícone placeholder (PNG 512px flat #3ea6ff + "C") — troque por arte real. ──
 function crc32(buf) {
   let c,
