@@ -50,6 +50,8 @@ const uiAssets = Object.fromEntries(
     f.replaceAll('\\', '/'),
   ]),
 );
+// `.env.example` raiz: alimenta o catálogo de variáveis da aba Config no exe.
+uiAssets['ui/env.example'] = '.env.example';
 writeFileSync(
   'sea-config.json',
   JSON.stringify(

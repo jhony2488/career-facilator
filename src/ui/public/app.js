@@ -111,17 +111,101 @@ async function rDash() {
 async function rConfig() {
   const p = panel('config');
   p.innerHTML = `<h2>${t('config.title')}</h2><p class="muted">${t('common.loading')}</p>`;
-  const data = await api('env');
-  const rows = data.entries
-    .map(
-      (e) =>
-        `<tr><td><code>${esc(e.key)}</code></td><td>${esc(e.value)}</td>` +
-        `<td><span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${e.source}</span></td>` +
-        `<td><button data-edit="${esc(e.key)}">${t('act.edit')}</button> ` +
-        `<button class="danger" data-del="${esc(e.key)}">${t('act.del')}</button></td></tr>`,
-    )
-    .join('');
-  p.innerHTML = '';
+  const [data, example] = await Promise.all([api('env'), api('env/example').catch(() => null)]);
+  const setMap = Object.fromEntries(data.entries.map((e) => [e.key, e]));
+  const usedKeys = new Set(example?.sections.flatMap((s) => s.items.map((i) => i.key)) ?? []);
+  const extras = data.entries.filter((e) => !usedKeys.has(e.key));
+
+  const rowHtml = (key, e, def, comment) => {
+    const val = e ? esc(e.value) : `<span class="muted">${t('common.none')}</span>`;
+    const src = e
+      ? `<span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${e.source}</span>`
+      : '';
+    const defTxt = def ? ` <span class="muted">(default: ${esc(def)})</span>` : '';
+    const commentTxt = comment
+      ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(comment)}</div>`
+      : '';
+    return (
+      `<tr><td class="env-key"><code>${esc(key)}</code>${commentTxt}</td>` +
+      `<td class="env-val" title="${esc(e?.value ?? def ?? '')}">${val}${defTxt}</td>` +
+      `<td>${src}</td>` +
+      `<td class="env-act"><button data-edit="${esc(key)}">${t('act.edit')}</button>` +
+      (e ? ` <button class="danger" data-del="${esc(key)}">${t('act.del')}</button>` : '') +
+      `</td></tr>`
+    );
+  };
+  const tableHtml = (rows) =>
+    `<table class="env-table"><tr><th class="w-key">${t('config.key')}</th>` +
+    `<th class="w-val">${t('config.value')}</th><th class="w-src">${t('config.source')}</th>` +
+    `<th class="w-act"></th></tr>${rows}</table>`;
+
+  p.innerHTML = `<h2>${t('config.title')}</h2>`;
+
+  // ── Importar .env ──────────────────────────────────────────────────────
+  const file = el('input', { attrs: { type: 'file', accept: '.env,text/plain' } });
+  const impBtn = el('button', { class: 'primary', text: t('config.import') });
+  const paste = el('textarea', {
+    attrs: {
+      rows: 3,
+      placeholder: t('config.import_paste'),
+      style: 'width:100%;margin:6px 0',
+    },
+  });
+  impBtn.onclick = async () => {
+    let content = paste.value;
+    if (file.files[0]) content = await file.files[0].text();
+    if (!content.trim()) return toast(t('config.import_empty'));
+    const r = await api('env/import', { method: 'POST', body: JSON.stringify({ content }) });
+    toast(`${t('config.import_done')} ${r.applied}`);
+    rConfig();
+  };
+
+  // ── Links p/ tutoriais ─────────────────────────────────────────────────
+  const REPO = 'https://github.com/jhony2488/career-facilitator/blob/main';
+  const LINKS = [
+    ['tutorials/pt-BR/04-configurando-ollama.md', t('config.link_ollama')],
+    ['tutorials/pt-BR/05-configurando-ias-remotas.md', t('config.link_remote')],
+    ['tutorials/pt-BR/03-instalacao-binario-release.md', t('config.link_exe')],
+    ['docs/pt-BR/09-configuracao.md', t('config.link_configdoc')],
+    ['docs/pt-BR/16-interface-grafica.md', t('config.link_ui')],
+  ];
+  const linksCard = el('div', { class: 'card' }, [
+    el('h2', { text: t('config.links') }),
+    ...LINKS.map(([path, label]) =>
+      el('div', { class: 'env-link' }, [
+        el('a', {
+          text: label,
+          attrs: { href: `${REPO}/${path}`, target: '_blank', rel: 'noopener' },
+        }),
+      ]),
+    ),
+  ]);
+
+  // ── Catálogo por seção (do .env.example) + extras setados ─────────────
+  const cards = [];
+  for (const sec of example?.sections ?? []) {
+    const rows = sec.items
+      .map((it) => rowHtml(it.key, setMap[it.key], it.default, it.comment))
+      .join('');
+    cards.push(
+      el('div', { class: 'card' }, [
+        el('h2', { text: sec.title }),
+        el('div', { class: 'env-scroll', html: tableHtml(rows) }),
+      ]),
+    );
+  }
+  if (extras.length) {
+    cards.push(
+      el('div', { class: 'card' }, [
+        el('h2', { text: t('config.extras') }),
+        el('div', {
+          class: 'env-scroll',
+          html: tableHtml(extras.map((e) => rowHtml(e.key, e)).join('')),
+        }),
+      ]),
+    );
+  }
+
   const files = el('dl', { class: 'kv' }, [
     el('dt', { text: t('config.file_home') }),
     el('dd', { text: data.homeEnvFile }),
@@ -131,23 +215,24 @@ async function rConfig() {
       ? [el('dt', { text: t('config.file_exe') }), el('dd', { text: data.exeEnvFile })]
       : []),
   ]);
-  const add = el('button', { class: 'primary', text: t('config.add') });
-  add.onclick = async () => {
-    const key = prompt(t('config.key_name'));
-    if (!key) return;
-    const value = prompt(`${t('config.value_for')} ${key}`) ?? '';
-    await api(`env/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ value }) });
-    toast(t('msg.saved'));
-    rConfig();
-  };
-  const tbl = el('table', {
-    html: `<tr><th>${t('config.key')}</th><th>${t('config.value')}</th><th>${t('config.source')}</th><th></th></tr>${rows}`,
-  });
-  tbl.onclick = async (ev) => {
+
+  p.append(
+    el('div', { class: 'card' }, [
+      el('div', { class: 'row' }, [file, impBtn]),
+      paste,
+      el('p', { class: 'muted', text: t('config.hint') }),
+      files,
+    ]),
+    linksCard,
+    ...cards,
+  );
+
+  // Delegação única p/ botões editar/remover de todas as tabelas.
+  p.onclick = async (ev) => {
     const btn = ev.target.closest('button');
-    if (!btn) return;
-    const [key, kind] = btn.dataset.edit ? [btn.dataset.edit, 'edit'] : [btn.dataset.del, 'del'];
-    if (kind === 'edit') {
+    if (!btn || (!btn.dataset.edit && !btn.dataset.del)) return;
+    const key = btn.dataset.edit ?? btn.dataset.del;
+    if (btn.dataset.edit) {
       const value = prompt(`${t('config.value_for')} ${key}`);
       if (value === null) return;
       await api(`env/${encodeURIComponent(key)}`, {
@@ -162,14 +247,6 @@ async function rConfig() {
     }
     rConfig();
   };
-  p.append(
-    el('div', { class: 'card' }, [
-      el('div', { class: 'row' }, [add]),
-      el('p', { class: 'muted', text: t('config.hint') }),
-      tbl,
-    ]),
-    el('div', { class: 'card' }, [el('h2', { text: t('config.files') }), files]),
-  );
 }
 
 // ── jobs ───────────────────────────────────────────────────────────────────

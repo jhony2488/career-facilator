@@ -219,3 +219,53 @@ input[type='file'] {
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Aba Configuração — tabela com colunas fixas para não estourar o card com
+   valores longos (paths Windows, URLs) e scroll vertical por seção. */
+.env-scroll {
+  overflow-x: auto;
+  max-height: 440px;
+  overflow-y: auto;
+}
+.env-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.env-table .w-key {
+  width: 30%;
+}
+.env-table .w-val {
+  width: 42%;
+}
+.env-table .w-src {
+  width: 10%;
+}
+.env-table .w-act {
+  width: 18%;
+}
+.env-key code {
+  word-break: break-all;
+  font-size: 12px;
+}
+.env-val {
+  word-break: break-all;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+}
+.env-act {
+  white-space: nowrap;
+}
+.env-act button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.env-link {
+  margin: 4px 0;
+}
+.env-link a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.env-link a:hover {
+  text-decoration: underline;
+}

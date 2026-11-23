@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { loadCareerOpsConfig, loadEffectiveEnv } from '../config/loadConfig';
@@ -15,6 +15,8 @@ import { JobRepository } from '../db/repository';
 import { FileCredentialVault } from '../email_application/credentialVault';
 import { compileMasterProfile } from '../intake/profileCompiler';
 import { listEnvEntries } from './envMap';
+import { parseEnvExample, readEnvExample } from './envExample';
+import { parseEnvFile } from '../config/loadConfig';
 import { getTask, killTask, listTasks, startTask, subscribeTask, taskInput } from './tasks';
 import { tokenOk } from './auth';
 
@@ -130,6 +132,32 @@ export async function handleApi(
 
     // ── Env (config) ──────────────────────────────────────────────────────
     if (a === 'env') {
+      if (method === 'GET' && b === 'example') {
+        const content = readEnvExample();
+        json(res, content ? 200 : 404, content ? { sections: parseEnvExample(content) } : {});
+        return true;
+      }
+      if (method === 'POST' && b === 'import') {
+        const body = (await readBody(req)) as { content?: string };
+        if (typeof body.content !== 'string' || !body.content.trim()) {
+          json(res, 400, { error: 'campo "content" (conteúdo do .env) obrigatório' });
+          return true;
+        }
+        // Reaproveita o parser do app — ignora comentários/linhas inválidas.
+        const tmp = join(home(), `.ui-import-${Date.now()}.env`);
+        writeFileSync(tmp, body.content, 'utf8');
+        const parsed = parseEnvFile(tmp);
+        rmSync(tmp, { force: true });
+        const file = env().homeEnvFile;
+        let applied = 0;
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v !== 'string') continue;
+          setEnvKey(file, k, v);
+          applied++;
+        }
+        json(res, 200, { ok: true, applied, file });
+        return true;
+      }
       if (method === 'GET') {
         json(res, 200, listEnvEntries(seaOpts));
         return true;
