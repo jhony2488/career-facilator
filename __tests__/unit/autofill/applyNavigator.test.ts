@@ -104,7 +104,7 @@ describe('agentNavigateToForm — LLM-guided navigation fallback', () => {
   });
 
   it('respects maxSteps when the model keeps acting without reaching a form', async () => {
-    let url = 'https://acme.example/job/1';
+    const url = 'https://acme.example/job/1';
     const page = fakePage({ snap: emptySnap() });
     let i = 0;
     page.url.mockImplementation(() => `${url}#${i}`);

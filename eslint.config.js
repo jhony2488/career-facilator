@@ -14,6 +14,7 @@ module.exports = tseslint.config(
       'eslint.config.js',
       'scripts/**',
       'bin/**',
+      'probe-*.mjs',
     ],
   },
   js.configs.recommended,
