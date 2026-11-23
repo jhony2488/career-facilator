@@ -60,6 +60,12 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Então nenhum dado é inventado para o campo
     E a candidatura muda para "NEEDS_HUMAN_INPUT" com o motivo registrado
 
+  Cenário: Reabrir o formulário visível listando as perguntas sem resposta
+    Dado que o formulário contém perguntas obrigatórias sem resposta por nenhuma fonte
+    Quando a candidatura é escalonada em página real
+    Então o formulário é reaberto em janela visível para o usuário responder e enviar
+    E as perguntas pendentes são listadas no alerta ao usuário
+
   Cenário: Preservar o progresso ao escalonar
     Dado que a candidatura foi escalonada para "NEEDS_HUMAN_INPUT"
     Quando o escalonamento ocorre
@@ -97,6 +103,8 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
 # Decisão: muro de login — página com URL de auth ou campo de senha em formulário
 # curto é escalonada; em headless o form reabre visível, o usuário loga e a
 # candidatura é retomada com os campos refeitos (AUTOFILL_VISIBLE_ON_ESCALATION).
+# O mesmo reabrir visível cobre perguntas obrigatórias sem resposta por nenhuma
+# fonte (nem pela IA ao vivo) — o alerta lista as perguntas pendentes.
 # Decisão: antes de escalar, credencial do portal no cofre (login-<domínio>)
 # autentica o muro sozinha; verificação anti-robô que segura o login cai no
 # acesso por e-mail do portal (magic link) lido da caixa do usuário no cofre —

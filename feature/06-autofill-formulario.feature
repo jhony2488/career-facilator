@@ -96,7 +96,32 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
     Quando a inspeção da página é executada
     Então a candidatura segue pelo canal de e-mail, WhatsApp ou revisão humana
 
+  Cenário: Marcar a alternativa correspondente em pergunta de escolha única
+    Dado que o formulário contém uma pergunta com alternativas de escolha única
+    Quando o preenchimento é executado
+    Então a alternativa correspondente à resposta resolvida é marcada
+    E nenhuma outra alternativa do mesmo grupo é marcada
+
+  Cenário: Responder ao vivo perguntas fora do escopo do perfil
+    Dado que o formulário contém perguntas sem resposta por nenhuma fonte
+    Quando o preenchimento é executado
+    Então a IA é acionada uma única vez por etapa para todas essas perguntas
+    E cada resposta gerada é registrada junto às demais respostas da candidatura
+
+  Cenário: Pergunta obrigatória respondida só pela IA ao vivo pausa antes do envio
+    Dado que uma pergunta obrigatória foi respondida apenas pela IA ao vivo
+    Quando o modo de execução permite envio automático
+    Então o fluxo pausa antes do envio definitivo para revisão humana
+
+  Cenário: IA ao vivo que não sustenta resposta no perfil não inventa dados
+    Dado que uma pergunta obrigatória não é coberta por nada no perfil do usuário
+    Quando a IA ao vivo é consultada
+    Então a pergunta segue sem resposta e a candidatura escala para "NEEDS_HUMAN_INPUT"
+
 # Decisão: campo padronizado ausente no perfil usa o valor padrão configurável
 # (fieldDefaults).
 # Decisão: "pergunta conhecida" = similaridade de texto de pelo menos 90% com uma
 # pergunta já respondida em cache.
+# Decisão (#39): perguntas sem resposta por nenhuma fonte vão à IA uma vez por
+# etapa — só o que o perfil sustenta é respondido; pergunta obrigatória
+# respondida só por ela pausa antes do envio; sem resposta, escala.
