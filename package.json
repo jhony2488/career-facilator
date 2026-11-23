@@ -1,6 +1,6 @@
 {
   "name": "career-facilitator-ts",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "CareerFacilator AI — autonomous job prospecting, semantic triage, resume tailoring and assisted application with inference optimization",
   "type": "commonjs",
@@ -35,10 +35,14 @@
     "build:exe": "npm run bundle && npm run sea && npm run inject",
     "build:runtime": "node scripts/build-runtime.mjs",
     "package:dist": "node scripts/package-release.mjs",
-    "dist": "npm run build:exe && npm run build:runtime && npm run package:dist"
+    "dist": "npm run build:exe && npm run build:runtime && npm run package:dist",
+    "build:desktop": "npm run dist && node scripts/build-desktop.mjs",
+    "build:desktop:prep": "node scripts/build-desktop.mjs --no-build",
+    "ui": "npm run cli -- ui"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.12.6",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.0",
     "@types/nodemailer": "^8.0.2",
