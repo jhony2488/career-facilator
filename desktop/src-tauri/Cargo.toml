@@ -8,6 +8,9 @@ edition = "2021"
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 
+[build-dependencies]
+tauri-build = "2"
+
 [profile.release]
 opt-level = 3
 lto = true

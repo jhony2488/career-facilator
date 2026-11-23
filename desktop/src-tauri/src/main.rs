@@ -11,7 +11,7 @@ use tauri_plugin_shell::ShellExt;
 struct Sidecar(Mutex<Option<CommandChild>>);
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let rt_dir = app
@@ -42,8 +42,9 @@ fn main() {
                     if opened {
                         continue;
                     }
-                    if let CommandEvent::Stdout(line) | CommandEvent::Stderr(line) = event {
+                    if let CommandEvent::Stdout(bytes) | CommandEvent::Stderr(bytes) = event {
                         // cmdUi imprime "Interface gráfica em http://127.0.0.1:<p>/?token=<t>"
+                        let line = String::from_utf8_lossy(&bytes);
                         if let Some(raw) =
                             line.split_whitespace().find(|w| w.starts_with("http://"))
                         {
@@ -65,17 +66,20 @@ fn main() {
             });
             Ok(())
         })
-        .on_event(|app, event| {
-            if let RunEvent::Exit = event {
-                if let Some(state) = app.try_state::<Sidecar>() {
-                    if let Ok(mut guard) = state.0.lock() {
-                        if let Some(child) = guard.take() {
-                            let _ = child.kill();
-                        }
-                    }
-                }
-            }
-        })
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("falha ao iniciar CareerFacilator UI");
+
+    app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            if let Some(child) = handle
+                .state::<Sidecar>()
+                .0
+                .lock()
+                .ok()
+                .and_then(|mut g| g.take())
+            {
+                let _ = child.kill();
+            }
+        }
+    });
 }
