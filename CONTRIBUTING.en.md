@@ -16,6 +16,10 @@ npm run lint         # ESLint
 npm run format:check # Prettier
 npx tsc --noEmit     # Typecheck
 npm run test         # 36 Jest suites
+
+# Executable build (optional, to test packaging):
+npm run build:exe    # SEA binary → dist/career-<os>-<arch>
+npm run dist         # exe + career-runtime/ + career-<os>.zip + runtime tarball
 ```
 
 ## PR rules

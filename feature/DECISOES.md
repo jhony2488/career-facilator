@@ -74,6 +74,11 @@ Consolidado das lacunas de requisito identificadas durante a escrita dos cenári
 - [x] Falha no envio via Evolution API. **Decisão:** mesmo contrato do e-mail — retry transitório até 3× com backoff; esgotado → `NEEDS_HUMAN_INPUT`.
 - [x] Confirmação do envio manual da fila. **Decisão:** o usuário confirma ao trabalhar a fila ou por marcação direta — a candidatura vira `APPLIED_VIA_WHATSAPP` e o cooldown por número passa a valer.
 
+### 16-distribuicao-executavel.feature
+- [x] Recursos que não cabem no binário single-file (navegadores, leitores de PDF/OCR, módulos com arquivos internos). **Decisão:** pasta de runtime sidecar `career-runtime/` ao lado do executável — nunca embutida; ausente → degradação segura para canais de mensagem/`NEEDS_HUMAN_INPUT`.
+- [x] Local da configuração e dos dados no binário. **Decisão:** `.env` na pasta do executável vale acima do `.env` do diretório de trabalho (abaixo das variáveis de ambiente); `CAREER_HOME` relativo ancora na pasta do executável — modo portátil real.
+- [x] Como completar o runtime em quem baixou só o binário. **Decisão:** comando da própria CLI `runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` do release da versão em uso; `runtime status` diagnostica. O ZIP completo segue como instalação recomendada.
+
 ## Nota sobre os testes (`__tests__/`)
 
 As suites Jest em `__tests__/` usam assinaturas dos módulos `src/` centralizadas em `__tests__/helpers/contracts.ts`. Com a implementação em andamento, esse arquivo é o contrato mantido — divergências devem ser resolvidas lá primeiro.
@@ -124,3 +129,6 @@ Valores e comportamentos confirmados em decisão — refletidos na config e nos 
 ender: true e renderizada em browser persistente — o mesmo do autofill (AUTOFILL_PROFILE_DIR, ou DISCOVERY_BROWSER_PROFILE_DIR se setado): um login manual serve p/ descobrir e preencher; gupy roda por acesso direto, sem api.gupy.io |
 | 32 | Navegação interativa no LinkedIn | `renderPage` (mesma sessão do renderText) executa `interact` na página viva — scroll do feed (`DISCOVERY_SCROLL_MAX`, default 5) + clique "ver mais" para expandir posts/descrições truncadas; `geoId`/`f_WT` na busca vem de `DISCOVERY_REGIONS`/`DISCOVERY_WORK_MODELS` (GLOBAL = remoto mundial, sem geoId); encurtadores (`lnkd.in`, `bit.ly`…) de posts são seguidos no browser e a URL final vira a candidatura (listagem resolvida é descartada) |
 | 33 | Easy Apply LinkedIn | Vaga `linkedin.com/jobs/view|collections` sem form à vista → `openEasyApplyModal` clica "Candidatura simplificada"/"Easy Apply" e o wizard multi-etapas entra no mesmo loop de wizard (Avançar/Revisar = navegação de etapa, Enviar candidatura = submit); submit só sob o modo configurado; pergunta desconhecida/CAPTCHA → `NEEDS_HUMAN_INPUT` |
+| 34 | Runtime do executável | `career-runtime/` ao lado do binário — `node_modules` (playwright*/stealth, pdf-parse, tesseract.js) + `browsers/` + `tessdata/`; carregado por `createRequire` via `src/utils/runtimeModules.ts`; `CAREER_RUNTIME` sobrescreve o local; sem ele → degradação p/ mensagens/revisão |
+| 35 | Config e dados portáteis | `.env` na pasta do exe entra na cadeia (`<home>/.env` < `./.env` < `<exe>/.env` < env); `CAREER_HOME` relativo ancora no dir do exe — dados ao lado do binário, de qualquer cwd |
+| 36 | Distribuição | `career-<os>-<arch>.zip` completo (exe + runtime + skills + .env.example) é a instalação recomendada; binário solto + `career runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` do release como alternativa |

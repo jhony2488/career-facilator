@@ -20,6 +20,7 @@ Cenários comportamentais em Gherkin (`# language: pt`) cobrindo todos os módul
 | 12 | [12-tracking-e-dry-run.feature](12-tracking-e-dry-run.feature) | Feedback loop, marcação manual, reteste de pendências e modo de simulação |
 | 13 | [13-ingestao-de-perfil.feature](13-ingestao-de-perfil.feature) | Ingestão de currículos em PDF, rascunho com revisão humana e perfil-mestre |
 | 15 | [15-candidatura-whatsapp.feature](15-candidatura-whatsapp.feature) | Candidatura por número de WhatsApp — fila manual ou Evolution API |
+| 16 | [16-distribuicao-executavel.feature](16-distribuicao-executavel.feature) | Paridade do executável standalone — runtime sidecar, config portátil e degradação segura |
 
 ## Documentos auxiliares
 

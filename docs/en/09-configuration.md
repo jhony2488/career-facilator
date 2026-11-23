@@ -152,9 +152,12 @@ Relative paths in `profile` and `storage/` (including `jobs.sqlite`) resolve und
 
 - `CAREER_HOME` — explicit directory override;
 - `~/.careerfacilator` — default when the CLI runs globally installed (`npm link`/`npm i -g`, `career`/`career-facilitator` binary via `bin/career.cjs`);
-- In repo development, the local `.env` pins `CAREER_HOME=.`, keeping data inside the project folder.
+- In repo development, the local `.env` pins `CAREER_HOME=.`, keeping data inside the project folder;
+- In the **SE binary (SEA)**, a relative `CAREER_HOME` anchors on the binary's own folder — a `.env` next to the exe with `CAREER_HOME=.` keeps data portable beside it, regardless of the working directory it was invoked from.
 
-**Configuration precedence:** `defaults` < `<home>/.env` < `./.env` (project) < environment variables. Reading is handled by `src/config/loadConfig.ts` and path resolution by `src/config/paths.ts`.
+**Configuration precedence:** `defaults` < `<home>/.env` < `./.env` (cwd) < `<exe>/.env` (SEA binary only) < environment variables. Reading is handled by `src/config/loadConfig.ts` and path resolution by `src/config/paths.ts`.
+
+**Executable runtime (env):** in the SEA binary, modules that do not fit in the single file — playwright/playwright-extra/stealth, pdf-parse, tesseract.js — plus the Chromium browsers live in the `career-runtime/` folder next to the exe; `CAREER_RUNTIME=<dir>` overrides the location. `career runtime status` diagnoses the components (node_modules, browsers, tessdata, skills) and `career runtime setup` downloads the `career-runtime-<os>-<arch>.tar.gz` package from the release matching the version in use. Without the runtime, web forms degrade to message channels/`NEEDS_HUMAN_INPUT` (see `feature/16`); the skills library can sit in `skills/` next to the exe.
 
 **Individual path overrides (env):** `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH` — relative values also resolve under `<home>`.
 

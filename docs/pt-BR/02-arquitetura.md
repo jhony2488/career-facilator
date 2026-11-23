@@ -57,8 +57,8 @@ career-facilitator-ts/
 │   │   ├── profile.master.md        # Perfil-mestre editável (fonte da verdade)
 │   │   ├── profile.master.json      # Compilado do MD — artefato do cache de prompt
 │   │   ├── careerOps.config.ts      # Roteamento de modelos, limites de score e orçamento
-│   │   ├── loadConfig.ts            # Cadeia de .env: <home> → ./.env → process.env
-│   │   ├── paths.ts                 # Diretório de dados (CAREER_HOME → ~/.careerfacilator)
+│   │   ├── loadConfig.ts            # Cadeia de .env: <home> → ./.env → <exe>/.env (SEA) → process.env
+│   │   ├── paths.ts                 # Diretório de dados (CAREER_HOME → ~/.careerfacilator; relativo ancora no exe em SEA)
 │   │   └── envFile.ts               # Leitura/escrita de chaves do .env (config set/unset)
 │   ├── intake/
 │   │   ├── intakeCore.ts            # Orquestra o fluxo: inbox/comando → aprovação → compilação
@@ -117,7 +117,9 @@ career-facilitator-ts/
 │   │   ├── evolutionClient.ts       # REST da Evolution API (sendText/sendMedia)
 │   │   └── whatsappAppCore.ts       # Orquestrador: fila manual ou envio via API
 │   ├── utils/
-│   │   └── textTemplate.ts          # Renderer {{placeholder}} das mensagens
+│   │   ├── textTemplate.ts          # Renderer {{placeholder}} das mensagens
+│   │   ├── humanSim.ts              # Ritmo humano + viewports realistas (anti-bot)
+│   │   └── runtimeModules.ts        # Runtime sidecar do exe SEA (career-runtime/ — playwright, pdf-parse, tesseract)
 │   ├── tracker/
 │   │   └── outcomeMonitor.ts        # Feedback loop pós-candidatura (IMAP/Gmail API)
 │   ├── db/

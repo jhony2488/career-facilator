@@ -79,7 +79,8 @@ npm run cli -- login <url|portal>   # visible browser for manual login (gupy|lin
 npm run cli -- help                 # full sectioned help (in the shell: 'help')
 
 npm run build     # compiles TypeScript to dist/
-npm run build:exe # generates SEA blob (dist/bundle/) — OS binary injection is done in CI or manually
+npm run build:exe # builds the SEA executable (bundle + blob + postject → dist/career-<os>-<arch>)
+npm run dist      # build:exe + career-runtime/ + packages career-<os>.zip and runtime tarball
 npm run start -- <command>   # runs the compiled build
 ```
 
@@ -110,19 +111,20 @@ Individual paths override via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `P
 
 ### Standalone executable (GitHub Releases)
 
-Download the binary from the [Releases](https://github.com/jhony2488/career-facilitator/releases) tab — **no Node.js required**:
+Download the package from the [Releases](https://github.com/jhony2488/career-facilitator/releases) tab — **no Node.js required**:
 
-| File                     | First use                                                                    |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `career-windows-x64.exe` | SmartScreen may warn (unsigned binary): "More info → Run anyway"             |
-| `career-macos-arm64`     | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper) |
-| `career-linux-x64`       | `chmod +x`                                                                   |
+| Package                   | First use                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `career-windows-x64.zip`  | SmartScreen may warn (unsigned binary): "More info → Run anyway"                         |
+| `career-macos-arm64.zip`  | `xattr -dr com.apple.quarantine <folder>` — frees exe + Chromium (Gatekeeper)            |
+| `career-macos-x64.zip`    | same, for Intel                                                                          |
+| `career-linux-x64.zip`    | `chmod +x`; Chromium may need system libs (`playwright install-deps chromium` equivalent) |
 
-The executable uses the **same configuration** as the other modes: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it, and a `.env` with `CAREER_HOME=.` next to the exe keeps data portable. For the skill library in binary mode, copy `src/skills/library/` to a `skills/` folder next to the executable.
+The ZIP ships the SEA executable + `career-runtime/` (Playwright + Chromium, pdf-parse, tesseract + tessdata) + `skills/` + `.env.example` — **every feature works like the source install** (form autofill, authenticated sources, post-image OCR, text-layer PDF). If you download just the binary (`career-<os>-<arch>[.exe]`), `career runtime setup` later fetches `career-runtime-<os>-<arch>.tar.gz` from the release; `runtime status` diagnoses what's missing. Without the runtime, web forms degrade to e-mail, WhatsApp or `NEEDS_HUMAN_INPUT`.
 
-> **Binary differences:** PDF extraction falls back to regex mode (no `pdf-parse`) — text-layer PDFs work normally. Playwright is not embedded either (incompatible with SEA single-file): web forms fall back to e-mail, WhatsApp, or the review queue — use the npm/`npm link` flow for form autofill. `career --version` shows the `package.json` version (the release validates the `v*` tag matches it).
+The executable uses the **same configuration** as the other modes: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it, and a `.env` with `CAREER_HOME=.` next to the exe keeps data portable — the exe-folder `.env` outranks the working-directory `.env`. `career --version` shows the `package.json` version (the release validates the `v*` tag matches it). Full execution/configuration reference: [tutorials/en/08-release-executable.md](tutorials/en/08-release-executable.md).
 
-Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Windows/macOS/Linux matrix (Node SEA single-file) → artifacts attached to the release.
+Builds run on GitHub Actions (`.github/workflows/release.yml`): tag `v*` → Windows/macOS arm64+x64/Linux matrix (Node SEA single-file + runtime sidecar) → ZIPs and tarballs attached to the release.
 
 ### Ingesting your profile (resume)
 
@@ -204,7 +206,3 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, n
 - **Discovery/browser:** `run` uses public API/RSS sources by default, still accepts `jobs.json` (`[{url, html}]`) via `--jobs-file`, and covers `html` sources without structure through the generic LLM fallback (`DISCOVERY_USE_GENERIC_FALLBACK`; model = `DISCOVERY_GENERIC_MODEL` or inherits `AI_LOCAL_*`, ollama provider) and `search` sources via search engine (DDG/Bing + per-query anti-bot fallback); Web forms are handled via Playwright — `pageFactory(url)` opens the job in a lazy Chromium (`AUTOFILL_HEADLESS`, `AUTOFILL_PROFILE_DIR` to reuse your logins), inspects fields (`pageInspector`), fills them with profile + AI answers (`executeLiveFill`), walks multi-step wizards, and submits or pauses per the score gate (`AUTO_SUBMIT`/`PAUSE_BEFORE_SUBMIT`); CAPTCHA/OTP/validation errors escalate to NEEDS_HUMAN_INPUT.
 - **Channels:** real e-mail via nodemailer + AES-256-GCM vault (`vault set smtp-main`, docs/pt-BR/14); WhatsApp via manual queue or Evolution API (docs/pt-BR/15).
 - **`import` without Ollama:** requires `ollama serve` + `ollama pull <model>`; without a configured client it only generates a minimal draft.
-
-## Next steps
-
-See [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery already runs on public APIs/RSS (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`), generic HTML+LLM fallback and organic search dorks (DDG/Bing, incl. `linkedin-posts`/`linkedin-jobs` without a session); next: ATS slug adapters and authenticated LinkedIn.

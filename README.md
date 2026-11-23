@@ -79,7 +79,8 @@ npm run cli -- login <url|portal>   # browser visível p/ login manual (gupy|lin
 npm run cli -- help                 # help completo por seção (no shell: 'help')
 
 npm run build     # compila TypeScript para dist/
-npm run build:exe # gera blob SEA (dist/bundle/) — a injeção no binário do SO é feita no CI ou manualmente
+npm run build:exe # gera o executável SEA (bundle + blob + postject → dist/career-<os>-<arch>)
+npm run dist      # build:exe + career-runtime/ + empacota career-<os>.zip e tarball do runtime
 npm run start -- <comando>   # roda o build compilado
 ```
 
@@ -110,19 +111,20 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 ### Executável standalone (GitHub Releases)
 
-Baixe o binário da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js**:
+Baixe o pacote da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js**:
 
-| Arquivo                  | Primeiro uso                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| `career-windows-x64.exe` | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim" |
-| `career-macos-arm64`     | `chmod +x` + `xattr -d com.apple.quarantine career-macos-arm64` (Gatekeeper)                |
-| `career-linux-x64`       | `chmod +x`                                                                                  |
+| Pacote                    | Primeiro uso                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `career-windows-x64.zip`  | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"        |
+| `career-macos-arm64.zip`  | `xattr -dr com.apple.quarantine <pasta>` — libera exe + Chromium (Gatekeeper)                       |
+| `career-macos-x64.zip`    | idem, para Intel                                                                                    |
+| `career-linux-x64.zip`    | `chmod +x`; Chromium pode pedir libs de sistema (`playwright install-deps chromium` equivalente)    |
 
-O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele. Para a biblioteca de skills no exe, copie `src/skills/library/` para `skills/` na mesma pasta.
+O ZIP traz o executável SEA + `career-runtime/` (Playwright + Chromium, pdf-parse, tesseract + tessdata) + `skills/` + `.env.example` — **todos os recursos funcionam igual à instalação por código** (autofill de formulários, fontes autenticadas, OCR de posts, PDF com camada de texto). Quem baixar só o binário (`career-<os>-<arch>[.exe]`) completa depois com `career runtime setup` (baixa o `career-runtime-<os>-<arch>.tar.gz` do release); `runtime status` diagnostica o que falta. Sem o runtime, formulários web degradam para e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
 
-> **Diferenças do exe:** extração de PDF cai no modo regex (sem `pdf-parse`) — PDFs com camada de texto funcionam normalmente. O Playwright também não é embutido (incompatível com SEA single-file): formulários web seguem para e-mail, WhatsApp ou a fila de revisão — para autofill de formulários use o fluxo npm/`npm link`. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide com ela).
+O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele — o `.env` da pasta do exe sobrepõe o do diretório de trabalho. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide com ela). Referência completa de execução/configuração: [tutorials/pt-BR/08-executavel-release.md](tutorials/pt-BR/08-executavel-release.md).
 
-Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS/Linux (Node SEA single-file) → artefatos anexados ao release.
+Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS arm64+x64/Linux (Node SEA single-file + runtime sidecar) → ZIPs e tarballs anexados ao release.
 
 ### Ingestão do seu perfil (currículo)
 
@@ -196,7 +198,7 @@ CareerFacilator/
 
 ## Stack
 
-Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, sem dep nativa → exe single-file) · node-html-parser + turndown · Zod · Playwright (a conectar) · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
+Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, sem dep nativa → exe single-file) · node-html-parser + turndown · Zod · Playwright + stealth · Ollama/Groq/Anthropic/OpenAI/Kimi/Gemini via `.env`
 
 ## Limitações atuais
 

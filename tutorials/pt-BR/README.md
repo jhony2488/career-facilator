@@ -7,5 +7,6 @@
 5. [Configurando IAs remotas](05-configurando-ias-remotas.md)
 6. [Descobrindo vagas (discovery)](06-descobrindo-vagas.md)
 7. [Sequência sugerida de uso](07-sequencia-de-uso.md)
+8. [Executável de release — execução e configuração completas](08-executavel-release.md)
 
 [English version](../en/README.md)

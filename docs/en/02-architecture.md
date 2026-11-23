@@ -57,8 +57,8 @@ career-facilitator-ts/
 │   │   ├── profile.master.md        # Editable master profile (source of truth)
 │   │   ├── profile.master.json      # Compiled from the MD — prompt cache artifact
 │   │   ├── careerOps.config.ts      # Model routing, score thresholds and budget
-│   │   ├── loadConfig.ts            # .env chain: <home> → ./.env → process.env
-│   │   ├── paths.ts                 # Data directory (CAREER_HOME → ~/.careerfacilator)
+│   │   ├── loadConfig.ts            # .env chain: <home> → ./.env → <exe>/.env (SEA) → process.env
+│   │   ├── paths.ts                 # Data directory (CAREER_HOME → ~/.careerfacilator; relative anchors on exe in SEA)
 │   │   └── envFile.ts               # .env key read/write (config set/unset)
 │   ├── intake/
 │   │   ├── intakeCore.ts            # Orchestrates the flow: inbox/command → approval → compile
@@ -117,7 +117,9 @@ career-facilitator-ts/
 │   │   ├── evolutionClient.ts       # Evolution API REST (sendText/sendMedia)
 │   │   └── whatsappAppCore.ts       # Orchestrator: manual queue or API send
 │   ├── utils/
-│   │   └── textTemplate.ts          # {{placeholder}} renderer for messages
+│   │   ├── textTemplate.ts          # {{placeholder}} renderer for messages
+│   │   ├── humanSim.ts              # Human pacing + realistic viewports (anti-bot)
+│   │   └── runtimeModules.ts        # SEA exe runtime sidecar (career-runtime/ — playwright, pdf-parse, tesseract)
 │   ├── tracker/
 │   │   └── outcomeMonitor.ts        # Post-application feedback loop (IMAP/Gmail API)
 │   ├── db/

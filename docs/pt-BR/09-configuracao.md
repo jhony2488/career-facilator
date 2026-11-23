@@ -152,9 +152,12 @@ Os caminhos relativos de `profile` e `storage/` (incluindo `jobs.sqlite`) resolv
 
 - `CAREER_HOME` — override explícito do diretório;
 - `~/.careerfacilator` — default quando a CLI roda instalada globalmente (`npm link`/`npm i -g`, binário `career`/`career-facilitator` via `bin/career.cjs`);
-- Em dev no repo, o `.env` local fixa `CAREER_HOME=.`, mantendo os dados na pasta do projeto.
+- Em dev no repo, o `.env` local fixa `CAREER_HOME=.`, mantendo os dados na pasta do projeto;
+- No **executável (SEA)** um `CAREER_HOME` relativo ancora na pasta do próprio binário — `.env` ao lado do exe com `CAREER_HOME=.` mantém os dados portáteis junto dele, independente do cwd.
 
-**Precedência de configuração:** `defaults` < `<home>/.env` < `./.env` (projeto) < variáveis de ambiente. A leitura é feita por `src/config/loadConfig.ts` e a resolução de caminhos por `src/config/paths.ts`.
+**Precedência de configuração:** `defaults` < `<home>/.env` < `./.env` (cwd) < `<exe>/.env` (somente no binário SEA) < variáveis de ambiente. A leitura é feita por `src/config/loadConfig.ts` e a resolução de caminhos por `src/config/paths.ts`.
+
+**Runtime do executável (env):** no binário SEA, os módulos que não cabem no single-file — playwright/playwright-extra/stealth, pdf-parse, tesseract.js — e os browsers do Chromium moram na pasta `career-runtime/` ao lado do exe; `CAREER_RUNTIME=<dir>` sobrescreve o local. `career runtime status` diagnostica os componentes (node_modules, browsers, tessdata, skills) e `career runtime setup` baixa o pacote `career-runtime-<os>-<arch>.tar.gz` do release da versão em uso. Sem o runtime, formulários web degradam para canais de mensagem/`NEEDS_HUMAN_INPUT` (ver `feature/16`); a biblioteca de skills pode ficar em `skills/` ao lado do exe.
 
 **Overrides individuais de path (env):** `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH` — relativos também resolvem sob `<home>`.
 

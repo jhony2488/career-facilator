@@ -7,5 +7,6 @@
 5. [Setting up remote LLMs](05-setting-up-remote-llms.md)
 6. [Discovering jobs (discovery)](06-discovering-jobs.md)
 7. [Suggested usage sequence](07-usage-sequence.md)
+8. [Release executable — full execution & configuration](08-release-executable.md)
 
 [Portuguese version](../pt-BR/README.md)
