@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CareerFacilator AI</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CareerFacilator AI</h1>
+      <nav id="tabs"></nav>
+      <select id="lang" aria-label="language">
+        <option value="pt">PT-BR</option>
+        <option value="en">EN</option>
+      </select>
+    </header>
+
+    <main>
+      <section id="panel-dashboard" class="panel"></section>
+      <section id="panel-config" class="panel hidden"></section>
+      <section id="panel-jobs" class="panel hidden"></section>
+      <section id="panel-queue" class="panel hidden"></section>
+      <section id="panel-vault" class="panel hidden"></section>
+      <section id="panel-profile" class="panel hidden"></section>
+      <section id="panel-runtime" class="panel hidden"></section>
+      <section id="panel-terminal" class="panel hidden"></section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

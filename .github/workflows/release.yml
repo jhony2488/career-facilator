@@ -86,9 +86,63 @@ jobs:
             dist/*.tar.gz
             dist/${{ matrix.asset }}
 
+  desktop:
+    name: Desktop ${{ matrix.asset }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: career-windows-x64.exe
+          - os: macos-latest
+            asset: career-macos-arm64
+          - os: macos-13
+            asset: career-macos-x64
+          - os: ubuntu-latest
+            asset: career-linux-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm ci
+
+      - name: Linux Tauri deps (webkit2gtk etc.)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download CLI package (zip do job build)
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dl
+
+      - name: Stage sidecar + Tauri build + collect installer
+        shell: bash
+        run: |
+          mkdir staged
+          tar -xf dl/career-*.zip -C staged 2>/dev/null || unzip -q dl/career-*.zip -d staged
+          PKGDIR=$(find staged -mindepth 1 -maxdepth 1 -type d | head -1)
+          node scripts/build-desktop.mjs --from "$PKGDIR"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}-desktop
+          path: dist/career-ui-*
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag'
     permissions:
@@ -102,7 +156,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist-release
-          sha256sum career-* > checksums.txt
+          sha256sum career-* career-ui-* > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub release
@@ -121,5 +175,7 @@ jobs:
             - Linux: `career-linux-x64.zip` — `chmod +x`; o Chromium pode pedir libs de sistema (`npx playwright install-deps chromium` ou equivalente)
 
             **Só o binário** (`career-<os>-<arch>[.exe]` sozinho): roda discovery por APIs/RSS, triagem, e-mail, WhatsApp e fila de revisão; depois `career runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` e completa os recursos de browser/PDF/OCR ao lado do exe. Sem o runtime, formulários web degradam p/ e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
+
+            **Interface gráfica** (`career-ui-<os>-<arch>.<ext>`): app desktop nativo (Tauri) com o mesmo dashboard local — `career ui` no binário CLI abre a mesma interface no navegador.
 
             **Configuração:** `career config init` cria `~/.careerfacilator/.env`; um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele (o `.env` da pasta do exe sobrepõe o do diretório de trabalho). Biblioteca de skills: pasta `skills/` já inclusa no zip. Detalhes completos: `tutorials/pt-BR/08-executavel-release.md` / `tutorials/en/08-release-executable.md`.

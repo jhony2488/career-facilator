@@ -85,6 +85,7 @@ import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofil
 import { mapForRestore, sessionCookiesFor, sessionRefForUrl } from '../autofill/portalSession';
 import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application/otpReader';
 import { loadSkillRegistry } from '../skills/core/skillRegistry';
+import { serveUi } from '../ui/index';
 import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
 import type { PipelineDeps } from '../core/pipeline';
@@ -145,6 +146,8 @@ const HELP = [
   '    login <url|portal>                      Browser visível p/ login manual no perfil',
   '    runtime [status|setup]                  Runtime do exe: diagnóstico ou download',
   '                                            (career-runtime/ ao lado do binário)',
+  '    ui [--port N] [--no-open]               Interface gráfica local (dashboard no browser)',
+  '    serve [--port N]                        Só o servidor da UI (usado pelo app desktop)',
   '',
   '  Outros',
   '    version                                 Versão da build',
@@ -2330,6 +2333,27 @@ async function cmdRuntime(args: string[], ctx: CmdCtx): Promise<void> {
   }
 }
 
+/**
+ * Interface gráfica local: `ui` sobe o servidor e abre o browser; `serve`
+ * é headless — o app desktop (Tauri) spawn e conecta a webview. O token da
+ * sessão vai na URL impressa (o cliente passa por header `X-UI-Token`).
+ */
+async function cmdUi(args: string[]): Promise<void> {
+  const portIdx = args.indexOf('--port');
+  const port = portIdx !== -1 ? Number(args[portIdx + 1]) : 0;
+  if (Number.isNaN(port) || port < 0) throw new CliError('--port inválida');
+  const open = !args.includes('--no-open');
+  const handle = await serveUi({ port: port || 0, open, exeDir: SEA_DIR });
+  console.log(`Interface gráfica em ${handle.url}`);
+  console.log(open ? '(Ctrl+C encerra o servidor)' : '(headless — mantenha o processo vivo)');
+  // O servidor segura o event loop; encerra junto com o processo (Ctrl+C/close).
+  await new Promise<void>((resolvePromise) => {
+    process.once('SIGINT', resolvePromise);
+    process.once('SIGTERM', resolvePromise);
+  });
+  await handle.close();
+}
+
 /** Despacha um comando. Retorna false se o comando não existe. */
 async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Promise<boolean> {
   switch (command) {
@@ -2380,6 +2404,10 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'runtime':
       await cmdRuntime(args, ctx);
+      return true;
+    case 'ui':
+    case 'serve':
+      await cmdUi(args);
       return true;
     case 'login':
       await cmdLogin(args, ctx);

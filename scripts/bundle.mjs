@@ -1,6 +1,8 @@
-// Bundle p/ SEA: injeta CAREER_VERSION (tag do release) no binário.
+// Bundle p/ SEA: injeta CAREER_VERSION (tag do release) no binário e
+// gera sea-config.json com os assets estáticos da UI (src/ui/public/**).
 // `esbuild` CLI puro não expande env var de forma cross-platform — por isso Node.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { build } from 'esbuild';
 
 // Versão embutida = package.json (fonte única da verdade). A tag do release
@@ -34,3 +36,31 @@ await build({
   },
   logLevel: 'info',
 });
+
+// Assets da UI embutidos no blob SEA — `readUiAsset` resolve `ui/<rel>` no exe
+// e `src/ui/public/<rel>` do disco em dev. Recurse p/ incluir i18n/ e futuros.
+const UI_DIR = 'src/ui/public';
+const walk = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
+  );
+const uiAssets = Object.fromEntries(
+  walk(UI_DIR).map((f) => [
+    `ui/${relative(UI_DIR, f).replaceAll('\\', '/')}`,
+    f.replaceAll('\\', '/'),
+  ]),
+);
+writeFileSync(
+  'sea-config.json',
+  JSON.stringify(
+    {
+      main: 'dist/bundle/index.cjs',
+      output: 'dist/bundle/sea-prep.blob',
+      disableExperimentalSEAWarning: true,
+      assets: uiAssets,
+    },
+    null,
+    2,
+  ) + '\n',
+);
+console.log(`sea-config.json: ${Object.keys(uiAssets).length} asset(s) da UI`);
