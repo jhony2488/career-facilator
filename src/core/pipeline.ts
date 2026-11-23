@@ -433,7 +433,6 @@ export async function runApplicationPipeline(
           options: f.options,
         }));
         const { matched, unmatched } = matchFields(inspected, profile, deps.fieldDefaults);
-        const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
         // Resposta de campo REQUIRED vinda só do modelo = baixa confiança —
         // anti-fabricação: revisão em vez de auto-envio (mesmo em FULL_AUTO).
         const lowConfidence = unmatched.some(
@@ -487,9 +486,7 @@ export async function runApplicationPipeline(
         // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido —
         // o detalhe usa o que sobrou sem resposta mesmo após a LLM ao vivo.
         const signal = detectBlockingSignal(page, {
-          unmatchedRequiredLabels: fill.unansweredRequired?.length
-            ? fill.unansweredRequired
-            : unmatchedRequired.map((f) => f.label),
+          unmatchedRequiredLabels: fill.unansweredRequired ?? [],
         });
         if (signal || fill.escalated) {
           const effSignal: BlockingSignal = signal ?? {

@@ -92,7 +92,6 @@ export async function reapplyStoredJob(
       : existsSync(masterResume)
         ? masterResume
         : undefined;
-    const unmatchedRequired = unmatched.filter((f) => f.required && !aiAnswers[f.label]);
     // Resposta REQUIRED vinda só do modelo = baixa confiança — pausa em
     // vez de auto-submit (mesma anti-fabricação do pipeline, decisão #30).
     const lowConfidence = unmatched.some((f) => f.required && aiAnswers[f.label] !== undefined);
@@ -135,9 +134,7 @@ export async function reapplyStoredJob(
 
     // Bloqueio detectado na página ou campo desconhecido → mesma malha do run.
     const signal = detectBlockingSignal(page, {
-      unmatchedRequiredLabels: fill.unansweredRequired?.length
-        ? fill.unansweredRequired
-        : unmatchedRequired.map((f) => f.label),
+      unmatchedRequiredLabels: fill.unansweredRequired ?? [],
     });
     if (signal || fill.escalated) {
       const effSignal: BlockingSignal = signal ?? {
