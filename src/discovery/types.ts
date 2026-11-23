@@ -73,6 +73,8 @@ export interface DiscoveryOptions {
    * para fontes `render: true` — SPAs que não devolvem HTML útil no HTTP.
    */
   renderText?: (url: string) => Promise<{ url: string; text: string; status: number }>;
+  /** Render interativo (scroll + "ver mais" + expandir DOM) — preferido quando existe. */
+  renderPage?: RenderPageFn;
 }
 
 export interface DiscoveryJob {
@@ -104,6 +106,21 @@ export interface DiscoveryError {
   url?: string;
 }
 
+/** Página viva mínima — executa JS no DOM e espera (sem depender de Playwright). */
+export interface RenderPageHandle {
+  evaluate<R>(fn: () => R | Promise<R>): Promise<R>;
+  waitForTimeout(ms: number): Promise<void>;
+}
+
+/**
+ * Render interativo: navega, roda `interact` na página viva (scroll, "ver
+ * mais", expandir descrição) e só então captura o HTML final.
+ */
+export type RenderPageFn = (
+  url: string,
+  opts?: { interact?: (page: RenderPageHandle) => Promise<void>; scrollMax?: number },
+) => Promise<{ url: string; text: string; status: number }>;
+
 export interface SourceAdapterContext {
   config: CareerOpsConfig;
   source: JobSource;
@@ -115,6 +132,11 @@ export interface SourceAdapterContext {
   extract?: GenericExtractor;
   /** Fetch renderizado em browser persistente — fontes `render: true`. */
   renderText?: (url: string) => Promise<{ url: string; text: string; status: number }>;
+  /**
+   * Render interativo (scroll + "ver mais" + cliques de expansão no DOM).
+   * Ausente → adapters usam `renderText` puro.
+   */
+  renderPage?: RenderPageFn;
 }
 
 export interface SourceAdapter {
