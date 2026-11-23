@@ -2,10 +2,5 @@
   "identifier": "default",
   "description": "Capability do app desktop CareerFacilator UI",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "shell:allow-spawn",
-    "shell:allow-execute",
-    "shell:allow-kill"
-  ]
+  "permissions": ["core:default", "shell:allow-spawn", "shell:allow-execute", "shell:allow-kill"]
 }
