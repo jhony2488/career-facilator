@@ -204,7 +204,3 @@ Node.js v22+ · TypeScript strict · Jest + ts-jest · `node:sqlite` (builtin, s
 - **Discovery/browser**: `run` usa fontes públicas de API/RSS por padrão, aceita `jobs.json` (`[{url, html}]`) via `--jobs-file` e cobre fontes `html` sem estrutura via fallback genérico com LLM (`DISCOVERY_USE_GENERIC_FALLBACK`; modelo = `DISCOVERY_GENERIC_MODEL` ou herda `AI_LOCAL_*`, provider ollama) e fontes `search` via buscador (DDG/Bing + fallback anti-bot por query). Formulário web conectado via Playwright — `pageFactory(url)` abre a vaga em Chromium lazy (`AUTOFILL_HEADLESS`, `AUTOFILL_PROFILE_DIR` p/ reaproveitar logins), inspeciona campos (`pageInspector`), preenche com perfil + respostas IA (`executeLiveFill`), navega wizards multi-etapas e submete ou pausa conforme a régua (`AUTO_SUBMIT`/`PAUSE_BEFORE_SUBMIT`); CAPTCHA/OTP/erro de validação escalonam p/ NEEDS_HUMAN_INPUT.
 - **Canais**: e-mail real via nodemailer + cofre AES-256-GCM (`vault set smtp-main`, docs/pt-BR/14); WhatsApp por fila manual ou Evolution API (docs/pt-BR/15).
 - **`import` sem Ollama**: exige `ollama serve` + `ollama pull <modelo>`; sem client configurado gera só rascunho mínimo.
-
-## Próximos passos
-
-Ver [docs/pt-BR/12-roadmap.md](docs/pt-BR/12-roadmap.md) — discovery já roda com APIs/RSS públicas (`remoteok`, `remotive`, `jobicy`, `arbeitnow`, `workingnomads`, `himalayas`, `weworkremotely`), fallback genérico HTML+LLM e busca orgânica por dorks (DDG/Bing, incl. `linkedin-posts`/`linkedin-jobs` sem sessão); próximas etapas: adapters ATS por slug e LinkedIn autenticado.

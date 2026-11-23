@@ -67,6 +67,7 @@ import {
   inspectPage,
 } from '../scraper/pageInspector';
 import { agentNavigateToForm, type NavContext } from '../autofill/applyNavigator';
+import { isLinkedInJobUrl, openEasyApplyModal } from '../autofill/linkedinEasyApply';
 import { removeAnswers } from '../autofill/answersStore';
 import { matchFields } from '../autofill/deterministicMatcher';
 import { compileMasterProfile } from '../intake/profileCompiler';
@@ -549,6 +550,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
       sourceIds,
       extract: buildDiscoveryExtractor(signal),
       renderText: buildRenderText(),
+      renderPage: buildRenderPage(),
     });
     if (discovery.errors.length) {
       for (const e of discovery.errors) {
@@ -697,6 +699,7 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
           excludeUrls: rawJobs.map((j) => j.url),
           extract: buildDiscoveryExtractor(signal),
           renderText: buildRenderText(),
+          renderPage: buildRenderPage(),
         });
         if (more.jobs.length === 0) break;
         console.log(
@@ -906,6 +909,16 @@ function makeWebPageFactory(navigator?: NavigatorModel): (url: string) => Promis
           (state.fields.length === 0 && !(state.dropzones?.length ?? 0)) ||
           (state.fields.length <= 2 &&
             !state.fields.some((f) => f.kind === 'file' || f.kind === 'email' || f.kind === 'tel'));
+        // Vaga LinkedIn sem form à vista → "Candidatura simplificada" (Easy
+        // Apply) abre o wizard num modal. Determinístico antes da cadeia/
+        // navigator — o botão de apply externo não é confundido com ele.
+        if (thin && isLinkedInJobUrl(state.url || url)) {
+          const opened = await openEasyApplyModal(page).catch(() => false);
+          if (opened) {
+            const modalState = await inspectPage(page, url).catch(() => null);
+            if (modalState && hasFormFields(modalState)) return modalState;
+          }
+        }
         if (thin) {
           const { state: followed, email } = await followApplyChain(page);
           let best =
@@ -1396,6 +1409,63 @@ function buildRenderText() {
   };
 }
 
+/**
+ * Render interativo (decisão Easy Apply/feed): mesmo contexto de
+ * `buildRenderText`, mas deixa o adapter interagir na página viva — clicar
+ * "ver mais", expandir descrição, seguir redirect — antes de capturar o HTML.
+ */
+function buildRenderPage() {
+  return async (
+    url: string,
+    opts?: {
+      interact?: (page: {
+        evaluate: <R>(fn: () => R | Promise<R>) => Promise<R>;
+        waitForTimeout: (ms: number) => Promise<void>;
+      }) => Promise<void>;
+      scrollMax?: number;
+    },
+  ) => {
+    renderCtxPromise ??= getJobBrowserContext(renderCtxOpts());
+    let ctx = await renderCtxPromise;
+    try {
+      ctx.pages();
+    } catch {
+      renderCtxPromise = getJobBrowserContext(renderCtxOpts());
+      ctx = await renderCtxPromise;
+    }
+    const page = await ctx.newPage();
+    try {
+      const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+      if (opts?.interact) {
+        await opts.interact({
+          evaluate: (fn) => page.evaluate(fn),
+          waitForTimeout: (ms) => page.waitForTimeout(ms),
+        });
+      }
+      const scrollMax = Math.max(
+        0,
+        Number(opts?.scrollMax ?? effEnv.env.DISCOVERY_SCROLL_MAX ?? '5'),
+      );
+      let lastHeight = 0;
+      for (let i = 0; i < scrollMax; i++) {
+        const h = await page
+          .evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+            return document.body.scrollHeight;
+          })
+          .catch(() => lastHeight);
+        if (h <= lastHeight) break;
+        lastHeight = h;
+        await page.waitForTimeout(700);
+      }
+      return { url: page.url(), text: await page.content(), status: resp?.status() ?? 200 };
+    } finally {
+      await page.close().catch(() => {});
+    }
+  };
+}
+
 async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
   const sourcesIdx = args.indexOf('--sources');
   const sourceIds =
@@ -1433,6 +1503,7 @@ async function cmdDiscover(args: string[], ctx: CmdCtx): Promise<void> {
     sourceIds,
     extract: buildDiscoveryExtractor(ctx.signal),
     renderText: buildRenderText(),
+    renderPage: buildRenderPage(),
   }).finally(() => shutdownSharedBrowser());
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);
@@ -1482,6 +1553,7 @@ async function cmdScan(args: string[], ctx: CmdCtx): Promise<void> {
     sourceIds: [sourceId],
     extract: buildDiscoveryExtractor(ctx.signal),
     renderText: buildRenderText(),
+    renderPage: buildRenderPage(),
   }).finally(() => shutdownSharedBrowser());
   for (const e of discovery.errors) {
     console.log(`  [${e.sourceId}] ${e.message}`);

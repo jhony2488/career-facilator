@@ -5,8 +5,9 @@ import type {
   DiscoveryResult,
   DiscoveryJob,
   DiscoveryError,
+  RenderPageHandle,
 } from '../types';
-import { rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
+import { isJobListingUrl, rawJobFromNormalized, matchesTargetTitles } from '../normalizer';
 import { extractContacts, hasAnyContact, applyLinkOf } from '../postContacts';
 import { ocrImageUrl, disposeOcrWorker } from '../imageOcr';
 
@@ -170,7 +171,41 @@ const WORK_TYPE_IDS: Record<string, string> = {
   HYBRID: '3',
 };
 
-type RenderText = NonNullable<SourceAdapterContext['renderText']>;
+/**
+ * "Ver mais" / "show more" — clique DOM puro dentro da página viva: expande
+ * texto truncado de posts do feed e a descrição completa da vaga antes do
+ * `page.content()`. Só clica em elemento de expansão — nunca Apply/login.
+ */
+export async function expandSeeMore(page: RenderPageHandle): Promise<void> {
+  await page.evaluate(() => {
+    const re = /ver mais|see more|show more|\u2026more/i;
+    const els = Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], a'));
+    for (const el of els) {
+      const t = (el.textContent ?? '').trim();
+      if (t && t.length < 40 && re.test(t)) el.click();
+    }
+    for (const sel of [
+      '.feed-shared-inline-show-more-text__see-more-less-toggle',
+      '.jobs-description__footer-button',
+    ]) {
+      document.querySelectorAll<HTMLElement>(sel).forEach((e) => e.click());
+    }
+  });
+  await page.waitForTimeout(400);
+}
+
+type RenderFn = (
+  url: string,
+  opts?: { interact?: (page: RenderPageHandle) => Promise<void>; scrollMax?: number },
+) => Promise<{ url: string; text: string; status: number }>;
+
+/** Escolhe o renderer interativo quando existe; senão o texto puro. */
+function pickRenderer(ctx: SourceAdapterContext): RenderFn {
+  if (ctx.renderPage) return ctx.renderPage;
+  const t = ctx.renderText;
+  if (!t) throw new Error('renderText ausente');
+  return (url) => t(url);
+}
 
 export const linkedinAdapter: SourceAdapter = {
   name: 'linkedin',
@@ -180,7 +215,7 @@ export const linkedinAdapter: SourceAdapter = {
 
     // Sessão obrigatória: renderText só existe quando o profileDir do browser
     // persistente está configurado (mesmo contexto do autofill/login).
-    if (!ctx.renderText) {
+    if (!ctx.renderText && !ctx.renderPage) {
       return {
         jobs: [],
         errors: [
@@ -192,7 +227,7 @@ export const linkedinAdapter: SourceAdapter = {
         meta: metaBase(1, 0, 0, 0, 0, start),
       };
     }
-    const render = ctx.renderText;
+    const render = pickRenderer(ctx);
 
     const titles = config.discovery.targetTitles.length ? config.discovery.targetTitles : [''];
     const jobs: DiscoveryJob[] = [];
@@ -237,7 +272,7 @@ export const linkedinAdapter: SourceAdapter = {
       const searchUrl =
         `https://www.linkedin.com/jobs/search?${params.toString()}` +
         (title ? `&keywords=${encodeURIComponent(title)}` : '');
-      let page: Awaited<ReturnType<RenderText>>;
+      let page: Awaited<ReturnType<RenderFn>>;
       try {
         page = await render(searchUrl);
       } catch (e) {
@@ -252,7 +287,8 @@ export const linkedinAdapter: SourceAdapter = {
         seen.add(card.id);
         if (title && !matchesTargetTitles(card.title, config.discovery.targetTitles)) continue;
         try {
-          const detail = await render(card.url);
+          // "ver mais" na descrição truncada — expande antes de capturar.
+          const detail = await render(card.url, { interact: expandSeeMore });
           jobs.push(
             rawJobFromNormalized(
               {
@@ -281,9 +317,10 @@ export const linkedinAdapter: SourceAdapter = {
       const searchUrl =
         `https://www.linkedin.com/search/results/content/?sortBy=date_posted` +
         `&keywords=${encodeURIComponent(query)}`;
-      let page: Awaited<ReturnType<RenderText>>;
+      let page: Awaited<ReturnType<RenderFn>>;
       try {
-        page = await render(searchUrl);
+        // Feed trunca o texto — "ver mais" expande os cards antes de parsear.
+        page = await render(searchUrl, { interact: expandSeeMore });
       } catch (e) {
         errors.push(buildError(source.id, `posts "${title}": ${String(e).slice(0, 120)}`));
         continue;
@@ -298,7 +335,7 @@ export const linkedinAdapter: SourceAdapter = {
         if (seen.has(post.id)) continue;
         seen.add(post.id);
         try {
-          const detail = await render(post.url);
+          const detail = await render(post.url, { interact: expandSeeMore });
           const { text, author, imageUrls } = parseLinkedInPostDetail(detail.text);
           const body = text || post.snippet;
           if (!body || !POST_JOBISH_RE.test(body)) continue;
@@ -314,11 +351,28 @@ export const linkedinAdapter: SourceAdapter = {
                 if (!contacts.phones.includes(p)) contacts.phones.push(p);
               for (const l of ocrContacts.links)
                 if (!contacts.links.includes(l)) contacts.links.push(l);
+              for (const l of ocrContacts.shortLinks)
+                if (!contacts.shortLinks.includes(l)) contacts.shortLinks.push(l);
               if (hasAnyContact(contacts)) break;
             }
           }
 
-          const url = applyLinkOf(contacts) ?? post.url;
+          // Link de candidatura: primeiro externo direto; senão segue o
+          // encurtador no browser logado e pega a URL final real.
+          let url = applyLinkOf(contacts) ?? '';
+          if (!url && contacts.shortLinks.length) {
+            for (const short of contacts.shortLinks.slice(0, 2)) {
+              try {
+                const resolved = await render(short);
+                if (!isJobListingUrl(resolved.url)) continue; // listagem LinkedIn
+                url = resolved.url;
+                break;
+              } catch {
+                /* redirect falhou — tenta o próximo encurtador */
+              }
+            }
+          }
+          url = url || post.url;
           const titleLine = body.split(/\n|\./)[0].trim().slice(0, 90) || 'Post do LinkedIn';
           const contactLines = [
             ...contacts.emails.map((e) => `<p>E-mail de contato: ${escapeHtml(e)}</p>`),

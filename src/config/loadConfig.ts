@@ -397,5 +397,25 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
       ...(env.EVOLUTION_API_URL ? { apiUrlEnv: 'EVOLUTION_API_URL' } : {}),
       ...(env.EVOLUTION_INSTANCE ? { apiInstance: env.EVOLUTION_INSTANCE } : {}),
     },
+    autofill: {
+      ...defaultCareerOpsConfig.autofill,
+      ...(Number.isFinite(Number(env.AUTOFILL_QUESTION_SIMILARITY_THRESHOLD)) &&
+      env.AUTOFILL_QUESTION_SIMILARITY_THRESHOLD !== undefined
+        ? { questionSimilarityThreshold: Number(env.AUTOFILL_QUESTION_SIMILARITY_THRESHOLD) }
+        : {}),
+      ...(parseFieldDefaults(env.AUTOFILL_DEFAULTS)
+        ? { fieldDefaults: parseFieldDefaults(env.AUTOFILL_DEFAULTS) as Record<string, string> }
+        : {}),
+    },
   };
+}
+
+function parseFieldDefaults(raw: string | undefined): Record<string, string> | undefined {
+  if (!raw) return undefined;
+  const out: Record<string, string> = {};
+  for (const part of raw.split(/\n|;/)) {
+    const [k, ...rest] = part.split('=');
+    if (k && rest.length) out[k.trim().toLowerCase()] = rest.join('=').trim();
+  }
+  return Object.keys(out).length ? out : undefined;
 }

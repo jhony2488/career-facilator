@@ -44,9 +44,9 @@ async function humanClick(
   await locator.click({ timeout });
 }
 
-/** Botões de avanço de wizard (multi-etapas — feature/06). */
+/** Botões de avanço de wizard (multi-etapas — feature/06 + Easy Apply "Revisar"). */
 const NEXT_RE =
-  /next|continue|pr[óo]ximo|avan[çc]ar|continuar|save and continue|salvar e continuar/i;
+  /next|continue|pr[óo]ximo|avan[çc]ar|continuar|save and continue|salvar e continuar|revisar|review/i;
 /** Botões de envio definitivo — nunca clicados em modo PAUSE_BEFORE_SUBMIT. */
 const SUBMIT_RE =
   /apply|submit|send( application)?|enviar( candidatura)?|candidatar(-se)?|finalizar/i;
@@ -377,6 +377,7 @@ export async function executeLiveFill(
   let fieldsFilled = 0;
   let resumeAttached = false;
   const aiAnswersUsed = new Set<string>();
+  let lastStepSig = live.fields.map((f) => `${f.kind}:${f.label}`).join('|');
 
   // Dwell antes de interagir — ler a página em vez de atacar o 1º campo.
   if (humanPace) await dom.waitForTimeout(randInt(400, 1200));
@@ -469,10 +470,17 @@ export async function executeLiveFill(
       };
     }
 
-    if (live.currentStep >= live.totalSteps) break;
-    if (!(await clickNext(dom, humanPace))) break; // sem botão de avanço — tenta o que tem
+    // "Etapa N de M" nem sempre aparece no texto (Easy Apply mostra barra de
+    // progresso) — tenta o avanço de qualquer jeito; sem botão, encerra.
+    if (live.totalSteps > 1 && live.currentStep >= live.totalSteps) break;
+    if (!(await clickNext(dom, humanPace))) break;
     const refreshed = await inspectDom(dom).catch(() => null);
     if (!refreshed) break;
+    // Botão "avançar" que não troca a etapa (loop infinito no mesmo wizard)
+    // → compara a assinatura dos campos e para se nada mudou.
+    const sig = refreshed.fields.map((f) => `${f.kind}:${f.label}`).join('|');
+    if (sig === lastStepSig) break;
+    lastStepSig = sig;
     Object.assign(live, refreshed);
   }
 

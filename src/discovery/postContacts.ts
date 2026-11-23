@@ -11,6 +11,11 @@ export interface PostContacts {
   phones: string[];
   /** Links externos de candidatura (forms, ATS, wa.me) — exclui linkedin.com. */
   links: string[];
+  /**
+   * Encurtadores (lnkd.in, bit.ly…) — não são externos até o browser
+   * resolver o redirect; o adapter persegue e decide a URL final.
+   */
+  shortLinks: string[];
 }
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -18,6 +23,7 @@ const WA_LINK_RE = /(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=)\+?(\d{8,15})/g
 const PHONE_RE = /\+?\d[\d().\-\s]{6,18}\d/g;
 const URL_RE = /https?:\/\/[^\s<>"')]+/g;
 const LINKEDIN_HOST_RE = /^(www\.)?linkedin\.com$|lnkd\.in/i;
+const SHORTLINK_HOST_RE = /^(lnkd\.in|bit\.ly|tinyurl\.com|t\.co|cutt\.ly|glo\.bo|rebrand\.ly)$/i;
 
 function digitsOf(raw: string): string {
   return raw.replace(/\D/g, '');
@@ -36,6 +42,7 @@ export function extractContacts(text: string): PostContacts {
 
   const phones: string[] = [];
   const links: string[] = [];
+  const shortLinks: string[] = [];
   for (const m of text.matchAll(WA_LINK_RE)) {
     if (!phones.includes(m[1])) phones.push(m[1]);
     // wa.me sem scheme → normaliza p/ url completa (também é link de candidatura)
@@ -51,10 +58,18 @@ export function extractContacts(text: string): PostContacts {
 
   for (const raw of text.match(URL_RE) ?? []) {
     const url = raw.replace(/[.,;!]+$/, '');
-    if (isExternalLink(url) && !links.includes(url)) links.push(url);
+    try {
+      if (SHORTLINK_HOST_RE.test(new URL(url).hostname) && !shortLinks.includes(url)) {
+        shortLinks.push(url);
+      } else if (isExternalLink(url) && !links.includes(url)) {
+        links.push(url);
+      }
+    } catch {
+      /* url inválida */
+    }
   }
 
-  return { emails, phones, links };
+  return { emails, phones, links, shortLinks };
 }
 
 export function hasAnyContact(c: PostContacts): boolean {
