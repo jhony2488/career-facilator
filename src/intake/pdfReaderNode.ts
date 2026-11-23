@@ -1,7 +1,9 @@
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { inflateSync } from 'node:zlib';
 import type { PdfReader } from './pdfExtractor';
+import { runtimeDir } from '../utils/runtimeModules';
 
 /**
  * Implementação real do PdfReader: lê operadores de texto (Tj/TJ) direto do
@@ -42,20 +44,26 @@ export function createNodePdfReader(): PdfReader {
 /**
  * pdf-parse (opcional) — resolve ToUnicode/CID; ausente → fallback regex.
  * Importa lib/pdf-parse.js direto: o index.js do pacote roda um harness de
- * debug que quebra ao ser importado como entry point.
+ * debug que quebra ao ser importado como entry point. No exe SEA o pacote
+ * mora no runtime sidecar (`career-runtime/node_modules`).
  */
 async function tryPdfParse(buf: Buffer): Promise<{ text: string; pages: number } | null> {
-  try {
-    const req = createRequire(__filename);
-    const pdfParse = req('pdf-parse/lib/pdf-parse.js') as (
-      b: Buffer,
-    ) => Promise<{ text: string; numpages: number }>;
-    const res = await pdfParse(buf);
-    const text = res.text?.trim() ?? '';
-    return text ? { text, pages: res.numpages } : null;
-  } catch {
-    return null;
+  const requires = [createRequire(__filename)];
+  const rt = runtimeDir();
+  if (rt) requires.push(createRequire(join(rt, 'runtime-marker.cjs')));
+  for (const req of requires) {
+    try {
+      const pdfParse = req('pdf-parse/lib/pdf-parse.js') as (
+        b: Buffer,
+      ) => Promise<{ text: string; numpages: number }>;
+      const res = await pdfParse(buf);
+      const text = res.text?.trim() ?? '';
+      if (text) return { text, pages: res.numpages };
+    } catch {
+      // pacote ausente neste candidato — tenta o próximo
+    }
   }
+  return null;
 }
 
 /** Varre blocos `stream ... endstream` e infla os FlateDecode. */

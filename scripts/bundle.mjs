@@ -14,13 +14,21 @@ await build({
   platform: 'node',
   format: 'cjs',
   outfile: 'dist/bundle/index.cjs',
-  // pdf-parse é opcional no código (req() dinâmico c/ fallback regex em
-  // pdfReaderNode) — fora do bundle, o exe usa o extrator de texto puro.
-  // playwright fica de fora também: o playwright-core faz require() de
-  // caminhos de filesystem (package.json, help.json, drivers) e lookups fs
-  // no próprio dir — incompatível com SEA single-file. browserManager o
-  // carrega por import() lazy; no exe a falha degrada p/ canal de mensagem.
-  external: ['pdf-parse', 'playwright', 'playwright-core', 'playwright-extra'],
+  // Pacotes que quebram em single-file (requires dinâmicos/fs internos) ficam
+  // FORA do bundle: o exe os carrega do runtime sidecar
+  // (`career-runtime/node_modules` — ver src/utils/runtimeModules.ts);
+  // sem runtime, a degradação é a mesma de antes (mensagem/revisão).
+  // - playwright*/stealth: drivers + browsers de filesystem (browserManager)
+  // - pdf-parse: opcional, fallback regex em pdfReaderNode
+  // - tesseract.js: worker script + tesseract.js-core por caminho real (imageOcr)
+  external: [
+    'pdf-parse',
+    'playwright',
+    'playwright-core',
+    'playwright-extra',
+    'puppeteer-extra-plugin-stealth',
+    'tesseract.js',
+  ],
   define: {
     'process.env.CAREER_VERSION': JSON.stringify(version),
   },

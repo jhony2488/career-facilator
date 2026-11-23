@@ -61,6 +61,12 @@ export interface LoadConfigOptions {
   env?: EnvMap;
   /** Caminho do .env; string vazia desativa a leitura de arquivo. */
   envFile?: string;
+  /**
+   * Diretório do executável SEA (cli passa quando isSea()): habilita a leitura
+   * de `<exeDir>/.env` — acima do `.env` de cwd e abaixo de process.env — e
+   * ancora CAREER_HOME/paths relativos nesse diretório (modo portátil).
+   */
+  exeDir?: string;
 }
 
 const providerEnvKey = (provider: string): string =>
@@ -131,22 +137,31 @@ export interface EffectiveEnv {
 }
 
 /**
- * Cadeia de env efetiva: <home>/.env ← ./.env (cwd, dev) ← variáveis de ambiente.
- * `<home>` = CAREER_HOME (de .env local ou process.env) ou ~/.careerfacilator.
+ * Cadeia de env efetiva: <home>/.env ← ./.env (cwd) ← <exe>/.env (SEA) ← env.
+ * `<home>` = CAREER_HOME (de .env local/exe ou process.env) ou ~/.careerfacilator.
  * Exportada para o CLI resolver paths e escrever `config set` no arquivo certo.
  */
 export function loadEffectiveEnv(opts: LoadConfigOptions = {}): EffectiveEnv {
   const procEnv = opts.env ?? process.env;
-  const localFileEnv = opts.envFile === '' ? {} : parseEnvFile(opts.envFile ?? '.env');
-  const home = careerHome({ ...localFileEnv, ...procEnv });
+  const cwdEnvPath = opts.envFile ?? '.env';
+  const filesEnabled = opts.envFile !== '';
+  const localFileEnv = filesEnabled ? parseEnvFile(cwdEnvPath) : {};
+  // .env na pasta do executável (modo portátil SEA) — sobrepõe o de cwd.
+  const exeEnvPath = opts.exeDir ? join(opts.exeDir, '.env') : undefined;
+  const exeFileEnv = filesEnabled && exeEnvPath ? parseEnvFile(exeEnvPath) : {};
+  const localFileEnvMerged = { ...localFileEnv, ...exeFileEnv };
+  const home = careerHome({ ...localFileEnvMerged, ...procEnv }, { exeDir: opts.exeDir });
   const homeEnvFile = join(home, '.env');
 
-  let homeFileEnv: EnvMap = {};
-  if (opts.envFile !== '' && resolve(homeEnvFile) !== resolve(opts.envFile ?? '.env')) {
-    homeFileEnv = parseEnvFile(homeEnvFile);
-  }
+  const alreadyRead = [cwdEnvPath, exeEnvPath]
+    .filter((p): p is string => Boolean(p))
+    .map((p) => resolve(p));
+  const homeFileEnv =
+    filesEnabled && !alreadyRead.includes(resolve(homeEnvFile))
+      ? parseEnvFile(homeEnvFile)
+      : {};
 
-  return { env: { ...homeFileEnv, ...localFileEnv, ...procEnv }, home, homeEnvFile };
+  return { env: { ...homeFileEnv, ...localFileEnvMerged, ...procEnv }, home, homeEnvFile };
 }
 
 /**

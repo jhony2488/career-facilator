@@ -1,9 +1,11 @@
 /**
  * OCR de imagens de posts (tesseract.js — WASM puro, consistente c/ o
- * single-file exe). Worker lazy singleton por+eng; traineddata (~15MB) baixa
- * na 1ª chamada e fica em cache. Falhas degradam p/ '' — o texto do post
- * continua valendo.
+ * single-file exe). Worker lazy singleton por+eng; no exe o módulo vem do
+ * runtime sidecar (createRequire) e o traineddata da pasta `tessdata` —
+ * em dev, import normal + download/cache do próprio pacote.
+ * Falhas degradam p/ '' — o texto do post continua valendo.
  */
+import { isSea, loadRuntimeModule, tessdataDir } from '../utils/runtimeModules';
 
 type Worker = {
   recognize: (image: Buffer) => Promise<{ data: { text: string } }>;
@@ -12,10 +14,21 @@ type Worker = {
 
 let workerPromise: Promise<Worker> | null = null;
 
+type CreateWorker = (
+  langs: string[],
+  oem?: number,
+  opts?: { langPath?: string; gzip?: boolean },
+) => Promise<Worker>;
+
 async function getWorker(): Promise<Worker> {
   workerPromise ??= (async () => {
-    const { createWorker } = await import('tesseract.js');
-    return createWorker(['por', 'eng']) as unknown as Promise<Worker>;
+    const { createWorker } = await loadRuntimeModule<{ createWorker: CreateWorker }>(
+      'tesseract.js',
+    );
+    const langPath = isSea() ? (tessdataDir() ?? undefined) : undefined;
+    // tessdata do pacote é .traineddata cru — gzip:false evita procurar o .gz.
+    const opts = langPath ? { langPath, gzip: false } : undefined;
+    return createWorker(['por', 'eng'], undefined, opts);
   })();
   return workerPromise;
 }

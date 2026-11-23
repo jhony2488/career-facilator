@@ -14,7 +14,8 @@
  *   career-facilitator config                       # Roteamento de modelos resolvido do .env
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
 import {
   importResume,
@@ -72,6 +73,14 @@ import { removeAnswers } from '../autofill/answersStore';
 import { matchFields } from '../autofill/deterministicMatcher';
 import { compileMasterProfile } from '../intake/profileCompiler';
 import type { NavigatorModel } from '../ai/modelFactory';
+import {
+  isSea,
+  exeDir,
+  loadRuntimeModule,
+  runtimeDir,
+  runtimeDirCandidates,
+  tessdataDir,
+} from '../utils/runtimeModules';
 import { loginRefForUrl, parseLoginCredential, tryPortalLogin } from '../autofill/portalLogin';
 import { mapForRestore, sessionCookiesFor, sessionRefForUrl } from '../autofill/portalSession';
 import { fetchOtp, imapMailbox, parseImapCredential } from '../email_application/otpReader';
@@ -92,10 +101,15 @@ try {
 }
 
 const argv = process.argv.slice(2);
-const config = loadCareerOpsConfig();
-const effEnv = loadEffectiveEnv();
-const HOME = careerHome(effEnv.env);
-const DB_PATH = effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', effEnv.env);
+// No binário SEA, a pasta do exe participa da cadeia de config: `<exe>/.env`
+// sobrepõe o `.env` do cwd e CAREER_HOME relativo ancora nela (modo portátil).
+const SEA_DIR = isSea() ? exeDir() : undefined;
+const seaOpts = { exeDir: SEA_DIR };
+const config = loadCareerOpsConfig(seaOpts);
+const effEnv = loadEffectiveEnv(seaOpts);
+const HOME = careerHome(effEnv.env, seaOpts);
+const DB_PATH =
+  effEnv.env.JOBS_DB_PATH ?? resolveHome('storage/jobs.sqlite', effEnv.env, seaOpts);
 
 const HELP = [
   'Comandos:',
@@ -130,6 +144,8 @@ const HELP = [
   '    vault [list|set|remove <ref>]           Cofre de credenciais (SMTP etc.)',
   '    whatsapp [setup|status]                 Evolution API: instância + QR no terminal',
   '    login <url|portal>                      Browser visível p/ login manual no perfil',
+  '    runtime [status|setup]                  Runtime do exe: diagnóstico ou download',
+  '                                            (career-runtime/ ao lado do binário)',
   '',
   '  Outros',
   '    version                                 Versão da build',
@@ -2024,12 +2040,19 @@ async function cmdConfig(args: string[], ctx: CmdCtx = {}): Promise<void> {
         return;
       }
       const localFile = resolve('.env');
+      const exeFile = SEA_DIR ? join(SEA_DIR, '.env') : undefined;
       const local =
         resolve(localFile) !== resolve(envFile) ? parseEnvFile(localFile)[key] : undefined;
+      const exe =
+        exeFile && resolve(exeFile) !== resolve(envFile) && resolve(exeFile) !== localFile
+          ? parseEnvFile(exeFile)[key]
+          : undefined;
+      const fileVal = exe ?? local;
       const global = parseEnvFile(envFile)[key];
       const shadow =
-        local !== undefined && local !== global
-          ? `  (efetivo; global: ${global ?? '—'}, .env local: ${local})`
+        fileVal !== undefined && fileVal !== global
+          ? `  (efetivo; global: ${global ?? '—'}, ` +
+            `${exe !== undefined ? '.env do exe' : '.env local'}: ${fileVal})`
           : '';
       console.log(`${key}=${value}${shadow}`);
       return;
@@ -2232,6 +2255,84 @@ async function cmdWhatsapp(args: string[], ctx: CmdCtx): Promise<void> {
   }
 }
 
+/** Nome do pacote de runtime publicado no release por plataforma. */
+const RUNTIME_ASSETS: Record<string, string> = {
+  'win32-x64': 'career-runtime-windows-x64',
+  'linux-x64': 'career-runtime-linux-x64',
+  'darwin-arm64': 'career-runtime-macos-arm64',
+  'darwin-x64': 'career-runtime-macos-x64',
+};
+
+/**
+ * Runtime sidecar do exe SEA: `runtime status` mostra o que está presente;
+ * `runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` do release e
+ * extrai ao lado do binário (node_modules + browsers + tessdata).
+ */
+async function cmdRuntime(args: string[], ctx: CmdCtx): Promise<void> {
+  const [sub] = args;
+  const dir = runtimeDir();
+
+  if (sub === 'status' || sub === undefined) {
+    console.log(`Runtime resolvido: ${dir ?? '(nenhum)'}`);
+    console.log(`  candidatos: ${runtimeDirCandidates().join(' | ')}`);
+    const check = (label: string, ok: boolean) =>
+      console.log(`  ${label.padEnd(14)} ${ok ? 'ok' : 'ausente'}`);
+    check('node_modules', Boolean(dir && existsSync(join(dir, 'node_modules'))));
+    check('browsers', Boolean(dir && existsSync(join(dir, 'browsers'))));
+    check('tessdata', tessdataDir() !== null);
+    const skillsPresent =
+      existsSync(join(isSea() ? exeDir() : packageRoot, 'skills')) ||
+      existsSync(join(packageRoot, 'src/skills/library'));
+    check('skills/', skillsPresent);
+    try {
+      await loadRuntimeModule('playwright');
+      console.log('  playwright     carrega');
+    } catch {
+      console.log('  playwright     indisponível — formulários web degradam p/ revisão');
+    }
+    if (isSea() && !dir) {
+      console.log("\nSem runtime: 'career runtime setup' baixa o pacote do release.");
+    }
+    return;
+  }
+
+  if (sub !== 'setup') throw new CliError('Uso: runtime [status] | runtime setup');
+  if (!isSea()) {
+    console.log('Instalação por código — os módulos já vêm do node_modules do projeto.');
+    return;
+  }
+  const asset = RUNTIME_ASSETS[`${process.platform}-${process.arch}`];
+  if (!asset) {
+    throw new CliError(`Sem runtime publicado p/ ${process.platform}-${process.arch}.`);
+  }
+  const version = careerVersion();
+  const tag = /^\d/.test(version) ? `download/v${version}` : 'latest/download';
+  const url = `https://github.com/jhony2488/career-facilitator/releases/${tag}/${asset}.tar.gz`;
+  const target = exeDir();
+  const tmp = join(target, `.${asset}-${Date.now()}.tar.gz`);
+  console.log(`Baixando ${asset}.tar.gz → ${target}`);
+  try {
+    const res = await fetch(url, { signal: ctx.signal });
+    if (!res.ok) throw new CliError(`Download falhou (HTTP ${res.status}) — ${url}`);
+    writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+    const out = spawnSync('tar', ['-xzf', tmp, '-C', target], { stdio: 'inherit' });
+    if (out.status !== 0) {
+      throw new CliError('Extração falhou — `tar` indisponível ou pacote corrompido.');
+    }
+    const rt = join(target, 'career-runtime');
+    if (!existsSync(join(rt, 'node_modules'))) {
+      throw new CliError('Pacote extraído incompleto — career-runtime/node_modules ausente.');
+    }
+    if (!existsSync(join(rt, 'browsers'))) {
+      console.log('⚠ career-runtime/browsers ausente — formulários web seguem degradados.');
+    }
+    console.log(`\n✓ Runtime pronto em ${rt}`);
+    console.log("  Confira com 'runtime status'; skills/: copie a library se faltar.");
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+}
+
 /** Despacha um comando. Retorna false se o comando não existe. */
 async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Promise<boolean> {
   switch (command) {
@@ -2279,6 +2380,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'whatsapp':
       await cmdWhatsapp(args, ctx);
+      return true;
+    case 'runtime':
+      await cmdRuntime(args, ctx);
       return true;
     case 'login':
       await cmdLogin(args, ctx);
