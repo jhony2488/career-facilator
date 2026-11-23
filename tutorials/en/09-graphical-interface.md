@@ -1,16 +1,18 @@
 # Tutorial 09 — Graphical interface (dashboard + desktop app)
 
-The graphical interface is a **local server embedded in the binary itself** — the same dashboard opens in the browser (`career ui`) or in the native window of the Tauri desktop app (`career-ui-<os>-<arch>`). The CLI keeps working exactly as before; the UI is a visual layer on top of the same commands, vault, and files.
+The graphical interface is a **local server embedded in the binary itself** — the same dashboard opens in an app window (`career ui`) or in the native window of the Tauri desktop app (`career-ui-<os>-<arch>`). The CLI keeps working exactly as before; the UI is a visual layer on top of the same commands, vault, and files — **built for devs and non-devs alike**: Home shows the first steps (import résumé → configure AI → search jobs), actions have plain names and descriptions, and technical material stays collapsed under "Advanced"/"Technical details".
 
 ## 1. Opening the interface
 
 ```powershell
-career ui                    # starts the server + opens the browser
+career ui                    # starts the server + opens an app-mode window (desktop)
 career ui --port 8080        # fixed port
 career serve --no-open       # server only (used by the desktop app)
 ```
 
 The server listens on `127.0.0.1` only and generates a random **session token** — the printed URL already includes it. When the process ends, the token dies with it.
+
+The window opens in **app mode** (`--app=` flag of Edge/Chrome — no tabs or address bar, it becomes a native OS window). Without any Chromium browser installed, it opens as a regular tab in the default browser — use the printed URL. For a fully native window (system webview), install the `career-ui` package from section 2.
 
 ## 2. Desktop app (separate install)
 
@@ -22,7 +24,17 @@ The release ships per-OS installers:
 | macOS    | `career-ui-macos-{arm64,x64}.dmg` | Drag to Applications                           |
 | Linux    | `career-ui-linux-x64.AppImage`    | `chmod +x` and run                             |
 
-The app bundles the `career` binary and `career-runtime/` as internal resources — an install independent of the CLI package. On open, it starts the local server and connects the window automatically.
+The app bundles the `career` binary (the full CLI) and `career-runtime/` as internal resources — an install independent of the CLI package. On open, it starts the local server and connects the window automatically.
+
+### Want the terminal too?
+
+Installing the UI package gives you **both**: the native window and the same `career` binary usable from a terminal. The embedded executable lives in the app's install folder (the exact path shows on the dashboard under "CLI binary"):
+
+- **Windows:** `%LOCALAPPDATA%\CareerFacilator AI\career-x86_64-pc-windows-msvc.exe`
+- **macOS:** `CareerFacilator AI.app/Contents/Resources/career-<arch>-apple-darwin`
+- **Linux (AppImage):** extracted at `squashfs-root/usr/bin/career-x86_64-unknown-linux-gnu` (see `career-ui --appimage-extract`)
+
+You can call it directly (`"path\career-x86_64-pc-windows-msvc.exe" discover`), rename/alias it to `career.exe`, or add the folder to PATH. If you'd rather have a separate short-named binary, also download the `career-<os>-<arch>.zip` — both share the same `CAREER_HOME`, vault and database.
 
 ## 3. What each tab does
 

@@ -2,7 +2,7 @@
 
 **Document 16 of the CareerFacilator AI specification.**
 
-The graphical interface is a **local server embedded in the binary itself** (`career ui`) — the same application serves two clients: the default browser and the native window of the Tauri desktop app (`career-ui-<os>-<arch>`). The CLI keeps working exactly as before; the UI is a visual layer on top of the same commands, services, and files.
+The graphical interface is a **local server embedded in the binary itself** (`career ui`) — the same application serves two clients: the browser's app-mode window (Edge/Chrome `--app=`) and the native window of the Tauri desktop app (`career-ui-<os>-<arch>`). The CLI keeps working exactly as before; the UI is a visual layer on top of the same commands, services, and files — **designed for devs and non-devs alike**: Home ships a "Getting started" guide (import résumé → configure AI → search jobs), actions have plain names and translated statuses, and technical material stays collapsed under "Advanced"/"Technical details".
 
 ## 16.1 Architecture
 
@@ -44,7 +44,7 @@ career-ui-<os>-<arch> (Tauri 2)
 ## 16.3 Commands
 
 ```powershell
-career ui                    # server + opens the browser (free port)
+career ui                    # server + app-mode window (Edge/Chrome --app=; fallback to regular tab)
 career ui --port 8080        # fixed port
 career serve --no-open       # server only — used by the desktop app
 ```
@@ -65,6 +65,8 @@ The same commands work in the standalone binary and the global npm install; in p
 | `career-ui-<os>-<arch>.AppImage` | Linux |
 
 The `desktop` job in `release.yml` installs the Rust toolchain per OS (`dtolnay/rust-toolchain` + `webkit2gtk` on Linux), downloads the zip from the `build` job, stages via `scripts/build-desktop.mjs --from <pkg>` (renames the exe to the target triple expected by `externalBin`) and runs `tauri build`. Target host requirements: WebView2 on Windows (installer bootstraps it), WebKit on Linux (AppImage needs `libwebkit2gtk-4.1` installed on the system).
+
+**CLI inside the UI package:** the embedded sidecar IS the full `career` binary — whoever installs only the desktop package can use it from a terminal by calling the executable in the install folder (the dashboard shows the exact path under "CLI binary"). Both artifacts share `CAREER_HOME`, vault and `jobs.sqlite` — one set of data, interchangeable.
 
 ## 16.6 Tests
 

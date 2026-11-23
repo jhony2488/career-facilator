@@ -128,7 +128,8 @@ async function rDash() {
     { ok: Object.values(status.counts ?? {}).some((n) => n > 0), label: 'onb.jobs', target: null },
     { ok: false, label: 'onb.queue', target: 'queue' },
   ];
-  steps[3].ok = steps[2].ok && !!(status.counts?.NEEDS_HUMAN_INPUT || status.counts?.READY_TO_REVIEW);
+  steps[3].ok =
+    steps[2].ok && !!(status.counts?.NEEDS_HUMAN_INPUT || status.counts?.READY_TO_REVIEW);
   const doneAll = steps.slice(0, 3).every((s) => s.ok);
   const nextIdx = steps.findIndex((s) => !s.ok);
   const onb = el('div', { class: `card onb ${doneAll ? 'ok' : ''}` }, [
@@ -170,7 +171,10 @@ async function rDash() {
     'div',
     {},
     countEntries.map(([k, n]) =>
-      el('span', { class: 'stat' }, [el('b', { text: String(n) }), el('span', { text: jobLabel(k) })]),
+      el('span', { class: 'stat' }, [
+        el('b', { text: String(n) }),
+        el('span', { text: jobLabel(k) }),
+      ]),
     ),
   );
   const rows = taskList.tasks
@@ -224,7 +228,9 @@ async function rConfig() {
 
   const rowHtml = (key, e, def, comment) => {
     const val = e ? esc(e.value) : `<span class="muted">${t('common.none')}</span>`;
-    const src = e ? `<span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${srcLabel(e.source)}</span>` : '';
+    const src = e
+      ? `<span class="pill ${e.source === 'process' ? 'warn' : 'acc'}">${srcLabel(e.source)}</span>`
+      : '';
     const defTxt = def ? ` <span class="muted">(default: ${esc(def)})</span>` : '';
     const commentTxt = comment
       ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(comment)}</div>`
@@ -272,8 +278,14 @@ async function rConfig() {
   const tutFile = (ptName, enName) => (langDir === 'pt-BR' ? ptName : enName);
   const LINKS = [
     [tutFile('04-configurando-ollama.md', '04-setting-up-ollama.md'), t('config.link_ollama')],
-    [tutFile('05-configurando-ias-remotas.md', '05-setting-up-remote-llms.md'), t('config.link_remote')],
-    [tutFile('03-instalacao-binario-release.md', '03-release-binary-install.md'), t('config.link_exe')],
+    [
+      tutFile('05-configurando-ias-remotas.md', '05-setting-up-remote-llms.md'),
+      t('config.link_remote'),
+    ],
+    [
+      tutFile('03-instalacao-binario-release.md', '03-release-binary-install.md'),
+      t('config.link_exe'),
+    ],
     [tutFile('09-interface-grafica.md', '09-graphical-interface.md'), t('config.link_ui')],
   ];
   const linksCard = el('div', { class: 'card' }, [
@@ -569,7 +581,10 @@ async function rVault() {
       qHost,
       el('span', { class: 'muted', text: 'port' }),
       qPort,
-      el('label', { class: 'muted' }, [qSecure, document.createTextNode(' ' + t('vault.q_secure'))]),
+      el('label', { class: 'muted' }, [
+        qSecure,
+        document.createTextNode(' ' + t('vault.q_secure')),
+      ]),
     ]),
     el('div', { class: 'row' }, [qUser, qPass]),
     el('div', { class: 'row' }, [qSave]),

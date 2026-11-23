@@ -2,7 +2,7 @@
 
 **Documento 16 da especificação CareerFacilator AI.**
 
-A interface gráfica é um **servidor local embutido no próprio binário** (`career ui`) — a mesma aplicação serve dois clientes: o navegador padrão e a janela nativa do app desktop Tauri (`career-ui-<os>-<arch>`). O CLI segue funcionando exatamente como antes; a UI é uma camada visual sobre os mesmos comandos, serviços e arquivos.
+A interface gráfica é um **servidor local embutido no próprio binário** (`career ui`) — a mesma aplicação serve dois clientes: a janela app-mode do navegador (Edge/Chrome `--app=`) e a janela nativa do app desktop Tauri (`career-ui-<os>-<arch>`). O CLI segue funcionando exatamente como antes; a UI é uma camada visual sobre os mesmos comandos, serviços e arquivos — **projetada para devs e não-devs**: o Início traz o guia "Primeiros passos" (importar CV → configurar IA → buscar vagas), as ações têm nomes claros e estados traduzidos, e o material técnico fica colapsado em "Avançado"/"Detalhes técnicos".
 
 ## 16.1 Arquitetura
 
@@ -44,7 +44,7 @@ career-ui-<os>-<arch> (Tauri 2)
 ## 16.3 Comandos
 
 ```powershell
-career ui                    # servidor + abre o navegador (porta livre)
+career ui                    # servidor + janela app-mode (Edge/Chrome --app=; fallback p/ aba comum)
 career ui --port 8080        # porta fixa
 career serve --no-open       # somente servidor — usado pelo app desktop
 ```
@@ -65,6 +65,8 @@ No binário standalone e na instalação npm global os mesmos comandos funcionam
 | `career-ui-<os>-<arch>.AppImage` | Linux |
 
 O job `desktop` do `release.yml` instala o toolchain Rust por OS (`dtolnay/rust-toolchain` + `webkit2gtk` no Linux), baixa o zip do job `build`, faz staging via `scripts/build-desktop.mjs --from <pkg>` (renomeia o exe para o target-triple esperado pelo `externalBin`) e roda `tauri build`. Requisitos do host alvo: WebView2 no Windows (o instalador faz bootstrap), WebKit no Linux (AppImage exige `libwebkit2gtk-4.1` instalado no sistema).
+
+**CLI dentro do pacote UI:** o sidecar embutido É o binário `career` completo — quem instala só o pacote desktop pode usá-lo no terminal chamando o executável da pasta de instalação (o dashboard mostra o caminho exato em "Binário do CLI"). Os dois artefatos compartilham `CAREER_HOME`, cofre e `jobs.sqlite` — dados únicos, intercambiáveis.
 
 ## 16.6 Testes
 
