@@ -88,4 +88,24 @@ describe('matchFields — deterministic filling', () => {
 
     expect(matched[0]?.source).toBe('STANDARD_ANSWER');
   });
+
+  it('matches a choice (radio group) by its QUESTION label, not option text', () => {
+    // feature/06: choice fields carry the question as label; the intended
+    // answer text is resolved to an option later by the executor
+    const fields = [
+      makeField({
+        kind: 'choice',
+        label: 'When are you available to start?',
+        options: [
+          { label: 'Immediately', selector: '[data-cf-idx="0"]' },
+          { label: 'In 2 weeks', selector: '[data-cf-idx="1"]' },
+        ],
+      }),
+    ];
+
+    const { matched, unmatched } = matchFields(fields, profile);
+
+    expect(unmatched).toEqual([]);
+    expect(matched[0]?.source).toBe('STANDARD_ANSWER');
+  });
 });

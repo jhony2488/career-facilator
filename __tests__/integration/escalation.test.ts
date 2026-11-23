@@ -3,6 +3,7 @@ import {
   escalate,
   resumeAfterEscalation,
 } from '../../src/core/escalationHandler';
+import { readAnswers } from '../../src/autofill/answersStore';
 import { runApplicationPipeline } from '../../src/core/pipeline';
 import {
   fakePageState,
@@ -165,5 +166,106 @@ describe('Human escalation: onHumanEscalation handoff (feature/09)', () => {
 
     expect(result.applications[0].status).toBe('NEEDS_HUMAN_INPUT');
     expect(onHumanEscalation).not.toHaveBeenCalled();
+  });
+
+  it('hands unanswered questions to the callback when a live page has them', async () => {
+    // feature/09/06 (decisão #39): questions the live model could not answer
+    // reopen the form visibly — the human answers in the window and submits
+    const el = {
+      click: jest.fn(async () => {
+        throw new Error('not clickable');
+      }),
+      check: jest.fn(async () => {}),
+      fill: jest.fn(async () => {}),
+      innerText: jest.fn(async () => ''),
+      getAttribute: jest.fn(async () => null),
+    };
+    const first = () => el;
+    const scope = {
+      locator: jest.fn(() => ({ first, filter: () => ({ first }) })),
+      getByRole: jest.fn(() => ({ first, filter: () => ({ first }) })),
+      getByLabel: jest.fn(() => ({ first, filter: () => ({ first }) })),
+      getByText: jest.fn(() => ({ first, filter: () => ({ first }) })),
+    };
+    const dom = {
+      frames: () => [scope],
+      locator: scope.locator,
+      getByRole: scope.getByRole,
+      getByLabel: scope.getByLabel,
+      getByText: scope.getByText,
+      url: () => 'https://x.job/apply',
+      waitForTimeout: jest.fn(async () => {}),
+    };
+    const page = {
+      ...fakePageState({
+        fields: [
+          {
+            kind: 'input',
+            label: 'Codename XQ-42',
+            required: true,
+            selector: '[data-cf-idx="0"]',
+          },
+        ],
+      }),
+      dom,
+    };
+    const onHumanEscalation = jest.fn().mockResolvedValue(true);
+    const answerQuestions = jest.fn(async () => null);
+
+    const result = await runApplicationPipeline(
+      {
+        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://boards.greenhouse.io/unk/jobs/11' }],
+        profile: makeMasterProfile(),
+        config: makeConfig(),
+      },
+      {
+        repo: mockRepo(),
+        triageModel: mockTriageModel({ fitScore: 95 }),
+        tailorModel: mockTailorModel(),
+        pageFactory: () => page,
+        onHumanEscalation,
+        answerQuestions,
+      },
+    );
+
+    expect(result.applications[0].status).toBe('NEEDS_HUMAN_INPUT');
+    expect(answerQuestions).toHaveBeenCalledTimes(1);
+    expect(onHumanEscalation).toHaveBeenCalledTimes(1);
+    const handoff = onHumanEscalation.mock.calls[0][0] as {
+      signal: { kind: string };
+      unansweredLabels?: string[];
+    };
+    expect(handoff.signal.kind).toBe('UNKNOWN_REQUIRED_FIELD');
+    expect(handoff.unansweredLabels).toEqual(['Codename XQ-42']);
+  });
+
+  it('fills out-of-scope questions via the live resolver and pauses for review', async () => {
+    // feature/06 (decisão #39): required answered only by the live model
+    // ⇒ anti-fabrication pauses before submit; answer persists to the sidecar
+    const page = fakePageState({
+      fields: [{ kind: 'input', label: 'Codename XQ-42', required: true }],
+    });
+    const answerQuestions = jest.fn(async () => ({ 'Codename XQ-42': 'XZ-1' }));
+
+    const result = await runApplicationPipeline(
+      {
+        rawJobs: [{ html: SAMPLE_JOB_HTML, url: 'https://boards.greenhouse.io/live/jobs/12' }],
+        profile: makeMasterProfile(),
+        config: makeConfig(),
+      },
+      {
+        repo: mockRepo(),
+        triageModel: mockTriageModel({ fitScore: 95 }),
+        tailorModel: mockTailorModel(),
+        pageFactory: () => page,
+        answerQuestions,
+      },
+    );
+
+    expect(answerQuestions).toHaveBeenCalledTimes(1);
+    expect(result.applications[0].status).toBe('READY_TO_REVIEW');
+    const resumePath = result.applications[0].resumePath;
+    expect(resumePath).toBeTruthy();
+    expect(readAnswers(resumePath)['Codename XQ-42']).toBe('XZ-1');
   });
 });

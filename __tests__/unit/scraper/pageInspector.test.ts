@@ -47,6 +47,41 @@ describe('snapshotToState', () => {
     const state = snapshotToState(snap, 'https://x.job', fakeDom);
     expect(state.dom).toBe(fakeDom);
   });
+
+  it('passes choice fields through with their options (radio groups by name)', () => {
+    // feature/06: radio inputs grouped by `name` become one 'choice' field
+    // whose label is the QUESTION and whose options carry per-radio selectors
+    const snapWithChoice: PageSnapshot = {
+      ...snap,
+      fields: [
+        {
+          kind: 'choice',
+          label: 'Do you have hands-on experience with Node.js and Express?',
+          required: true,
+          selector: '[data-cf-idx="3"]',
+          name: 'cards[abc123][field0]',
+          options: [
+            {
+              label: 'Yes, I have substantial experience',
+              value: 'yes',
+              selector: '[data-cf-idx="3"]',
+            },
+            { label: 'No experience', value: 'no', selector: '[data-cf-idx="4"]' },
+          ],
+        },
+      ],
+    };
+
+    const state = snapshotToState(snapWithChoice, 'https://x.job');
+
+    expect(state.fields).toHaveLength(1);
+    expect(state.fields[0].kind).toBe('choice');
+    expect(state.fields[0].label).toBe(
+      'Do you have hands-on experience with Node.js and Express?',
+    );
+    expect(state.fields[0].options).toHaveLength(2);
+    expect(state.fields[0].options?.[1].selector).toBe('[data-cf-idx="4"]');
+  });
 });
 
 describe('mergeSnapshots — multi-frame inspection', () => {

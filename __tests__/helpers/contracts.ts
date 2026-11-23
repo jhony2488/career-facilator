@@ -190,13 +190,15 @@ export interface LocaleDecision {
 }
 
 export interface InspectedField {
-  kind: 'input' | 'select' | 'textarea' | 'file';
+  kind: 'input' | 'select' | 'textarea' | 'file' | 'choice';
   label: string;
   required: boolean;
   inShadowDom?: boolean;
   inIframe?: boolean;
   name?: string;
   selector?: string;
+  /** Alternatives when `kind==='choice'` (radio group by `name`). */
+  options?: Array<{ label: string; value?: string; selector: string }>;
 }
 
 export interface FieldMatch {
@@ -386,9 +388,13 @@ export interface CareerOpsConfig {
 // src/core/pipeline.ts
 //   runApplicationPipeline(input: {rawJobs, profile, config, dryRun?}, deps: {repo, triageModel,
 //     tailorModel, pageFactory(url): PageStateLike|Promise<…>, humanApproval?, humanPace?,
-//     onHumanEscalation?({page,signal,matched,aiAnswers,resumePath})→bool — true = página segue aberta}):
+//     onHumanEscalation?({page,signal,jobUrl,matched,aiAnswers,resumePath,unansweredLabels?})
+//       →bool — true = página segue aberta; chamado tb p/ UNKNOWN_REQUIRED_FIELD
+//     answerQuestions?(questions, ctx{jobTitle,company,jobExcerpt,profileContext})
+//       → Record<string,string>|null — LLM ao vivo (SMART) p/ campos sem resposta}):
 //     Promise<{processed; applications: Array<{status; stages; resumePath?}>;
 //             tokenReport; dryRunReport?}>
+//   — respostas ao vivo viram merge no sidecar <resume>.answers.json (retry reusa)
 //   — materializa o PDF adaptado (buildResumePdf) sob o home de dados e grava o
 //     path absoluto em app.resumePath + jobs.resume_path (persistido p/ retry);
 //     falha de gravação → NEEDS_HUMAN_INPUT 'RESUME_PDF_FAILED'
@@ -399,12 +405,33 @@ export interface CareerOpsConfig {
 //   getJobBrowserContext({headless?, profileDir?, stealth?}) → BrowserContext (cacheado/revalidado)
 // src/scraper/pageInspector.ts  inspectPage(page,url)/inspectDom(page) → PageStateLike{dom};
 //   snapshotToState(snapshot, url, dom?) — puro, testável sem navegador
+//   — input[type=radio] é agrupado por `name` num único campo kind:'choice'
+//     com options[] (label/value/seletor por opção) e label = texto da PERGUNTA
 //
 // src/autofill/deterministicMatcher.ts
+//   InspectedField.kind: 'input'|'select'|'textarea'|'file'|'choice' (+ options?)
 //   matchFields(fields: InspectedField[], profile): {matched: FieldMatch[]; unmatched: InspectedField[]}
+//   — 'choice' casa pela label da PERGUNTA; value retornado = resposta pretendida em texto
+// src/autofill/questionAnswerer.ts
+//   UnresolvedQuestion {label; kind; options?; required}
+//   buildAnswersPrompt({jobTitle, company, jobExcerpt, profileContext, questions}): string
+//   parseAnswers(text): Record<string,string> — ignora respostas vazias
+// src/ai/modelFactory.ts (delta)
+//   LlmClients.answersModel — AnswersModel { answer(prompt) → Record<string,string> }
+//     tier SMART + schema {answers: record(string)}; ModelCallStats.stage += 'answers'
 // src/autofill/formExecutor.ts
-//   executeFill(page, opts: {matched?, aiAnswers?, resumePath?, submitMode}):
-//     Promise<{fieldsFilled, resumeAttached, submitted, status, aiAnswersUsed?, unmatchedHandled?}>
+//   PageFieldState.options?: Array<{label; value?; selector}> — alternativas de 'choice'
+//   ExecuteFillOptions.answerQuestions?: (questions: UnresolvedQuestion[])
+//     → Promise<Record<string,string> | null> — LLM ao vivo, 1 chamada por etapa
+//   executeFill(page, opts: {matched?, aiAnswers?, resumePath?, submitMode, answerQuestions?}):
+//     Promise<{fieldsFilled, resumeAttached, submitted, status, aiAnswersUsed?, unmatchedHandled?,
+//             liveAnswers?, unansweredRequired?}>
+// src/autofill/playwrightExecutor.ts
+//   executeLiveFill(page(com .dom real), opts{…, humanPace?, answerQuestions?}) → ExecuteFillResult
+//   — 'choice' marca a opção via pickOption (exata→contenção→fuzzy→sim/não);
+//     required respondida só por resposta ao vivo derruba AUTO_SUBMIT→PAUSE;
+//     retorna liveAnswers + unansweredRequired
+//   submitLivePage(page, humanPace?) → bool (submit pós-aprovação) · closeLivePage(page) → void
 // src/autofill/wizardNavigator.ts
 //   evaluateStepResult(stepState): 'ADVANCE' | 'ESCALATE' | 'READY'
 //

@@ -54,7 +54,15 @@ export function mockTailorModel(): MockTailorModel {
 /** Serializable state of a page — what the inspector/escalator sees. */
 export interface FakePageState {
   url: string;
-  fields: Array<{ kind: string; label: string; required: boolean; value?: string }>;
+  fields: Array<{
+    kind: string;
+    label: string;
+    required: boolean;
+    value?: string;
+    name?: string;
+    selector?: string;
+    options?: Array<{ label: string; value?: string; selector: string }>;
+  }>;
   hasCaptcha: boolean;
   requiresEmailOtp: boolean;
   validationErrors: string[];

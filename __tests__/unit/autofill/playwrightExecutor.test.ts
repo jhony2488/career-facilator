@@ -2,7 +2,10 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { executeLiveFill } from '../../../src/autofill/playwrightExecutor';
-import type { PageStateLike } from '../../../src/autofill/formExecutor';
+import type {
+  PageStateLike,
+  UnresolvedQuestion,
+} from '../../../src/autofill/formExecutor';
 import type { FieldMatch } from '../../../src/autofill/deterministicMatcher';
 
 /**
@@ -118,6 +121,136 @@ describe('executeLiveFill — frame-aware filling', () => {
     expect(submitBtn.click).toHaveBeenCalled();
     expect(res.submitted).toBe(true);
     expect(res.status).toBe('APPLIED');
+  });
+});
+
+describe('executeLiveFill — choice fields and live answers', () => {
+  const authChoice = () => ({
+    kind: 'choice',
+    label: 'Are you authorized to work in the EU?',
+    required: true,
+    selector: '[data-cf-idx="0"]',
+    name: 'auth',
+    options: [
+      { label: 'Yes, I am authorized', selector: '[data-cf-idx="0"]' },
+      { label: 'No, I am not', selector: '[data-cf-idx="1"]' },
+    ],
+  });
+
+  it('checks the option matching the resolved answer (radio group)', async () => {
+    // feature/06: select the correct alternative in an exclusive option group
+    const yesEl = fakeEl();
+    const noEl = fakeEl();
+    const dom = fakeDom([
+      fakeScope({ '[data-cf-idx="0"]': yesEl, '[data-cf-idx="1"]': noEl }),
+    ]);
+    const live = livePage({ dom, fields: [authChoice()] });
+
+    const res = await executeLiveFill(live, {
+      matched: [match('Are you authorized to work in the EU?', 'yes')],
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: false,
+    });
+
+    expect(yesEl.check).toHaveBeenCalled();
+    expect(noEl.check).not.toHaveBeenCalled();
+    expect(res.fieldsFilled).toBe(1);
+  });
+
+  it('asks the live resolver once per step for unresolved fields and fills the answer', async () => {
+    // feature/06: out-of-scope question answered live by the SMART model
+    const el = fakeEl();
+    const dom = fakeDom([fakeScope({ '[data-cf-idx="0"]': el })]);
+    const live = livePage({
+      dom,
+      fields: [
+        {
+          kind: 'input',
+          label: 'Why do you want this job?',
+          required: false,
+          selector: '[data-cf-idx="0"]',
+        },
+      ],
+    });
+    const answerQuestions = jest.fn(async (_q: UnresolvedQuestion[]) => ({
+      'Why do you want this job?': 'Because TypeScript',
+    }));
+
+    const res = await executeLiveFill(live, {
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: false,
+      answerQuestions,
+    });
+
+    expect(answerQuestions).toHaveBeenCalledTimes(1);
+    expect(answerQuestions.mock.calls[0][0]).toEqual([
+      {
+        label: 'Why do you want this job?',
+        kind: 'input',
+        required: false,
+        options: undefined,
+      },
+    ]);
+    expect(el.fill).toHaveBeenCalledWith('Because TypeScript', { timeout: 3000 });
+    expect(res.liveAnswers).toEqual({ 'Why do you want this job?': 'Because TypeScript' });
+  });
+
+  it('downgrades AUTO_SUBMIT when a required field was answered only by the live resolver', async () => {
+    // feature/06/anti-fabrication: live-AI answer on a required field ⇒ pause
+    const submitBtn = fakeEl({
+      innerText: jest.fn(async () => 'Submit application'),
+      click: jest.fn(async () => {}),
+    });
+    const yesEl = fakeEl();
+    const dom = fakeDom([
+      fakeScope({
+        '[data-cf-idx="0"]': yesEl,
+        'button[type="submit"], input[type="submit"]': submitBtn,
+      }),
+    ]);
+    const live = livePage({ dom, fields: [authChoice()] });
+    const answerQuestions = jest.fn(async () => ({
+      'Are you authorized to work in the EU?': 'Yes, I am authorized',
+    }));
+
+    const res = await executeLiveFill(live, {
+      submitMode: 'AUTO_SUBMIT',
+      humanPace: false,
+      answerQuestions,
+    });
+
+    expect(res.status).toBe('READY_TO_REVIEW');
+    expect(res.submitted).toBe(false);
+    expect(submitBtn.click).not.toHaveBeenCalled();
+    expect(res.liveAnswers).toEqual({
+      'Are you authorized to work in the EU?': 'Yes, I am authorized',
+    });
+  });
+
+  it('reports unansweredRequired for required fields the resolver left blank', async () => {
+    const dom = fakeDom([fakeScope()]);
+    const live = livePage({
+      dom,
+      fields: [
+        {
+          kind: 'input',
+          label: 'Codename XQ-42?',
+          required: true,
+          selector: '[data-cf-idx="0"]',
+        },
+      ],
+    });
+    const answerQuestions = jest.fn(async () => null);
+
+    const res = await executeLiveFill(live, {
+      submitMode: 'PAUSE_BEFORE_SUBMIT',
+      humanPace: false,
+      answerQuestions,
+    });
+
+    expect(answerQuestions).toHaveBeenCalledTimes(1);
+    expect(res.unansweredRequired).toEqual(['Codename XQ-42?']);
+    expect(res.fieldsFilled).toBe(0);
   });
 });
 
