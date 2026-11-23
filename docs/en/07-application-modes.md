@@ -23,6 +23,16 @@ Before authorizing an automatic application, `triageAgent.ts` cross-references `
 | **Project and Domain Alignment** | 20% | Uses local embeddings to check whether the systems you have already built (e.g.: SaaS, financial dashboards, AI automations) solve problems similar to the job's. |
 | **Zero Dealbreakers** | 15% | Deterministic blocking of eliminatory restrictions (e.g.: "Must reside in US with Green Card" or a 100% on-site model outside your city). |
 
+## 9.3. Review queue: process now, approve later
+
+Nothing has to be decided during the `run` — the review modes exist precisely so you can approve applications **after** the heavy work is done:
+
+- **`SEMI_AUTO` pauses everything.** The engine routes 100% of jobs to `REVIEW`, whatever the Fit Score. The system discovers, triages, generates the tailored resume and fills the form — but stops at `PAUSE_BEFORE_SUBMIT`: the job stays `READY_TO_REVIEW` in `jobs.sqlite` (or `NEEDS_HUMAN_INPUT` when the page requires a CAPTCHA, login or unknown field). Nothing is submitted on its own.
+- **`HYBRID_THRESHOLD` (default) is already halfway there.** Only jobs with fit ≥ 88% (`minScoreForFullAuto`) go out by themselves; everything else lands in the same review queue. And a required-field answer coming only from the AI counts as low confidence — it forces review even under `FULL_AUTO`.
+- **Review commands:** in the `career` shell (or directly: `career review`), `review` walks `READY_TO_REVIEW` + `NEEDS_HUMAN_INPUT` + the WhatsApp queue asking the outcome of each item; `retry --send <url|id>` re-fills and submits; `mark <url|id> <status>` records the manual outcome (`applied`, `skipped`, `rejected`…); `status` shows counts per state; `remove <url|id>` takes the job out of history so it can be reprocessed.
+
+Typical "search now, review later" sequence: `career config set EXECUTION_MODE SEMI_AUTO` → `career run` → `career review` when you have time.
+
 ---
 
 « [Previous: Discovery and Deduplication](06-discovery-and-dedup.md) | [Index](README.md) | [Next: Geographic Scope →](08-geographic-scope.md)

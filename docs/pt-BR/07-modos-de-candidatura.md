@@ -23,6 +23,16 @@ Antes de autorizar uma candidatura automática, o `triageAgent.ts` cruza o `prof
 | **Alinhamento de Projetos e Domínio** | 20% | Verifica via embeddings locais se os sistemas que você já construiu (ex: SaaS, dashboards financeiros, automações com IA) resolvem problemas parecidos com os da vaga. |
 | **Zero Dealbreakers** | 15% | Bloqueio determinístico de restrições eliminatórias (ex: "Must reside in US with Green Card" ou modelo 100% presencial fora da sua cidade). |
 
+## 9.3. Fila de revisão: processar agora, aprovar depois
+
+Nada precisa ser decidido durante o `run` — os modos de revisão existem justamente para você aprovar as candidaturas **depois** que o trabalho pesado termina:
+
+- **`SEMI_AUTO` pausa tudo.** O motor roteia 100% das vagas para `REVIEW`, qualquer que seja o Fit Score. O sistema descobre, tria, gera o CV adaptado e preenche o formulário — mas para no `PAUSE_BEFORE_SUBMIT`: a vaga fica `READY_TO_REVIEW` no `jobs.sqlite` (ou `NEEDS_HUMAN_INPUT` quando a página exige CAPTCHA, login ou campo desconhecido). Nada é submetido sozinho.
+- **`HYBRID_THRESHOLD` (default) já é meio caminho.** Só vagas com fit ≥ 88% (`minScoreForFullAuto`) saem sozinhas; todo o resto cai na mesma fila de revisão. E resposta de campo obrigatório vinda só da IA conta como baixa confiança — força revisão até em `FULL_AUTO`.
+- **Comandos de revisão:** no shell `career` (ou direto: `career review`), `review` percorre `READY_TO_REVIEW` + `NEEDS_HUMAN_INPUT` + a fila do WhatsApp perguntando o desfecho de cada item; `retry --send <url|id>` refaz o preenchimento e submete; `mark <url|id> <status>` registra o desfecho manual (`applied`, `skipped`, `rejected`…); `status` mostra as contagens por estado; `remove <url|id>` tira a vaga do histórico para reprocessar.
+
+Sequência típica "pesquisar agora, revisar depois": `career config set EXECUTION_MODE SEMI_AUTO` → `career run` → `career review` quando houver tempo.
+
 ---
 
 « [Anterior: Discovery e Deduplicação](06-discovery-e-deduplicacao.md) | [Índice](README.md) | [Próximo: Escopo Geográfico →](08-escopo-geografico.md)
