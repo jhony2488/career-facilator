@@ -130,6 +130,52 @@ describe('loadCareerOpsConfig — data directory (global CLI)', () => {
   });
 });
 
+describe('loadCareerOpsConfig — exeDir (binário SEA portátil)', () => {
+  it('exe .env overrides the cwd .env, both above the home file', () => {
+    const exe = mkdtempSync(join(tmpdir(), 'cf-exe-'));
+    const home = mkdtempSync(join(tmpdir(), 'cf-home-'));
+    writeFileSync(join(exe, '.env'), 'AI_LOCAL_MODEL=modelo-do-exe\n');
+    writeFileSync(join(home, '.env'), 'AI_FAST_MODEL=modelo-do-home\nAI_LOCAL_MODEL=x\n');
+    const local = join(exe, 'local.env');
+    writeFileSync(local, 'AI_LOCAL_MODEL=modelo-do-cwd\nAI_SMART_MODEL=modelo-do-local\n');
+    const cfg = loadCareerOpsConfig({ env: { CAREER_HOME: home }, envFile: local, exeDir: exe });
+    expect(cfg.ai.local.modelId).toBe('modelo-do-exe'); // exe > cwd
+    expect(cfg.ai.smart.modelId).toBe('modelo-do-local'); // cwd-only key preserved
+    expect(cfg.ai.fast.modelId).toBe('modelo-do-home'); // home fills the rest
+    rmSync(exe, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('process env still wins over the exe .env', () => {
+    const exe = mkdtempSync(join(tmpdir(), 'cf-exe-'));
+    writeFileSync(join(exe, '.env'), 'AI_LOCAL_MODEL=modelo-do-exe\n');
+    const cfg = loadCareerOpsConfig({
+      env: { AI_LOCAL_MODEL: 'modelo-do-env' },
+      envFile: join(exe, 'inexistente.env'),
+      exeDir: exe,
+    });
+    expect(cfg.ai.local.modelId).toBe('modelo-do-env');
+    rmSync(exe, { recursive: true, force: true });
+  });
+
+  it('relative CAREER_HOME in the local .env anchors on exeDir', () => {
+    const exe = mkdtempSync(join(tmpdir(), 'cf-exe-'));
+    const local = join(exe, 'local.env');
+    writeFileSync(local, 'CAREER_HOME=.\n');
+    const cfg = loadCareerOpsConfig({ env: {}, envFile: local, exeDir: exe });
+    expect(cfg.profile.inboxDir).toBe(join(exe, 'storage/profile_inbox/'));
+    rmSync(exe, { recursive: true, force: true });
+  });
+
+  it('envFile empty disables all file parsing, including the exe .env', () => {
+    const exe = mkdtempSync(join(tmpdir(), 'cf-exe-'));
+    writeFileSync(join(exe, '.env'), 'AI_LOCAL_MODEL=modelo-do-exe\n');
+    const cfg = loadCareerOpsConfig({ env: {}, envFile: '', exeDir: exe });
+    expect(cfg.ai.local.modelId).toBe('qwen2.5:7b');
+    rmSync(exe, { recursive: true, force: true });
+  });
+});
+
 describe('loadCareerOpsConfig — fallbacks por tier', () => {
   it('default da spec: local→fast, smart→fast, fast→off', () => {
     const cfg = loadCareerOpsConfig({ env: {}, envFile: '' });

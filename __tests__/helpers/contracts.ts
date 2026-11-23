@@ -451,3 +451,17 @@ export interface CareerOpsConfig {
 //   approveProfileDraft(deps: {store: MasterProfileStore}): Promise<{activated: true} & ProfileInvalidation>
 //   processInbox(input: {inboxDir; mode}, deps: ImportResumeDeps & {scanner: InboxScanner}):
 //     Promise<{scanned: number; results: Array<ImportResumeResult & {path; archivedTo?}>}>
+//
+// src/utils/runtimeModules.ts (runtime sidecar do exe SEA — career-runtime/)
+//   isSea(): boolean · exeDir(): string
+//   runtimeDirCandidates(env?): string[] — CAREER_RUNTIME → <exe>/career-runtime → packageRoot
+//   runtimeDir(env?): string | null — primeiro candidato com node_modules
+//   loadRuntimeModule<T>(name, env?): Promise<T> — dev: import(name); SEA: createRequire(candidato)
+//   ensureBrowserRuntimeEnv(env?): void — PLAYWRIGHT_BROWSERS_PATH → <runtime>/browsers
+//   tessdataDir(env?): string | null — <runtime>/tessdata
+// src/config/paths.ts (âncora de dados)
+//   careerHome(env?, {exeDir?}): string — CAREER_HOME relativo ancora em exeDir (SEA portátil)
+//   resolveHome(rel, env?, {exeDir?}): string · envFilePath(env?, {exeDir?}): string
+// src/config/loadConfig.ts
+//   LoadConfigOptions {env?, envFile?, exeDir?} — exeDir habilita <exe>/.env na cadeia:
+//   <home>/.env < ./.env (cwd) < <exe>/.env < process.env
