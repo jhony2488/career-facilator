@@ -3,6 +3,13 @@ import type { JobStatus } from '../db/repository';
 
 export type SubmitMode = 'PAUSE_BEFORE_SUBMIT' | 'AUTO_SUBMIT';
 
+/** Alternativa de um campo `choice` (grupo exclusivo — radios por `name`). */
+export interface ChoiceOption {
+  label: string;
+  value?: string;
+  selector: string;
+}
+
 export interface PageFieldState {
   kind: string;
   label: string;
@@ -14,6 +21,17 @@ export interface PageFieldState {
   name?: string;
   /** Índice em page.frames() onde o seletor resolve — ausente = frame principal. */
   frameIdx?: number;
+  /** Alternativas quando `kind==='choice'` — label da pergunta no próprio campo. */
+  options?: ChoiceOption[];
+}
+
+/** Campo sem resposta por nenhuma fonte — enviado à LLM ao vivo (1× por etapa). */
+export interface UnresolvedQuestion {
+  label: string;
+  kind: string;
+  required: boolean;
+  /** Textos das alternativas quando `kind==='choice'`. */
+  options?: string[];
 }
 
 /** Visão serializável da página — o que o executor enxerga do navegador. */
@@ -73,6 +91,13 @@ export interface ExecuteFillOptions {
    * anexos e o submit. Diagnóstico de "valor errado em campo X".
    */
   debug?: boolean;
+  /**
+   * Resposta ao vivo (tier SMART) para campos sem valor por nenhuma fonte —
+   * 1 chamada batelada por etapa do wizard; `null`/falha = campo segue
+   * sem resposta (escalonamento normal). Regra anti-fabricação: campo
+   * required respondido só aqui derruba AUTO_SUBMIT p/ PAUSE.
+   */
+  answerQuestions?: (questions: UnresolvedQuestion[]) => Promise<Record<string, string> | null>;
 }
 
 export interface ExecuteFillResult {
@@ -83,6 +108,10 @@ export interface ExecuteFillResult {
   aiAnswersUsed?: string[];
   unmatchedHandled?: boolean;
   escalated?: boolean;
+  /** Respostas geradas ao vivo e efetivamente usadas (label → resposta). */
+  liveAnswers?: Record<string, string>;
+  /** Labels de campos required que ficaram sem valor mesmo após a LLM. */
+  unansweredRequired?: string[];
 }
 
 /**
@@ -100,9 +129,14 @@ export async function executeFill(
     fuzzyThreshold = 0.9,
     resumePath,
     submitMode,
+    answerQuestions,
   } = opts;
   let fieldsFilled = 0;
   const aiAnswersUsed: string[] = [];
+  const liveAnswers: Record<string, string> = {};
+  const liveRequiredUsed = new Set<string>();
+  const unansweredRequired = new Set<string>();
+  const liveNorm = new Map<string, string>();
 
   const matchedBySelector = new Map(
     matched.filter((m) => m.field.selector).map((m) => [m.field.selector as string, m.value]),
@@ -128,19 +162,56 @@ export async function executeFill(
     }
     const fuzzy = fuzzyValue(field.label, aiAnswers, fuzzyThreshold);
     if (fuzzy) return { value: fuzzy, source: 'AI_GENERATED' };
+    const live = liveNorm.get(normKey(field.label));
+    if (live !== undefined) return { value: live, source: 'AI_LIVE' };
     const def = fuzzyValue(field.label, fieldDefaults, 0.8);
     if (def) return { value: def, source: 'DEFAULT' };
     return {};
   };
 
+  // LLM ao vivo: campos sem resposta por nenhuma fonte → 1 chamada batelada.
+  if (answerQuestions) {
+    const unresolved = page.fields
+      .filter((f) => f.kind !== 'file' && resolveValue(f).value === undefined)
+      .map((f) => ({
+        label: f.label,
+        kind: f.kind,
+        required: f.required,
+        options: f.options?.map((o) => o.label),
+      }));
+    if (unresolved.length) {
+      const got = await answerQuestions(unresolved).catch(() => null);
+      if (got) {
+        for (const [k, v] of Object.entries(got)) {
+          if (v && v.trim()) liveNorm.set(normKey(k), v);
+        }
+      }
+    }
+  }
+
   for (const field of page.fields) {
     if (field.kind === 'file') continue;
 
     const resolved = resolveValue(field);
-    if (resolved.value !== undefined) {
+    if (resolved.value === undefined) {
+      if (field.required) unansweredRequired.add(field.label);
+      continue;
+    }
+    if (field.kind === 'choice') {
+      const option = field.options ? pickOption(resolved.value, field.options) : undefined;
+      if (!option) {
+        if (field.required) unansweredRequired.add(field.label);
+        continue;
+      }
+      field.value = option.label;
+    } else {
       setNativeValue(field, resolved.value);
-      fieldsFilled++;
-      if (resolved.source === 'AI_GENERATED') aiAnswersUsed.push(field.label);
+    }
+    fieldsFilled++;
+    if (resolved.source === 'AI_GENERATED') aiAnswersUsed.push(field.label);
+    if (resolved.source === 'AI_LIVE') {
+      liveAnswers[field.label] = resolved.value;
+      if (field.required) liveRequiredUsed.add(field.label);
     }
   }
 
@@ -151,6 +222,11 @@ export async function executeFill(
     resumeAttached = true;
   }
 
+  const extra = {
+    ...(Object.keys(liveAnswers).length ? { liveAnswers } : {}),
+    ...(unansweredRequired.size ? { unansweredRequired: [...unansweredRequired] } : {}),
+  };
+
   if (page.hasCaptcha || page.requiresEmailOtp || page.validationErrors.length > 0) {
     return {
       fieldsFilled,
@@ -160,12 +236,21 @@ export async function executeFill(
       status: 'NEEDS_HUMAN_INPUT',
       unmatchedHandled: true,
       escalated: true,
+      ...extra,
     };
   }
 
-  if (submitMode === 'AUTO_SUBMIT') {
+  // Anti-fabricação: required respondida só pela LLM ao vivo ⇒ pausa p/ revisão.
+  if (submitMode === 'AUTO_SUBMIT' && liveRequiredUsed.size === 0) {
     page.submitted = true;
-    return { fieldsFilled, resumeAttached, submitted: true, aiAnswersUsed, status: 'APPLIED' };
+    return {
+      fieldsFilled,
+      resumeAttached,
+      submitted: true,
+      aiAnswersUsed,
+      status: 'APPLIED',
+      ...extra,
+    };
   }
 
   return {
@@ -175,6 +260,7 @@ export async function executeFill(
     aiAnswersUsed,
     status: 'READY_TO_REVIEW',
     unmatchedHandled: true,
+    ...extra,
   };
 }
 
@@ -219,4 +305,35 @@ function fuzzyValue(
     if (score >= threshold && (!best || score > best.score)) best = { key, score };
   }
   return best ? answers[best.key] : undefined;
+}
+
+const YES_RE = /^(y|yes|s|sim)\b/i;
+const NO_RE = /^(n|no|n[aã]o)\b/i;
+
+/**
+ * Resposta em texto → alternativa de `choice`: normalizada exata →
+ * contenção (qualquer direção) → jaccard ≥0.5 → mapa sim/não.
+ */
+export function pickOption(answer: string, options: ChoiceOption[]): ChoiceOption | undefined {
+  const target = normKey(answer);
+  if (!target) return undefined;
+  const exact = options.find(
+    (o) => normKey(o.label) === target || normKey(o.value ?? '') === target,
+  );
+  if (exact) return exact;
+  const contained = options.find(
+    (o) => normKey(o.label).includes(target) || target.includes(normKey(o.label)),
+  );
+  if (contained) return contained;
+  const tokens = tokenSet(answer);
+  let best: { option: ChoiceOption; score: number } | null = null;
+  for (const option of options) {
+    const score = jaccard(tokens, tokenSet(option.label));
+    if (score >= 0.5 && (!best || score > best.score)) best = { option, score };
+  }
+  if (best) return best.option;
+  const trimmed = answer.trim();
+  if (YES_RE.test(trimmed)) return options.find((o) => YES_RE.test(o.label));
+  if (NO_RE.test(trimmed)) return options.find((o) => NO_RE.test(o.label));
+  return undefined;
 }

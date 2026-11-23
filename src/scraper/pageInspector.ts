@@ -15,6 +15,8 @@ export interface PageSnapshot {
     name: string;
     /** Índice em page.frames() — carimbado no merge multi-frame. */
     frameIdx?: number;
+    /** Alternativas de um campo `choice` (grupo de radios por `name`). */
+    options?: Array<{ label: string; value?: string; selector: string }>;
   }>;
   hasCaptcha: boolean;
   requiresEmailOtp: boolean;
@@ -88,9 +90,44 @@ function snapshotScript(): PageSnapshot {
     return '';
   };
 
+  /**
+   * Texto da PERGUNTA de um grupo de radios (a alternativa, não a opção).
+   * fieldset>legend → radiogroup aria-label/labelledby → 1º texto não-opção
+   * subindo ancestrais (≤6) → fallback: `name` do grupo.
+   */
+  const questionLabelFor = (radios: HTMLElement[], groupName: string): string => {
+    const first = radios[0];
+    const fs = first.closest('fieldset');
+    const legend = fs?.querySelector('legend')?.textContent?.trim();
+    if (legend) return legend;
+    const rg = first.closest('[role="radiogroup"]');
+    const rgLabel = rg?.getAttribute('aria-label')?.trim();
+    if (rgLabel) return rgLabel;
+    const labelledBy = rg?.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const t = (first.getRootNode() as Document).getElementById?.(labelledBy)?.textContent?.trim();
+      if (t) return t;
+    }
+    let node = first.parentElement;
+    for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+      const clone = node.cloneNode(true) as HTMLElement;
+      for (const r of Array.from(clone.querySelectorAll('input[type="radio"]'))) {
+        (r.closest('label') ?? r.closest('li') ?? (r as HTMLElement)).remove();
+      }
+      const text = ((clone as HTMLElement).innerText || clone.textContent || '')
+        .split('\n')
+        .map((l) => l.trim())
+        .find((l) => l.length > 0 && l.length <= 300);
+      if (text) return text;
+    }
+    return groupName;
+  };
+
   const fields: PageSnapshot['fields'] = [];
   let idx = 0;
   let isShadowDom = false;
+  /** Radios já emitidos dentro de um campo `choice` — não viram campo isolado. */
+  const consumedRadios = new Set<HTMLElement>();
 
   // Campos dentro de shadow roots ABERTOS também são coletados (Workday/Gupy —
   // feature/06 "estruturas encapsuladas"). Roots fechados são opacos por design.
@@ -98,6 +135,44 @@ function snapshotScript(): PageSnapshot {
     for (const el of Array.from(root.querySelectorAll('input,select,textarea'))) {
       const tag = el.tagName.toLowerCase();
       const type = (el.getAttribute('type') || '').toLowerCase();
+      if (consumedRadios.has(el as HTMLElement)) continue;
+      // Radios com `name` viram UM campo 'choice' (grupo exclusivo) — label =
+      // pergunta, options = cada alternativa c/ seu seletor. Sem `name` o
+      // radio segue como input isolado (comportamento anterior).
+      if (tag === 'input' && type === 'radio') {
+        const groupName = el.getAttribute('name') || '';
+        if (groupName) {
+          const radios = Array.from(
+            root.querySelectorAll(`input[type="radio"][name="${CSS.escape(groupName)}"]`),
+          ).filter((r) => !consumedRadios.has(r as HTMLElement)) as HTMLElement[];
+          radios.forEach((r) => consumedRadios.add(r));
+          const options = radios.map((r) => {
+            r.setAttribute('data-cf-idx', String(idx));
+            const option = {
+              label: labelFor(r) || r.getAttribute('value') || '',
+              value: r.getAttribute('value') || undefined,
+              selector: `[data-cf-idx="${idx}"]`,
+            };
+            idx++;
+            return option;
+          });
+          const firstIdx = idx - options.length;
+          const label = questionLabelFor(radios, groupName);
+          const required =
+            radios.some(
+              (r) => r.hasAttribute('required') || r.getAttribute('aria-required') === 'true',
+            ) || /\*\s*$/.test(label);
+          fields.push({
+            kind: 'choice',
+            label,
+            required,
+            selector: `[data-cf-idx="${firstIdx}"]`,
+            name: groupName,
+            options,
+          });
+          continue;
+        }
+      }
       if (tag === 'input' && SKIP_TYPES.includes(type)) continue;
       // <input type=file> costuma ficar display:none atrás de um label — coleta mesmo invisível
       if (!isVisible(el) && type !== 'file') continue;

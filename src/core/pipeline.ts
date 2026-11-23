@@ -12,7 +12,12 @@ import {
   type FieldMatch,
   type InspectedField,
 } from '../autofill/deterministicMatcher';
-import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
+import {
+  executeFill,
+  type PageStateLike,
+  type SubmitMode,
+  type UnresolvedQuestion,
+} from '../autofill/formExecutor';
 import { writeAnswers } from '../autofill/answersStore';
 import { closeLivePage, executeLiveFill, submitLivePage } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
@@ -103,7 +108,18 @@ export interface PipelineDeps {
     matched: FieldMatch[];
     aiAnswers: Record<string, string>;
     resumePath?: string;
+    /** Labels das perguntas required sem resposta — listadas no prompt humano. */
+    unansweredLabels?: string[];
   }) => Promise<boolean>;
+  /**
+   * Respostas ao vivo (decisão #39): campos sem valor por nenhuma fonte vão
+   * ao tier SMART — 1 chamada por etapa do wizard. O pipeline fecha o ctx
+   * da vaga/perfil; `null`/falha = campo segue p/ escalonamento normal.
+   */
+  answerQuestions?: (
+    questions: UnresolvedQuestion[],
+    ctx: { jobTitle: string; company: string; jobExcerpt: string; profileContext: string },
+  ) => Promise<Record<string, string> | null>;
   /** `AUTOFILL_DEBUG_FILL` — loga campo→valor→fonte no fill web. */
   debugFill?: boolean;
   /** Defaults configuráveis para campos obrigatórios não reconhecidos. */
@@ -274,6 +290,7 @@ export async function runApplicationPipeline(
         triage.matchedKeywords,
         markdown,
       );
+      const profileContext = buildProfileContext(relevantChunks);
       const assets = await tailorResume(
         {
           job: {
@@ -285,7 +302,7 @@ export async function runApplicationPipeline(
           triage,
           skillsBlock,
           profile,
-          profileContext: buildProfileContext(relevantChunks),
+          profileContext,
           resumeLanguage: resolveLocale(scope, config).resumeLanguage,
         },
         { model: deps.tailorModel },
@@ -413,6 +430,7 @@ export async function runApplicationPipeline(
           required: f.required,
           name: f.name,
           selector: f.selector,
+          options: f.options,
         }));
         const { matched, unmatched } = matchFields(inspected, profile, deps.fieldDefaults);
         const unmatchedRequired = unmatched.filter((f) => f.required && !assets.answers[f.label]);
@@ -425,6 +443,18 @@ export async function runApplicationPipeline(
           route === 'AUTO_SEND' && !lowConfidence ? 'AUTO_SUBMIT' : 'PAUSE_BEFORE_SUBMIT'
         ) as SubmitMode;
 
+        // Respostas ao vivo (decisão #39): closure por vaga — título/empresa +
+        // excerpt do markdown + mesmo profileContext (RAG) do tailor.
+        const liveAnswerer = deps.answerQuestions
+          ? (questions: UnresolvedQuestion[]) =>
+              deps.answerQuestions!(questions, {
+                jobTitle: clean.title ?? '',
+                company: clean.company ?? '',
+                jobExcerpt: markdown.slice(0, 2000),
+                profileContext,
+              })
+          : undefined;
+
         const fill = await (page.dom
           ? executeLiveFill(page, {
               matched,
@@ -435,6 +465,7 @@ export async function runApplicationPipeline(
               submitMode,
               humanPace: deps.humanPace,
               debug: deps.debugFill,
+              answerQuestions: liveAnswerer,
             })
           : executeFill(page, {
               matched,
@@ -443,11 +474,22 @@ export async function runApplicationPipeline(
               fuzzyThreshold: deps.fuzzyThreshold,
               resumePath: app.resumePath,
               submitMode,
+              answerQuestions: liveAnswerer,
             }));
 
-        // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido
+        // Respostas geradas ao vivo entram no sidecar — o retry reusa junto
+        // com as do tailor (decisão #30 estendida).
+        if (fill.liveAnswers && Object.keys(fill.liveAnswers).length) {
+          Object.assign(assets.answers, fill.liveAnswers);
+          if (app.resumePath) writeAnswers(app.resumePath, assets.answers);
+        }
+
+        // 11. Escalonamento por bloqueio detectado na página ou campo desconhecido —
+        // o detalhe usa o que sobrou sem resposta mesmo após a LLM ao vivo.
         const signal = detectBlockingSignal(page, {
-          unmatchedRequiredLabels: unmatchedRequired.map((f) => f.label),
+          unmatchedRequiredLabels: fill.unansweredRequired?.length
+            ? fill.unansweredRequired
+            : unmatchedRequired.map((f) => f.label),
         });
         if (signal || fill.escalated) {
           const effSignal: BlockingSignal = signal ?? {
@@ -455,12 +497,14 @@ export async function runApplicationPipeline(
             detail: 'bloqueio no preenchimento',
           };
           await escalate(page, effSignal);
-          // CAPTCHA/OTP/login em página real → chamador pode reabrir visível
-          // p/ o humano resolver na hora (true = página segue aberta fora do pipeline).
+          // CAPTCHA/OTP/login/perguntas sem resposta em página real → chamador
+          // pode reabrir visível p/ o humano resolver na hora (true = página
+          // segue aberta fora do pipeline).
           if (
             (effSignal.kind === 'CAPTCHA' ||
               effSignal.kind === 'EMAIL_OTP' ||
-              effSignal.kind === 'LOGIN_REQUIRED') &&
+              effSignal.kind === 'LOGIN_REQUIRED' ||
+              (effSignal.kind === 'UNKNOWN_REQUIRED_FIELD' && !!page.dom)) &&
             deps.onHumanEscalation
           ) {
             keepPageOpen = await deps
@@ -471,6 +515,7 @@ export async function runApplicationPipeline(
                 matched,
                 aiAnswers: assets.answers,
                 resumePath: app.resumePath,
+                unansweredLabels: fill.unansweredRequired,
               })
               .catch(() => false);
           }

@@ -8,6 +8,7 @@ import type { TailorModel } from './tailorerAgent';
 import type { StructurerModel } from '../intake/profileStructurer';
 import { MasterProfileSchema } from '../intake/profileStructurer';
 import type { NavAction } from '../autofill/applyNavigator';
+import { parseAnswers, type AnswersModel } from '../autofill/questionAnswerer';
 import { z } from 'zod';
 import { zodSchema } from 'ai';
 import type { CareerOpsConfig, ModelRouting } from '../config/careerOps.config';
@@ -22,11 +23,13 @@ export interface LlmClients {
   tailorModel: TailorModel;
   structurerModel: StructurerModel;
   navigatorModel: NavigatorModel;
+  /** Respostas ao vivo no fill (tier SMART) — perguntas fora de escopo. */
+  answersModel: AnswersModel;
 }
 
 /** Métricas normalizadas de uma chamada de modelo — agnóstico de provider. */
 export interface ModelCallStats {
-  stage: 'triage' | 'structurer' | 'tailor' | 'navigator';
+  stage: 'triage' | 'structurer' | 'tailor' | 'navigator' | 'answers';
   provider: string;
   modelId: string;
   durationMs?: number;
@@ -90,6 +93,7 @@ const NUM_PREDICT_DEFAULTS = {
   structurer: 3072,
   tailor: 4096,
   navigator: 256,
+  answers: 1536,
 } as const;
 
 /**
@@ -106,6 +110,8 @@ const NavActionSchema = z.object({
   target: z.string().optional(),
 });
 const NAV_JSON_SCHEMA = zodSchema(NavActionSchema).jsonSchema as Record<string, unknown>;
+const AnswersOutputSchema = z.object({ answers: z.record(z.string(), z.string()) });
+const ANSWERS_JSON_SCHEMA = zodSchema(AnswersOutputSchema).jsonSchema as Record<string, unknown>;
 /** Timeout por chamada — 10 min: modelos 7-8B em CPU demoram muito além de 3 min. */
 const DEFAULT_TIMEOUT_MS = 600_000;
 
@@ -331,7 +337,29 @@ export function createModelClients(
     };
   })();
 
-  return { triageModel, tailorModel, structurerModel, navigatorModel };
+  const answersModel: AnswersModel = (() => {
+    const client = clientFor(smart, 'SMART');
+    return {
+      answer: async (prompt: string) => {
+        const out = await generateStructured(
+          (p) =>
+            chatText(
+              client,
+              smart.modelId,
+              p,
+              { format: ANSWERS_JSON_SCHEMA, numPredict: NUM_PREDICT_DEFAULTS.answers },
+              'answers',
+              smart.provider,
+            ),
+          prompt,
+          AnswersOutputSchema,
+        );
+        return parseAnswers(out);
+      },
+    };
+  })();
+
+  return { triageModel, tailorModel, structurerModel, navigatorModel, answersModel };
 }
 
 /** Embedder para o retriever híbrido — provider ollama via /api/embed. */

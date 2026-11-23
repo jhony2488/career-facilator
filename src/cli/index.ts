@@ -71,6 +71,7 @@ import { agentNavigateToForm, type NavContext } from '../autofill/applyNavigator
 import { isLinkedInJobUrl, openEasyApplyModal } from '../autofill/linkedinEasyApply';
 import { removeAnswers } from '../autofill/answersStore';
 import { matchFields } from '../autofill/deterministicMatcher';
+import { buildAnswersPrompt } from '../autofill/questionAnswerer';
 import { compileMasterProfile } from '../intake/profileCompiler';
 import type { NavigatorModel } from '../ai/modelFactory';
 import {
@@ -633,12 +634,20 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
     fuzzyThreshold: config.autofill.questionSimilarityThreshold,
   };
 
-  // CAPTCHA/OTP/login → janela visível pro humano resolver na hora (feature/09):
-  // em headless reabre o form no mesmo perfil; já visível, só preserva a aba.
-  // AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
+  // CAPTCHA/OTP/login/perguntas sem resposta → janela visível pro humano
+  // resolver na hora (feature/09): em headless reabre o form no mesmo perfil;
+  // já visível, só preserva a aba. AUTOFILL_VISIBLE_ON_ESCALATION=false desliga.
   const escalation = makeHumanEscalation(ctx);
   if (effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false') {
     channelDeps.onHumanEscalation = escalation.handler;
+  }
+
+  // Respostas ao vivo (decisão #39): campos sem resposta por perfil/tailor/
+  // defaults vão ao tier SMART — 1 chamada batelada por etapa do wizard.
+  // AUTOFILL_LIVE_ANSWERS=false desliga (escala direto como antes).
+  if (effEnv.env.AUTOFILL_LIVE_ANSWERS !== 'false') {
+    channelDeps.answerQuestions = (questions, qCtx) =>
+      clients.answersModel.answer(buildAnswersPrompt(qCtx, questions)).catch(() => null);
   }
 
   if (config.email.enabled) {
@@ -996,6 +1005,7 @@ function makeHumanEscalation(ctx: CmdCtx): {
     matched,
     aiAnswers,
     resumePath,
+    unansweredLabels,
   }) => {
     if (!page.dom) return false;
     const refill = { matched, aiAnswers, resumePath };
@@ -1039,15 +1049,23 @@ function makeHumanEscalation(ctx: CmdCtx): {
         return true;
       }
     }
+    // Perguntas sem resposta automática (decisão #39): lista o que falta —
+    // o humano responde na janela, envia e confirma com `mark`.
+    const questionList =
+      signal.kind === 'UNKNOWN_REQUIRED_FIELD' && unansweredLabels?.length
+        ? `\n   Responda na janela: ${unansweredLabels.join(' · ')}`
+        : '';
     if (effEnv.env.AUTOFILL_HEADLESS === 'false') {
       pendingVisiblePages++;
       console.log(
-        `\n⏸ ${signal.detail} — resolva na janela aberta e envie; ` +
+        `\n⏸ ${signal.detail}${questionList} — resolva na janela aberta e envie; ` +
           `depois confirme com 'mark ${page.url} applied' ou 'e' no review.`,
       );
       return true;
     }
-    console.log(`\n⏸ ${signal.detail} — reabrindo o formulário visível p/ resolução manual…`);
+    console.log(
+      `\n⏸ ${signal.detail}${questionList} — reabrindo o formulário visível p/ resolução manual…`,
+    );
     const reopened = await relaunchEscalationPage(page.url, {
       matched,
       aiAnswers,
@@ -1727,12 +1745,18 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
   const profile = loadMasterProfile();
   const escalation =
     effEnv.env.AUTOFILL_VISIBLE_ON_ESCALATION !== 'false' ? makeHumanEscalation(ctx) : null;
-  // Navegador agêntico (decisão #29): cliente lazy — só instanciado se a
-  // flag estiver ligada; decide() só chama modelo quando a cadeia falha.
+  // Navegador agêntico (decisão #29) + respostas ao vivo (decisão #39):
+  // clientes lazy — só instanciados com a flag ligada; cada um só chama
+  // modelo quando a camada determinística falha.
+  const needModels =
+    effEnv.env.AUTOFILL_AGENT_NAV !== 'false' || effEnv.env.AUTOFILL_LIVE_ANSWERS !== 'false';
+  const modelClients = needModels
+    ? createModelClients(config, { onStage }, effEnv.env)
+    : undefined;
   const navigatorModel =
-    effEnv.env.AUTOFILL_AGENT_NAV !== 'false'
-      ? createModelClients(config, { onStage }, effEnv.env).navigatorModel
-      : undefined;
+    effEnv.env.AUTOFILL_AGENT_NAV !== 'false' ? modelClients?.navigatorModel : undefined;
+  const answersModel =
+    effEnv.env.AUTOFILL_LIVE_ANSWERS !== 'false' ? modelClients?.answersModel : undefined;
   const deps = {
     repo,
     pageFactory: makeWebPageFactory(navigatorModel),
@@ -1741,6 +1765,14 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
     fieldDefaults: config.autofill.fieldDefaults,
     fuzzyThreshold: config.autofill.questionSimilarityThreshold,
     ...(escalation ? { onHumanEscalation: escalation.handler } : {}),
+    ...(answersModel
+      ? {
+          answerQuestions: (
+            questions: Parameters<NonNullable<PipelineDeps['answerQuestions']>>[0],
+            qCtx: Parameters<NonNullable<PipelineDeps['answerQuestions']>>[1],
+          ) => answersModel.answer(buildAnswersPrompt(qCtx, questions)).catch(() => null),
+        }
+      : {}),
   };
   // Envio: FULL_AUTO envia; `--send` é aprovação explícita do usuário —
   // ambos respeitam a regra de consentimento; fora disso, pausa p/ revisão.
@@ -1793,17 +1825,19 @@ async function cmdInspect(args: string[], _ctx: CmdCtx = {}): Promise<void> {
   const page = await pageFactory(url);
 
   const inspected: Array<{
-    kind: 'input' | 'select' | 'textarea' | 'file';
+    kind: 'input' | 'select' | 'textarea' | 'file' | 'choice';
     label: string;
     required: boolean;
     name?: string;
     selector?: string;
+    options?: Array<{ label: string; value?: string; selector: string }>;
   }> = page.fields.map((f) => ({
-    kind: f.kind as 'input' | 'select' | 'textarea' | 'file',
+    kind: f.kind as 'input' | 'select' | 'textarea' | 'file' | 'choice',
     label: f.label,
     required: f.required,
     name: f.name,
     selector: f.selector,
+    options: f.options,
   }));
   const { matched, unmatched } = matchFields(inspected, profile, config.autofill.fieldDefaults);
   const matchedByLabel = new Map(matched.map((m) => [m.field.label, m]));
@@ -1822,6 +1856,11 @@ async function cmdInspect(args: string[], _ctx: CmdCtx = {}): Promise<void> {
     console.log(
       `  [${f.kind}] ${f.required ? '*' : ' '}${f.label} → ${value} (selector=${f.selector ?? '—'}, name=${f.name ?? '—'})`,
     );
+    if (f.kind === 'choice') {
+      for (const o of f.options ?? []) {
+        console.log(`      ○ ${o.label.slice(0, 70)}`);
+      }
+    }
   }
 
   if (page.dropzones?.length) {

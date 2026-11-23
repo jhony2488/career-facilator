@@ -1,11 +1,21 @@
 import type { JobRepository, JobStatus, JobRecord } from '../db/repository';
 import { matchFields, type InspectedField } from '../autofill/deterministicMatcher';
-import { executeFill, type PageStateLike, type SubmitMode } from '../autofill/formExecutor';
-import { readAnswers } from '../autofill/answersStore';
+import {
+  executeFill,
+  type PageStateLike,
+  type SubmitMode,
+  type UnresolvedQuestion,
+} from '../autofill/formExecutor';
+import { readAnswers, writeAnswers } from '../autofill/answersStore';
 import { resolveHome } from '../config/paths';
 import { existsSync } from 'node:fs';
 import { closeLivePage, executeLiveFill } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
+import {
+  buildProfileContext,
+  chunkProfile,
+  retrieveRelevant,
+} from '../ai/rag/profileRetriever';
 import type { PipelineDeps } from './pipeline';
 import type { MasterProfileLike } from './types';
 
@@ -27,6 +37,8 @@ export interface RetryDeps {
   fieldDefaults?: Record<string, string>;
   /** Limiar de similaridade das respostas do tailor (0..1). */
   fuzzyThreshold?: number;
+  /** LLM ao vivo p/ campos sem resposta (decisão #39 — revisita #27). */
+  answerQuestions?: PipelineDeps['answerQuestions'];
 }
 
 export interface RetryResult {
@@ -66,10 +78,11 @@ export async function reapplyStoredJob(
       required: f.required,
       name: f.name,
       selector: f.selector,
+      options: f.options,
     }));
     const { matched, unmatched } = matchFields(inspected, profile, deps.fieldDefaults);
-    // Respostas do tailor persistidas no run — preenchem os campos que o
-    // match determinístico não cobre (antes caíam todos em UNKNOWN_…).
+    // Respostas do tailor + live persistidas no run — preenchem os campos
+    // que o match determinístico não cobre (antes caíam em UNKNOWN_…).
     const aiAnswers = readAnswers(job.resumePath);
     // Sem CV tailorado em registro antigo → master resume de fallback.
     // job.resumePath é relativo ao CAREER_HOME — resolve p/ path real.
@@ -85,6 +98,22 @@ export async function reapplyStoredJob(
     const lowConfidence = unmatched.some((f) => f.required && aiAnswers[f.label] !== undefined);
     const effectiveSubmit: SubmitMode =
       submitMode === 'AUTO_SUBMIT' && lowConfidence ? 'PAUSE_BEFORE_SUBMIT' : submitMode;
+    // Respostas ao vivo também no retry (decisão #39): ctx da vaga vem do
+    // registro persistido + perfil via RAG léxico (sem embedder no retry).
+    const liveAnswerer = deps.answerQuestions
+      ? (questions: UnresolvedQuestion[]) =>
+          deps.answerQuestions!(questions, {
+            jobTitle: job.title,
+            company: job.company,
+            jobExcerpt: job.descriptionMarkdown.slice(0, 2000),
+            profileContext: buildProfileContext(
+              retrieveRelevant(chunkProfile(profile), {
+                keywords: [job.title],
+                jobText: job.descriptionMarkdown,
+              }),
+            ),
+          })
+      : undefined;
     const fillInput = {
       matched,
       aiAnswers,
@@ -94,12 +123,21 @@ export async function reapplyStoredJob(
       submitMode: effectiveSubmit,
       humanPace: deps.humanPace,
       debug: deps.debugFill,
+      answerQuestions: liveAnswerer,
     };
     const fill = await (page.dom ? executeLiveFill(page, fillInput) : executeFill(page, fillInput));
 
+    // Respostas geradas ao vivo entram no sidecar — próximos retries reutilizam.
+    if (fill.liveAnswers && Object.keys(fill.liveAnswers).length && job.resumePath) {
+      Object.assign(aiAnswers, fill.liveAnswers);
+      writeAnswers(job.resumePath, aiAnswers);
+    }
+
     // Bloqueio detectado na página ou campo desconhecido → mesma malha do run.
     const signal = detectBlockingSignal(page, {
-      unmatchedRequiredLabels: unmatchedRequired.map((f) => f.label),
+      unmatchedRequiredLabels: fill.unansweredRequired?.length
+        ? fill.unansweredRequired
+        : unmatchedRequired.map((f) => f.label),
     });
     if (signal || fill.escalated) {
       const effSignal: BlockingSignal = signal ?? {
@@ -110,7 +148,8 @@ export async function reapplyStoredJob(
       if (
         (effSignal.kind === 'CAPTCHA' ||
           effSignal.kind === 'EMAIL_OTP' ||
-          effSignal.kind === 'LOGIN_REQUIRED') &&
+          effSignal.kind === 'LOGIN_REQUIRED' ||
+          (effSignal.kind === 'UNKNOWN_REQUIRED_FIELD' && !!page.dom)) &&
         deps.onHumanEscalation
       ) {
         keepPageOpen = await deps
@@ -121,6 +160,7 @@ export async function reapplyStoredJob(
             matched,
             aiAnswers,
             resumePath,
+            unansweredLabels: fill.unansweredRequired,
           })
           .catch(() => false);
       }

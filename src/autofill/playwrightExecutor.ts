@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import type { Frame, JSHandle, Locator, Page } from 'playwright';
 import type {
+  ChoiceOption,
   ExecuteFillOptions,
   ExecuteFillResult,
   PageFieldState,
   PageStateLike,
 } from './formExecutor';
+import { pickOption } from './formExecutor';
 import { inspectDom } from '../scraper/pageInspector';
 import { humanPathTo, randInt, typeDelayFor } from '../utils/humanSim';
 
@@ -144,6 +146,33 @@ async function fillDomField(
       } else {
         await locator.first().fill(value, { force: true, timeout: 3000 });
       }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Marca a alternativa de um grupo `choice` (radios por `name`): clique humano
+ * na opção resolvida; sem check efetivo, `check()` normal e por último force.
+ */
+async function fillChoiceField(
+  dom: Page,
+  field: PageFieldState,
+  option: ChoiceOption,
+  humanPace: boolean,
+): Promise<boolean> {
+  const scope = scopeFor(dom, field.frameIdx);
+  const opt = scope.locator(option.selector).first();
+  try {
+    await humanClick(dom, opt, humanPace, 3000);
+    if (await opt.isChecked().catch(() => true)) return true;
+    await opt.check({ timeout: 3000 });
+    return true;
+  } catch {
+    try {
+      await opt.check({ force: true, timeout: 3000 });
       return true;
     } catch {
       return false;
@@ -325,6 +354,7 @@ export async function executeLiveFill(
     resumePath,
     submitMode,
     humanPace = true,
+    answerQuestions,
   } = opts;
   const debug = opts.debug === true;
   // Casa por SELETOR (identidade do campo) — labels duplicadas num form
@@ -365,11 +395,15 @@ export async function executeLiveFill(
       );
     return best ? answers[best.key] : undefined;
   };
+  // Respostas geradas ao vivo (LLM) — normKey(label da pergunta) → resposta.
+  const liveNorm = new Map<string, string>();
   const resolveValue = (f: PageFieldState): { value?: string; source: string } => {
     const det = detValue(f);
     if (det !== undefined) return { value: det, source: 'PROFILE' };
     const ai = aiValue(f) ?? fuzzyValue(f.label, aiAnswers, fuzzyThreshold);
     if (ai !== undefined) return { value: ai, source: 'AI' };
+    const live = liveNorm.get(normKey(f.label));
+    if (live !== undefined) return { value: live, source: 'AI_LIVE' };
     const def = fuzzyValue(f.label, fieldDefaults, 0.8);
     if (def !== undefined) return { value: def, source: 'DEFAULT' };
     return { source: 'NONE' };
@@ -377,23 +411,78 @@ export async function executeLiveFill(
   let fieldsFilled = 0;
   let resumeAttached = false;
   const aiAnswersUsed = new Set<string>();
+  /** Respostas ao vivo efetivamente usadas — o pipeline grava no sidecar. */
+  const liveAnswers: Record<string, string> = {};
+  /** Required respondida só pela LLM → PAUSE mesmo em AUTO_SUBMIT (anti-fabricação). */
+  const liveRequiredUsed = new Set<string>();
+  const unansweredRequired = new Set<string>();
+  const fillExtras = (): Pick<ExecuteFillResult, 'liveAnswers' | 'unansweredRequired'> => ({
+    ...(Object.keys(liveAnswers).length ? { liveAnswers } : {}),
+    ...(unansweredRequired.size ? { unansweredRequired: [...unansweredRequired] } : {}),
+  });
   let lastStepSig = live.fields.map((f) => `${f.kind}:${f.label}`).join('|');
 
   // Dwell antes de interagir — ler a página em vez de atacar o 1º campo.
   if (humanPace) await dom.waitForTimeout(randInt(400, 1200));
 
   for (let step = 0; step < MAX_STEPS; step++) {
+    // LLM ao vivo: campos sem resposta por nenhuma fonte → 1 chamada por etapa
+    // (required e opcionais — o modelo devolve "" p/ o que o perfil não sustenta).
+    if (answerQuestions) {
+      const unresolved = live.fields
+        .filter(
+          (f) =>
+            f.kind !== 'file' && f.selector && resolveValue(f).value === undefined,
+        )
+        .map((f) => ({
+          label: f.label,
+          kind: f.kind,
+          required: f.required,
+          options: f.options?.map((o) => o.label),
+        }));
+      if (unresolved.length) {
+        const got = await answerQuestions(unresolved).catch(() => null);
+        if (got) {
+          for (const [k, v] of Object.entries(got)) {
+            if (v && v.trim()) liveNorm.set(normKey(k), v);
+          }
+        }
+      }
+    }
+
     for (const field of live.fields) {
-      if (field.kind === 'file' || !field.selector) continue;
+      if (field.kind === 'file') continue;
+      // Required sem seletor não pode ser preenchido — conta como sem resposta.
+      if (!field.selector) {
+        if (field.required) unansweredRequired.add(field.label);
+        continue;
+      }
       const resolved = resolveValue(field);
       if (resolved.value === undefined) {
+        if (field.required) unansweredRequired.add(field.label);
         if (debug && field.required) debugLog(debug, `  skip required "${field.label}" — no value`);
         continue;
       }
-      const success = await fillDomField(dom, field, resolved.value, humanPace);
+      const success =
+        field.kind === 'choice'
+          ? await (async () => {
+              const option = field.options
+                ? pickOption(resolved.value as string, field.options)
+                : undefined;
+              if (!option) {
+                if (field.required) unansweredRequired.add(field.label);
+                return false;
+              }
+              return fillChoiceField(dom, field, option, humanPace);
+            })()
+          : await fillDomField(dom, field, resolved.value, humanPace);
       if (success) {
         fieldsFilled++;
         if (resolved.source === 'AI') aiAnswersUsed.add(field.label);
+        if (resolved.source === 'AI_LIVE') {
+          liveAnswers[field.label] = resolved.value as string;
+          if (field.required) liveRequiredUsed.add(field.label);
+        }
         debugLog(
           debug,
           `  fill "${field.label}" ← ${resolved.value.slice(0, 60)} [${resolved.source}]`,
@@ -467,6 +556,7 @@ export async function executeLiveFill(
         status: 'NEEDS_HUMAN_INPUT',
         unmatchedHandled: true,
         escalated: true,
+        ...fillExtras(),
       };
     }
 
@@ -484,7 +574,11 @@ export async function executeLiveFill(
     Object.assign(live, refreshed);
   }
 
-  if (submitMode === 'AUTO_SUBMIT') {
+  // Anti-fabricação: required respondida só pela LLM ao vivo ⇒ pausa p/ revisão.
+  const effectiveSubmit =
+    submitMode === 'AUTO_SUBMIT' && liveRequiredUsed.size > 0 ? 'PAUSE_BEFORE_SUBMIT' : submitMode;
+
+  if (effectiveSubmit === 'AUTO_SUBMIT') {
     if (await clickSubmit(dom, humanPace)) {
       debugLog(debug, '  submit clicked');
       live.submitted = true;
@@ -494,6 +588,7 @@ export async function executeLiveFill(
         submitted: true,
         aiAnswersUsed: [...aiAnswersUsed],
         status: 'APPLIED',
+        ...fillExtras(),
       };
     }
     return {
@@ -504,6 +599,7 @@ export async function executeLiveFill(
       status: 'NEEDS_HUMAN_INPUT',
       unmatchedHandled: true,
       escalated: true,
+      ...fillExtras(),
     };
   }
 
@@ -514,6 +610,7 @@ export async function executeLiveFill(
     aiAnswersUsed: [...aiAnswersUsed],
     status: 'READY_TO_REVIEW',
     unmatchedHandled: true,
+    ...fillExtras(),
   };
 }
 

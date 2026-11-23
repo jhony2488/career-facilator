@@ -1,5 +1,5 @@
 export interface InspectedField {
-  kind: 'input' | 'select' | 'textarea' | 'file';
+  kind: 'input' | 'select' | 'textarea' | 'file' | 'choice';
   label: string;
   required: boolean;
   inShadowDom?: boolean;
@@ -8,6 +8,8 @@ export interface InspectedField {
   name?: string;
   /** Seletor data-cf-idx estável da inspeção — casa por identidade, não texto. */
   selector?: string;
+  /** Alternativas de `choice` (grupo de radios) — executor mapeia resposta→opção. */
+  options?: Array<{ label: string; value?: string; selector: string }>;
 }
 
 export interface FieldMatch {
