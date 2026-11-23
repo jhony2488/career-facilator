@@ -465,3 +465,32 @@ export interface CareerOpsConfig {
 // src/config/loadConfig.ts
 //   LoadConfigOptions {env?, envFile?, exeDir?} — exeDir habilita <exe>/.env na cadeia:
 //   <home>/.env < ./.env (cwd) < <exe>/.env < process.env
+
+//
+// src/ui/ (interface gráfica local — feature/17)
+//   index.ts    serveUi({port?, open?, exeDir?}): Promise<UiServerHandle>
+//               openBrowser(url): void
+//   server.ts   createUiServer(deps: {token, exeDir?}): Server
+//               listenUi(deps, port): Promise<{url, port, token, close()}>
+//               — bind 127.0.0.1; /api/* exige X-UI-Token ou ?token= (timing-safe)
+//   auth.ts     newUiToken(): string(48-hex) — tokenOk(req, expected): boolean
+//   readUiAsset.ts readUiAsset(rel): Buffer|null — fs dev / sea.getAsset("ui/<rel>") no exe
+//   envMap.ts   listEnvEntries({exeDir?, envFile?, env?}): {entries, homeEnvFile, cwdEnvFile, exeEnvFile?}
+//               EnvEntry {key, value, source: home|cwd|exe|process, masked}
+//               — segredos (API_KEY|_KEY|SECRET|PASSWORD|TOKEN…) saem mascarados
+//   tasks.ts    startTask(argv): UiTask — subprocesso do próprio binário
+//               (SEA: process.execPath; dev: node --import tsx src/cli/index.ts)
+//               UiTask {id, argv, status: running|done|error|killed, startedAt, exitCode}
+//               subscribeTask(id, onChunk, onClose): unsubscribe|null (replay do buffer)
+//               taskInput/killTask/listTasks/getTask; bloqueia argv de ui|serve|exit|repl|shell
+//   api.ts      handleApi(req,res,{token,exeDir?}): Promise<boolean>
+//               GET /api/meta · GET|PUT|DELETE /api/env[/:key] (env mascarado+fonte,
+//               escrita no <home>/.env via envFile.ts) · GET /api/runtime ·
+//               GET /api/status · GET /api/jobs?status&q&limit · GET /api/jobs/queue ·
+//               POST /api/jobs/:id/status|remove · POST /api/tasks {argv} ·
+//               GET /api/tasks/:id/events (SSE) · POST /api/tasks/:id/input|kill ·
+//               GET|PUT|DELETE /api/vault[/:ref] (só refs — nunca segredos) ·
+//               GET|PUT /api/profile (master.md + recompila compiledPath) ·
+//               POST /api/profile/import {name,dataB64} → inboxDir
+//   cli: 'career ui [--port N] [--no-open]' abre o browser; 'career serve' é headless
+//        (o app desktop Tauri spawn e conecta a webview — desktop/src-tauri)
