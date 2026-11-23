@@ -355,6 +355,16 @@ export interface CareerOpsConfig {
 // src/ai/tailorerAgent.ts
 //   tailorResume(input: {job, triage, skillsBlock, profile}, deps: {model}):
 //     Promise<{resumeMarkdown: string; answers: Record<string,string>; resumePath?: string}>
+//   slugFilename(id: string): string — job id/título → filename seguro p/ resumePath
+//
+// src/generator/pdfWriter.ts
+//   PdfLine {text; size; bold; gapBefore?; indent?}
+//   paginateMarkdown(md: string): PdfLine[][] — coluna única ATS (title/h2/h3/body/bullet, ~92ch)
+//   writeSimplePdf(pages: PdfLine[][]): Buffer — PDF 1.4 real (base-14 Helvetica, latin-1)
+//
+// src/generator/resumeBuilder.ts
+//   buildResumePdf({resumeMarkdown, outputPath}): Promise<{filePath}> — grava PDF binário real
+//   fallbackResumeMarkdown(profile: MasterProfileLike): string — markdown só com campos do perfil
 //
 // src/ai/tokenTracker.ts
 //   record(usage: {tier, inputTokens, outputTokens, cachedTokens}) · totals() · savingsEstimate()
@@ -379,6 +389,9 @@ export interface CareerOpsConfig {
 //     onHumanEscalation?({page,signal,matched,aiAnswers,resumePath})→bool — true = página segue aberta}):
 //     Promise<{processed; applications: Array<{status; stages; resumePath?}>;
 //             tokenReport; dryRunReport?}>
+//   — materializa o PDF adaptado (buildResumePdf) sob o home de dados e grava o
+//     path absoluto em app.resumePath + jobs.resume_path (persistido p/ retry);
+//     falha de gravação → NEEDS_HUMAN_INPUT 'RESUME_PDF_FAILED'
 // src/autofill/playwrightExecutor.ts
 //   executeLiveFill(page(com .dom real), opts{…, humanPace?}) → ExecuteFillResult
 //   submitLivePage(page, humanPace?) → bool (submit pós-aprovação) · closeLivePage(page) → void
@@ -394,6 +407,9 @@ export interface CareerOpsConfig {
 //     Promise<{fieldsFilled, resumeAttached, submitted, status, aiAnswersUsed?, unmatchedHandled?}>
 // src/autofill/wizardNavigator.ts
 //   evaluateStepResult(stepState): 'ADVANCE' | 'ESCALATE' | 'READY'
+//
+// src/db/repository.ts (delta)
+//   updateStatus(url, status, resumePath?): Promise<void> — resume_path preserva via COALESCE
 //
 // src/email_application/recipientResolver.ts
 //   resolveRecipient(job, deps: {repo, cooldownDays?}): Promise<{email: string} | null>
