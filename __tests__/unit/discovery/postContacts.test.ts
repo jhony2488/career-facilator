@@ -35,6 +35,15 @@ describe('extractContacts', () => {
 
     expect(c.emails).toContain('contato@acme.com');
   });
+
+  // Encurtadores ficam em `shortLinks` — o adapter segue o redirect no browser
+  it('collects url shorteners into shortLinks (not apply links)', () => {
+    const c = extractContacts('Candidate-se: https://lnkd.in/xyzabc ou https://bit.ly/vaga-dev');
+
+    expect(c.shortLinks).toEqual(['https://lnkd.in/xyzabc', 'https://bit.ly/vaga-dev']);
+    expect(c.links).toHaveLength(0);
+    expect(applyLinkOf(c)).toBeNull();
+  });
 });
 
 describe('applyLinkOf', () => {

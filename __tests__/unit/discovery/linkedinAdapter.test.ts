@@ -6,7 +6,7 @@ import {
 } from '../../../src/discovery/adapters/linkedinAdapter';
 import { sourceById } from '../../../src/discovery/registry';
 import { makeConfig } from '../../helpers/factories';
-import type { Fetcher } from '../../../src/discovery/types';
+import type { Fetcher, SourceAdapterContext } from '../../../src/discovery/types';
 
 jest.mock('../../../src/discovery/imageOcr', () => ({
   ocrImageUrl: jest.fn(async (url: string) =>
@@ -253,5 +253,110 @@ describe('linkedinAdapter posts pass', () => {
     });
 
     expect(result.jobs).toHaveLength(0);
+  });
+
+  // Navegação interativa: renderPage recebe `interact` p/ expandir "ver mais"
+  it('passes an interact callback to renderPage (see-more expansion) on post pages', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const interacted: string[] = [];
+    const renderPage: SourceAdapterContext['renderPage'] = async (url, opts) => {
+      if (opts?.interact) {
+        interacted.push(url);
+        const fake = {
+          evaluate: async () => undefined,
+          waitForTimeout: async () => undefined,
+        };
+        await opts.interact(fake as never);
+      }
+      if (url.includes('/jobs/search')) return { url, text: '<html></html>', status: 200 };
+      if (url.includes('/search/results/content'))
+        return { url, text: POSTS_SEARCH_HTML, status: 200 };
+      return { url, text: POST_DETAIL_HTML, status: 200 };
+    };
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderPage,
+      maxJobs: 10,
+    });
+
+    expect(result.jobs.length).toBeGreaterThan(0);
+    // feed de conteúdo + página de detalhe do post passam pelo see-more
+    expect(interacted.some((u) => u.includes('/search/results/content'))).toBe(true);
+    expect(interacted.some((u) => u.includes('linkedin.com/feed/update'))).toBe(true);
+  });
+
+  // Encurtador lnkd.in é seguido no browser — URL final vira a candidatura
+  it('resolves a lnkd.in short link from a post into the final apply URL', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const postHtml = `<html><body>
+      <div class="update-components-text">Estamos contratando! Vaga de Backend Developer.
+      Candidate-se aqui: https://lnkd.in/xyzabc123</div>
+    </body></html>`;
+    const renderText = async (url: string) => {
+      if (url.includes('/jobs/search')) return { url, text: '<html></html>', status: 200 };
+      if (url.includes('/search/results/content'))
+        return { url, text: POSTS_SEARCH_HTML, status: 200 };
+      if (url.includes('lnkd.in')) {
+        return {
+          url: 'https://boards.greenhouse.io/acme/jobs/99',
+          text: '<html></html>',
+          status: 200,
+        };
+      }
+      return { url, text: postHtml, status: 200 };
+    };
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    const job = result.jobs.find((j) => j.raw.url.includes('greenhouse.io/acme/jobs/99'));
+    expect(job).toBeDefined();
+  });
+
+  // Encurtador que resolve p/ listagem LinkedIn é descartado (fica o post)
+  it('keeps the post url when the short link resolves to a LinkedIn listing', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const postHtml = `<html><body>
+      <div class="update-components-text">Estamos contratando! Vaga de Backend Developer.
+      Veja todas: https://lnkd.in/listing456</div>
+    </body></html>`;
+    const renderText = async (url: string) => {
+      if (url.includes('/jobs/search')) return { url, text: '<html></html>', status: 200 };
+      if (url.includes('/search/results/content'))
+        return { url, text: POSTS_SEARCH_HTML, status: 200 };
+      if (url.includes('lnkd.in')) {
+        return {
+          url: 'https://br.linkedin.com/jobs/desenvolvedor-vagas',
+          text: '<html></html>',
+          status: 200,
+        };
+      }
+      return { url, text: postHtml, status: 200 };
+    };
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    // o encurtador → listagem LinkedIn é descartado; ficam as URLs dos posts
+    expect(result.jobs.length).toBeGreaterThan(0);
+    expect(result.jobs.every((j) => /linkedin\.com\/(feed\/update|posts)\//.test(j.raw.url))).toBe(
+      true,
+    );
   });
 });
