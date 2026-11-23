@@ -1,15 +1,8 @@
 // Monta dist/career-runtime: node_modules sidecar (mesmas versões do
 // package.json), browsers do Playwright, tessdata (OCR) e a library de skills.
 // Consumido pelo empacotamento (package-release.mjs) e pelo runtime setup.
-import { execFileSync } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -25,7 +18,6 @@ const RUNTIME_PKGS = [
 
 const OUT = resolve('dist/career-runtime');
 const BROWSERS = join(OUT, 'browsers');
-const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
@@ -36,8 +28,8 @@ writeFileSync(
 
 const specs = RUNTIME_PKGS.map((n) => `${n}@${pkg.dependencies?.[n] ?? 'latest'}`);
 console.log(`npm install (runtime): ${specs.join(' ')}`);
-execFileSync(
-  npmCmd,
+const install = spawnSync(
+  'npm',
   [
     'install',
     '--prefix',
@@ -50,29 +42,43 @@ execFileSync(
   ],
   {
     stdio: 'inherit',
+    // .cmd no Windows só executa via shell; --prefix precisa de shell:true lá.
+    shell: process.platform === 'win32',
     // Sem download de browsers no postinstall — instalamos só chromium abaixo.
     env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1' },
   },
 );
+if (install.status !== 0) process.exit(install.status ?? 1);
 
 console.log('playwright install chromium → career-runtime/browsers');
-execFileSync(
-  process.execPath,
-  [join(OUT, 'node_modules/playwright/cli.js'), 'install', 'chromium'],
-  {
-    stdio: 'inherit',
-    env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: BROWSERS },
-  },
-);
+// O CDN do playwright falha com timeout transitório — tenta até 2×.
+for (let attempt = 1; ; attempt++) {
+  try {
+    execFileSync(
+      process.execPath,
+      [join(OUT, 'node_modules/playwright/cli.js'), 'install', 'chromium'],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: BROWSERS },
+      },
+    );
+    break;
+  } catch (e) {
+    if (attempt === 2) throw e;
+    console.log('falha transitória no download do chromium — tentando de novo…');
+  }
+}
 
-// OCR offline: traineddata cru do repo → career-runtime/tessdata.
+// OCR offline: traineddata cru de assets/tessdata → career-runtime/tessdata.
+const TESSDATA_SRC = 'assets/tessdata';
 mkdirSync(join(OUT, 'tessdata'), { recursive: true });
 for (const f of ['por.traineddata', 'eng.traineddata']) {
-  if (existsSync(f)) {
-    cpSync(f, join(OUT, 'tessdata', f));
+  const src = join(TESSDATA_SRC, f);
+  if (existsSync(src)) {
+    cpSync(src, join(OUT, 'tessdata', f));
     console.log(`tessdata: ${f}`);
   } else {
-    console.log(`⚠ ${f} ausente na raiz — OCR deste idioma baixa online.`);
+    console.log(`⚠ ${src} ausente — OCR deste idioma baixa online.`);
   }
 }
 

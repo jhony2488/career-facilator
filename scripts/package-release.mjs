@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 
 const arg = (flag) => {
   const i = process.argv.indexOf(flag);
@@ -28,7 +28,7 @@ const zipPath = join(DIST, `${base}.zip`);
 const tarPath = join(DIST, `career-runtime-${suffix}.tar.gz`);
 
 // ZIP do pacote completo.
-const zip = archiver('zip', { zlib: { level: 9 } });
+const zip = new ZipArchive({ zlib: { level: 9 } });
 const out = createWriteStream(zipPath);
 const done = new Promise((res, rej) => {
   out.on('close', res);
