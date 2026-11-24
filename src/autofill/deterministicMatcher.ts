@@ -31,10 +31,13 @@ export interface MatcherProfile {
   github: string;
   portfolio: string;
   standardAnswers: Record<string, string>;
+  /** "Cidade, UF[, País]" — alimenta campos de cidade/estado/país/localização. */
+  location?: string;
 }
 
 type ProfileKey =
-  'fullName' | 'firstName' | 'lastName' | 'email' | 'phone' | 'linkedin' | 'github' | 'portfolio';
+  | 'fullName' | 'firstName' | 'lastName' | 'email' | 'phone' | 'linkedin'
+  | 'github' | 'portfolio' | 'city' | 'country' | 'state' | 'location';
 
 /** Dicionário de sinônimos de rótulos → chave do perfil (doc 03 §5.4). */
 const FIELD_SYNONYMS: Record<ProfileKey, RegExp[]> = {
@@ -54,12 +57,28 @@ const FIELD_SYNONYMS: Record<ProfileKey, RegExp[]> = {
     /your website/i,
     /site pessoal/i,
   ],
+  // Endereço — derivados de `location` ("Cidade, UF[, País]"); o que o perfil
+  // não tem (rua, CEP) segue p/ resposta padrão do usuário ou escalonamento.
+  city: [/\bcity\b/i, /\bcidade\b/i],
+  country: [/\bcountry\b/i, /\bpa[ií]s\b/i],
+  state: [/\bstate\b/i, /\bprovinc/i, /\bestado\b(?![\s_-]*civil)/i, /\buf\b/i],
+  location: [/current location|where.*(live|reside)|location|localiza[çc][aã]o/i],
 };
+
+function locationPart(loc: string | undefined, idx: number): string | undefined {
+  return loc
+    ?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)[idx];
+}
 
 function profileValue(key: ProfileKey, profile: MatcherProfile): string | undefined {
   const parts = profile.fullName.split(/\s+/).filter(Boolean);
   if (key === 'firstName') return parts[0] ?? '';
   if (key === 'lastName') return parts.slice(1).join(' ') ?? '';
+  if (key === 'city') return locationPart(profile.location, 0);
+  if (key === 'state') return locationPart(profile.location, 1);
+  if (key === 'country') return locationPart(profile.location, 2);
   const value = profile[key];
   return typeof value === 'string' ? value : undefined;
 }
@@ -99,7 +118,38 @@ const STANDARD_ANSWER_SYNONYMS: Array<{ answerKey: string; pattern: RegExp }> = 
     answerKey: 'remoteExperience',
     pattern: /remote experience|experi[eê]ncia remoto|worked remote|trabalho remoto/i,
   },
+  // Endereço — usuário escreve na seção "Respostas Padrão" do perfil
+  // (chaves address/addressLine2/postalCode/city/state/country); sem a chave,
+  // o campo segue p/ escalonamento — nada de endereço inventado.
+  {
+    answerKey: 'addressLine2',
+    pattern: /address\s*line\s*[2-9]|complemento|apto\b|apartment|\bsuite\b|\bapt\b/i,
+  },
+  {
+    answerKey: 'address',
+    pattern: /address|street|endere[çc]o|logradouro|\brua\b/i,
+  },
+  {
+    answerKey: 'postalCode',
+    pattern: /postal code|zip ?code|\bcep\b|c[óo]digo postal/i,
+  },
+  {
+    answerKey: 'city',
+    pattern: /\bcity\b|\bcidade\b/i,
+  },
+  {
+    answerKey: 'state',
+    pattern: /\bstate\b|\bprovinc|\bestado\b(?![\s_-]*civil)|\buf\b/i,
+  },
+  {
+    answerKey: 'country',
+    pattern: /\bcountry\b|\bpa[ií]s\b/i,
+  },
 ];
+
+/** "Address Line 2"/complemento: nunca herda o logradouro por substring/fuzzy. */
+const EXTRA_ADDRESS_RE =
+  /address\s*(line)?\s*[2-9]|complemento|apto\b|apartment|\bsuite\b|\bapt\b/i;
 
 function normKey(s: string): string {
   return s
@@ -185,6 +235,26 @@ export function matchFields(
         value: profile.standardAnswers[std.answerKey],
         source: 'STANDARD_ANSWER',
       });
+      continue;
+    }
+
+    if (EXTRA_ADDRESS_RE.test(field.label)) {
+      // "Address Line 2"/complemento: só resposta explícita pelo rótulo exato
+      // — substring de "address" jogaria o logradouro duplicado aqui.
+      const explicit = fieldDefaults?.[field.label] ?? profile.standardAnswers[field.label];
+      if (explicit?.length) {
+        matched.push({ field, value: explicit, source: 'DEFAULT' });
+      } else {
+        unmatched.push(field);
+      }
+      continue;
+    }
+
+    // "Respostas Padrão" do perfil também casa por fuzzy — chaves livres do
+    // usuário (ex.: "endereço", "CEP") respondem as perguntas equivalentes.
+    const stdFuzzy = fuzzyLookup(field.label, profile.standardAnswers, 0.8);
+    if (stdFuzzy !== undefined && stdFuzzy.length > 0) {
+      matched.push({ field, value: stdFuzzy, source: 'STANDARD_ANSWER' });
       continue;
     }
 
