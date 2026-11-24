@@ -606,10 +606,14 @@ async function cmdRun(args: string[], ctx: CmdCtx): Promise<void> {
   const titleMatcher = createSemanticTitleMatcher(config.discovery.targetTitles, embedder);
   // No exe (SEA) o packageRoot é virtual — fallback p/ pasta "skills" ao lado
   // do executável; usuário pode copiá-la para manter a biblioteca de skills.
+  // CAREER_SKILLS aponta p/ uma pasta custom (ex.: shim do app desktop, cujo
+  // sidecar não tem a library ao lado — ela fica nos recursos do pacote).
   const exeSkillsDir = join(dirname(process.execPath), 'skills');
-  const skillsDir = existsSync(join(packageRoot, 'src/skills/library'))
-    ? join(packageRoot, 'src/skills/library')
-    : exeSkillsDir;
+  const skillsDir = effEnv.env.CAREER_SKILLS
+    ? effEnv.env.CAREER_SKILLS
+    : existsSync(join(packageRoot, 'src/skills/library'))
+      ? join(packageRoot, 'src/skills/library')
+      : exeSkillsDir;
   const skills = await loadSkillRegistry(skillsDir).catch(() => []);
   const repo = openRepo();
 
