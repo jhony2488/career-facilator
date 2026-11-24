@@ -18,8 +18,8 @@
     "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
     "externalBin": ["binaries/career"],
     "resources": {
-      "binaries/career-runtime/**": "career-runtime/",
-      "binaries/skills/**": "skills/"
+      "binaries/career-runtime": "career-runtime/",
+      "binaries/skills": "skills/"
     },
     "category": "DeveloperTool",
     "shortDescription": "Job discovery, semantic triage, resume tailoring and assisted application",

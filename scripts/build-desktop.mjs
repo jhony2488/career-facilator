@@ -61,7 +61,7 @@ if (!existsSync(join(BIN, 'career-runtime')) || walkAll(join(BIN, 'career-runtim
   process.exit(1);
 }
 
-// O resource glob `binaries/skills/**` do bundler falha duro quando a pasta sobe
+// O resource `binaries/skills` do bundler falha quando a pasta sobe ausente
 // vazia/ausente (ex.: pacote sem skills). Garante ≥1 arquivo e avisa —
 // o app empacota sem skills (degrada p/ nenhuma skill ativa) em vez de quebrar.
 let skillsHasFiles = false;
