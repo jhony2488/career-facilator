@@ -113,11 +113,23 @@ export function checkEligibility(
   job: EligibilityJobInput,
   config: CareerOpsConfig,
 ): EligibilityResult {
+  // marketScope.target (MARKET_SCOPE) é o gate de escopo — vaga detectada no
+  // escopo desligado é recusada antes de qualquer outra regra (decisão #45).
+  const target = config.marketScope.target;
+  if (target === 'NATIONAL' && job.scope === 'INTERNATIONAL') {
+    return { eligible: false, reason: 'Escopo internacional desligado (MARKET_SCOPE=NATIONAL)' };
+  }
+  if (target === 'INTERNATIONAL' && job.scope === 'NATIONAL') {
+    return { eligible: false, reason: 'Escopo nacional desligado (MARKET_SCOPE=INTERNATIONAL)' };
+  }
+
   if (job.scope === 'INTERNATIONAL') return checkInternational(job, config);
   if (job.scope === 'NATIONAL') return checkNational(job, config);
 
-  // BOTH sem declaração de escopo: tenta nacional primeiro; se inelegível, intl
+  // BOTH sem declaração de escopo: tenta nacional primeiro; se inelegível, intl —
+  // mas só quando o target permite os dois.
+  if (target === 'INTERNATIONAL') return checkInternational(job, config);
   const nat = checkNational(job, config);
-  if (nat.eligible) return nat;
+  if (nat.eligible || target === 'NATIONAL') return nat;
   return checkInternational(job, config);
 }

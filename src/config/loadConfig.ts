@@ -5,6 +5,7 @@ import {
   type CareerOpsConfig,
   type EmailDispatchMode,
   type ExecutionMode,
+  type MarketScope,
   type ModelRouting,
   type WhatsappMode,
   type WorkModel,
@@ -302,6 +303,14 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
     })(),
     marketScope: {
       ...defaultCareerOpsConfig.marketScope,
+      // MARKET_SCOPE=NATIONAL|INTERNATIONAL|BOTH — o eligibilityGuard recusa
+      // vagas do escopo desligado (antes não havia env p/ restringir a candidatura).
+      target: (() => {
+        const v = env.MARKET_SCOPE?.trim().toUpperCase();
+        return v === 'NATIONAL' || v === 'INTERNATIONAL' || v === 'BOTH'
+          ? (v as MarketScope)
+          : defaultCareerOpsConfig.marketScope.target;
+      })(),
       national: {
         ...defaultCareerOpsConfig.marketScope.national,
         ...(Number.isFinite(Number(env.SALARY_BRL)) && env.SALARY_BRL !== undefined
