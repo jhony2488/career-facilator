@@ -25,6 +25,7 @@ career-facilitator-ts/
 
 ## 10.3. Critérios de Elegibilidade Refinados
 
+- **`MARKET_SCOPE` (target):** `NATIONAL|INTERNATIONAL|BOTH` (default `BOTH`) é o gate de escopo da candidatura — vaga detectada no escopo desligado é recusada como `SKIPPED` antes de qualquer outra regra (`MARKET_SCOPE=NATIONAL` recusa vagas internacionais mesmo vinda de fonte GLOBAL). **Atenção:** `DISCOVERY_REGIONS` filtra apenas quais *fontes* rodam (fontes `GLOBAL` passam sempre) — não restringe a geografia da *vaga*.
 - **`AMERICAS_TIMEZONE`:** corresponde à faixa fixa **UTC-8 a UTC-3** (Pacífico a Brasília). Vagas que declaram fuso fora dessa faixa não são priorizadas como compatíveis com as Américas.
 - **Vaga sem região nem modelo declarados:** considerada **elegível**, mas recebe flag de revisão — nunca é enviada automaticamente, mesmo com Fit Score acima do limiar de `FULL_AUTO`.
 

@@ -25,6 +25,7 @@ career-facilitator-ts/
 
 ## 10.3. Refined Eligibility Criteria
 
+- **`MARKET_SCOPE` (target):** `NATIONAL|INTERNATIONAL|BOTH` (default `BOTH`) is the application's scope gate — a job detected in the disabled scope is refused as `SKIPPED` before any other rule (`MARKET_SCOPE=NATIONAL` refuses international jobs even when they come from a GLOBAL source). **Note:** `DISCOVERY_REGIONS` only filters which *sources* run (GLOBAL sources always pass) — it does not restrict a job's geography.
 - **`AMERICAS_TIMEZONE`:** maps to the fixed **UTC-8 to UTC-3** range (Pacific to Brasília). Jobs declaring a timezone outside this range are not prioritized as Americas-compatible.
 - **Job without declared region or work model:** considered **eligible**, but flagged for review — it is never sent automatically, even with a Fit Score above the `FULL_AUTO` threshold.
 
