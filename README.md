@@ -113,12 +113,12 @@ Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH
 
 Baixe o instalador da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js** e entrega o app com janela nativa **e** o comando `career` pronto no terminal, compartilhando os mesmos dados (modelo `git` + `git-gui`):
 
-| Pacote                          | Primeiro uso                                                                                          |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `career-ui-windows-x64.exe`     | instalador NSIS por usuário; SmartScreen pode avisar (sem assinatura): "Mais informações → Executar mesmo assim" |
-| `career-ui-macos-arm64.dmg`     | arraste p/ `/Applications`; `xattr -dr com.apple.quarantine "<app>"` se o Gatekeeper bloquear           |
-| `career-ui-macos-x64.dmg`       | idem, para Intel                                                                                       |
-| `career-ui-linux-x64.AppImage`  | `chmod +x` e execute; Chromium pode pedir libs de sistema (`playwright install-deps` equivalente)        |
+| Pacote                         | Primeiro uso                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `career-ui-windows-x64.exe`    | instalador NSIS por usuário; SmartScreen pode avisar (sem assinatura): "Mais informações → Executar mesmo assim" |
+| `career-ui-macos-arm64.dmg`    | arraste p/ `/Applications`; `xattr -dr com.apple.quarantine "<app>"` se o Gatekeeper bloquear                    |
+| `career-ui-macos-x64.dmg`      | idem, para Intel                                                                                                 |
+| `career-ui-linux-x64.AppImage` | `chmod +x` e execute; Chromium pode pedir libs de sistema (`playwright install-deps` equivalente)                |
 
 Na primeira abertura, o app registra `career` no PATH do usuário (`career.cmd` em `%LOCALAPPDATA%\Microsoft\WindowsApps` no Windows; `/opt/homebrew/bin` ou `/usr/local/bin` no macOS; `~/.local/bin/career` no Linux) — num terminal novo, `career status`, `career discover`, `career ui` já funcionam com o runtime embutido (`CAREER_RUNTIME`/`CAREER_SKILLS` injetados pelo shim). Janela e terminal usam a mesma configuração e os mesmos dados: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide). Referência completa: [tutorials/pt-BR/08-executavel-release.md](tutorials/pt-BR/08-executavel-release.md).
 

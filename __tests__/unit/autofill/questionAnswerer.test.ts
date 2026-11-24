@@ -1,7 +1,4 @@
-import {
-  buildAnswersPrompt,
-  parseAnswers,
-} from '../../../src/autofill/questionAnswerer';
+import { buildAnswersPrompt, parseAnswers } from '../../../src/autofill/questionAnswerer';
 
 describe('buildAnswersPrompt — live answer batching', () => {
   it('includes the job context, each question and its options verbatim', () => {

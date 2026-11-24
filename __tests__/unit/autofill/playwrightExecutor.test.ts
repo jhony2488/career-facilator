@@ -2,10 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { executeLiveFill } from '../../../src/autofill/playwrightExecutor';
-import type {
-  PageStateLike,
-  UnresolvedQuestion,
-} from '../../../src/autofill/formExecutor';
+import type { PageStateLike, UnresolvedQuestion } from '../../../src/autofill/formExecutor';
 import type { FieldMatch } from '../../../src/autofill/deterministicMatcher';
 
 /**
@@ -141,9 +138,7 @@ describe('executeLiveFill — choice fields and live answers', () => {
     // feature/06: select the correct alternative in an exclusive option group
     const yesEl = fakeEl();
     const noEl = fakeEl();
-    const dom = fakeDom([
-      fakeScope({ '[data-cf-idx="0"]': yesEl, '[data-cf-idx="1"]': noEl }),
-    ]);
+    const dom = fakeDom([fakeScope({ '[data-cf-idx="0"]': yesEl, '[data-cf-idx="1"]': noEl })]);
     const live = livePage({ dom, fields: [authChoice()] });
 
     const res = await executeLiveFill(live, {

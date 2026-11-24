@@ -11,11 +11,7 @@ import { resolveHome } from '../config/paths';
 import { existsSync } from 'node:fs';
 import { closeLivePage, executeLiveFill } from '../autofill/playwrightExecutor';
 import { detectBlockingSignal, escalate, type BlockingSignal } from './escalationHandler';
-import {
-  buildProfileContext,
-  chunkProfile,
-  retrieveRelevant,
-} from '../ai/rag/profileRetriever';
+import { buildProfileContext, chunkProfile, retrieveRelevant } from '../ai/rag/profileRetriever';
 import type { PipelineDeps } from './pipeline';
 import type { MasterProfileLike } from './types';
 

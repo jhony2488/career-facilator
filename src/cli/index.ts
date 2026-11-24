@@ -1778,9 +1778,7 @@ async function cmdRetry(args: string[], ctx: CmdCtx = {}): Promise<void> {
   // modelo quando a camada determinística falha.
   const needModels =
     effEnv.env.AUTOFILL_AGENT_NAV !== 'false' || effEnv.env.AUTOFILL_LIVE_ANSWERS !== 'false';
-  const modelClients = needModels
-    ? createModelClients(config, { onStage }, effEnv.env)
-    : undefined;
+  const modelClients = needModels ? createModelClients(config, { onStage }, effEnv.env) : undefined;
   const navigatorModel =
     effEnv.env.AUTOFILL_AGENT_NAV !== 'false' ? modelClients?.navigatorModel : undefined;
   const answersModel =
@@ -2037,9 +2035,21 @@ async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
 }
 
 const ALL_JOB_STATUSES: JobStatus[] = [
-  'DISCOVERED', 'TRIAGED', 'SKIPPED', 'TAILORED', 'READY_TO_REVIEW', 'APPLIED',
-  'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP', 'NEEDS_HUMAN_INPUT', 'REJECTED',
-  'ASSESSMENT_INVITED', 'INTERVIEW', 'DEFERRED', 'DRY_RUN', 'FAILED',
+  'DISCOVERED',
+  'TRIAGED',
+  'SKIPPED',
+  'TAILORED',
+  'READY_TO_REVIEW',
+  'APPLIED',
+  'APPLIED_VIA_EMAIL',
+  'APPLIED_VIA_WHATSAPP',
+  'NEEDS_HUMAN_INPUT',
+  'REJECTED',
+  'ASSESSMENT_INVITED',
+  'INTERVIEW',
+  'DEFERRED',
+  'DRY_RUN',
+  'FAILED',
 ];
 
 /** "failed,discovered" → ['FAILED','DISCOVERED'] — desconhecido é ignorado. */
@@ -2059,12 +2069,13 @@ async function cmdJobs(args: string[]): Promise<void> {
   const limitIdx = args.indexOf('--limit');
   const limit = limitIdx === -1 ? 30 : Number(args[limitIdx + 1]) || 30;
   const statusArg = args.find(
-    (a, i) =>
-      !a.startsWith('--') && args[i - 1] !== '--export' && args[i - 1] !== '--limit',
+    (a, i) => !a.startsWith('--') && args[i - 1] !== '--export' && args[i - 1] !== '--limit',
   );
   const statuses = parseStatusList(statusArg);
   if (statusArg && !statuses.length) {
-    throw new CliError(`Status desconhecido: ${statusArg} — válidos: ${ALL_JOB_STATUSES.join(', ')}`);
+    throw new CliError(
+      `Status desconhecido: ${statusArg} — válidos: ${ALL_JOB_STATUSES.join(', ')}`,
+    );
   }
 
   const repo = openRepo();
@@ -2087,7 +2098,8 @@ async function cmdJobs(args: string[]): Promise<void> {
     console.log(`      ${j.url}`);
     printPendingContext(j);
   }
-  if (list.length > limit) console.log(`  …+${list.length - limit} (--limit ${list.length} para ver)`);
+  if (list.length > limit)
+    console.log(`  …+${list.length - limit} (--limit ${list.length} para ver)`);
 
   if (exportIdx !== -1 && args[exportIdx + 1]) {
     const out = resolve(args[exportIdx + 1]);

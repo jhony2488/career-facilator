@@ -430,10 +430,7 @@ export async function executeLiveFill(
     // (required e opcionais — o modelo devolve "" p/ o que o perfil não sustenta).
     if (answerQuestions) {
       const unresolved = live.fields
-        .filter(
-          (f) =>
-            f.kind !== 'file' && f.selector && resolveValue(f).value === undefined,
-        )
+        .filter((f) => f.kind !== 'file' && f.selector && resolveValue(f).value === undefined)
         .map((f) => ({
           label: f.label,
           kind: f.kind,

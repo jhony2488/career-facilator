@@ -6,12 +6,12 @@ Baixe um instalador que entrega **as duas coisas**: o aplicativo com janela nati
 
 Acesse a aba **[Releases](https://github.com/jhony2488/career-facilitator/releases)** do repositório no GitHub e escolha o instalador do seu sistema:
 
-| Sistema               | Pacote                        |
-| --------------------- | ----------------------------- |
-| Windows               | `career-ui-windows-x64.exe`   |
-| macOS (Apple Silicon) | `career-ui-macos-arm64.dmg`   |
-| macOS (Intel)         | `career-ui-macos-x64.dmg`     |
-| Linux                 | `career-ui-linux-x64.AppImage`|
+| Sistema               | Pacote                         |
+| --------------------- | ------------------------------ |
+| Windows               | `career-ui-windows-x64.exe`    |
+| macOS (Apple Silicon) | `career-ui-macos-arm64.dmg`    |
+| macOS (Intel)         | `career-ui-macos-x64.dmg`      |
+| Linux                 | `career-ui-linux-x64.AppImage` |
 
 Dentro de cada pacote já vem embutido:
 

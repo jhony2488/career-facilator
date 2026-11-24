@@ -150,10 +150,7 @@ describe('matchFields — deterministic filling', () => {
   });
 
   it('leaves address fields unmatched when the profile has no such info', () => {
-    const fields = [
-      makeField({ label: 'Address Line 1' }),
-      makeField({ label: 'Postal Code' }),
-    ];
+    const fields = [makeField({ label: 'Address Line 1' }), makeField({ label: 'Postal Code' })];
 
     const { matched, unmatched } = matchFields(fields, profile);
 

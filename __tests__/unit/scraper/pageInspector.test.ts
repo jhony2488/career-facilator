@@ -76,9 +76,7 @@ describe('snapshotToState', () => {
 
     expect(state.fields).toHaveLength(1);
     expect(state.fields[0].kind).toBe('choice');
-    expect(state.fields[0].label).toBe(
-      'Do you have hands-on experience with Node.js and Express?',
-    );
+    expect(state.fields[0].label).toBe('Do you have hands-on experience with Node.js and Express?');
     expect(state.fields[0].options).toHaveLength(2);
     expect(state.fields[0].options?.[1].selector).toBe('[data-cf-idx="4"]');
   });

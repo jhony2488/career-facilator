@@ -236,23 +236,25 @@ describe('JobRepository — 3-level deduplication (real SQLite)', () => {
       title TEXT NOT NULL, description_markdown TEXT NOT NULL, scope TEXT NOT NULL,
       status TEXT NOT NULL, discovered_at TEXT NOT NULL, applied_at TEXT,
       resume_path TEXT, applied_skills TEXT)`);
-    old.prepare(
-      `INSERT INTO jobs (id, url, canonical_url, content_hash, source, company, title,
+    old
+      .prepare(
+        `INSERT INTO jobs (id, url, canonical_url, content_hash, source, company, title,
         description_markdown, scope, status, discovered_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      'j1',
-      'https://x/job/1',
-      'https://x/job/1',
-      'hash1',
-      'src',
-      'Acme',
-      'Dev',
-      'desc',
-      'NATIONAL',
-      'DISCOVERED',
-      '2026-11-24T00:00:00.000Z',
-    );
+      )
+      .run(
+        'j1',
+        'https://x/job/1',
+        'https://x/job/1',
+        'hash1',
+        'src',
+        'Acme',
+        'Dev',
+        'desc',
+        'NATIONAL',
+        'DISCOVERED',
+        '2026-11-24T00:00:00.000Z',
+      );
     old.close();
 
     const migrated = new JobRepository(dbPath);

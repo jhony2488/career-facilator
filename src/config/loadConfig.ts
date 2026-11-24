@@ -268,7 +268,8 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
           : defaultCareerOpsConfig.discovery.respectRobotsTxt,
       linkedinEasyApplyOnly:
         env.DISCOVERY_LINKEDIN_EASY_APPLY !== undefined
-          ? env.DISCOVERY_LINKEDIN_EASY_APPLY === 'true' || env.DISCOVERY_LINKEDIN_EASY_APPLY === '1'
+          ? env.DISCOVERY_LINKEDIN_EASY_APPLY === 'true' ||
+            env.DISCOVERY_LINKEDIN_EASY_APPLY === '1'
           : defaultCareerOpsConfig.discovery.linkedinEasyApplyOnly,
       listingMaxPages: Number.isFinite(numEnv(env.DISCOVERY_LISTING_MAX_PAGES))
         ? Math.max(1, numEnv(env.DISCOVERY_LISTING_MAX_PAGES))

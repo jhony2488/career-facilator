@@ -24,10 +24,7 @@ export interface AnswersModel {
  * Prompt anti-fabricação: responder só o que o perfil sustenta; `choice`
  * deve devolver a alternativa verbatim; `""` para o irrespondível.
  */
-export function buildAnswersPrompt(
-  ctx: AnswerContext,
-  questions: UnresolvedQuestion[],
-): string {
+export function buildAnswersPrompt(ctx: AnswerContext, questions: UnresolvedQuestion[]): string {
   return [
     'You are filling a job application form on behalf of the candidate below.',
     'Answer ONLY what the candidate profile supports — never invent experience,',

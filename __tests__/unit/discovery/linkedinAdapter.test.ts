@@ -379,8 +379,7 @@ describe('linkedinAdapter — listing pagination & Easy Apply filter', () => {
       if (url.includes('/jobs/search')) {
         if (url.includes('start=25'))
           return { url, text: card('1111111111') + card('2222222222'), status: 200 };
-        if (url.includes('start=50'))
-          return { url, text: card('2222222222'), status: 200 }; // only dupes → stop
+        if (url.includes('start=50')) return { url, text: card('2222222222'), status: 200 }; // only dupes → stop
         return { url, text: card('1111111111'), status: 200 };
       }
       return { url, text: '<html><body>desc</body></html>', status: 200 };
@@ -438,8 +437,7 @@ describe('linkedinAdapter — listing pagination & Easy Apply filter', () => {
     const rendered: string[] = [];
     const renderText = async (url: string) => {
       rendered.push(url);
-      if (url.includes('/jobs/search'))
-        return { url, text: card('3333333333'), status: 200 };
+      if (url.includes('/jobs/search')) return { url, text: card('3333333333'), status: 200 };
       return { url, text: '<html><body>desc</body></html>', status: 200 };
     };
 

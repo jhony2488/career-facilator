@@ -113,12 +113,12 @@ Individual paths override via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `P
 
 Download the installer from the [Releases](https://github.com/jhony2488/career-facilitator/releases) tab — **no Node.js required** — and you get the native-window app **and** the `career` command ready in your terminal, sharing the same data (the `git` + `git-gui` model):
 
-| Package                         | First use                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `career-ui-windows-x64.exe`     | per-user NSIS installer; SmartScreen may warn (unsigned): "More info → Run anyway"                    |
-| `career-ui-macos-arm64.dmg`     | drag to `/Applications`; `xattr -dr com.apple.quarantine "<app>"` if Gatekeeper blocks it             |
-| `career-ui-macos-x64.dmg`       | same, for Intel                                                                                        |
-| `career-ui-linux-x64.AppImage`  | `chmod +x` and run; Chromium may need system libs (`playwright install-deps` equivalent)               |
+| Package                        | First use                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `career-ui-windows-x64.exe`    | per-user NSIS installer; SmartScreen may warn (unsigned): "More info → Run anyway"        |
+| `career-ui-macos-arm64.dmg`    | drag to `/Applications`; `xattr -dr com.apple.quarantine "<app>"` if Gatekeeper blocks it |
+| `career-ui-macos-x64.dmg`      | same, for Intel                                                                           |
+| `career-ui-linux-x64.AppImage` | `chmod +x` and run; Chromium may need system libs (`playwright install-deps` equivalent)  |
 
 On first launch the app registers `career` on the user's PATH (`career.cmd` in `%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows; `/opt/homebrew/bin` or `/usr/local/bin` on macOS; `~/.local/bin/career` on Linux) — in a new terminal, `career status`, `career discover`, `career ui` already work with the bundled runtime (`CAREER_RUNTIME`/`CAREER_SKILLS` injected by the shim). Window and terminal use the same configuration and data: `career config init` creates `~/.careerfacilator/.env`, `config set|get` edits it. `career --version` shows the `package.json` version (the release validates the `v*` tag matches it). Full reference: [tutorials/en/08-release-executable.md](tutorials/en/08-release-executable.md).
 

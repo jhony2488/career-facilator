@@ -36,8 +36,18 @@ export interface MatcherProfile {
 }
 
 type ProfileKey =
-  | 'fullName' | 'firstName' | 'lastName' | 'email' | 'phone' | 'linkedin'
-  | 'github' | 'portfolio' | 'city' | 'country' | 'state' | 'location';
+  | 'fullName'
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'phone'
+  | 'linkedin'
+  | 'github'
+  | 'portfolio'
+  | 'city'
+  | 'country'
+  | 'state'
+  | 'location';
 
 /** Dicionário de sinônimos de rótulos → chave do perfil (doc 03 §5.4). */
 const FIELD_SYNONYMS: Record<ProfileKey, RegExp[]> = {
