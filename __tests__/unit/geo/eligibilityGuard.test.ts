@@ -98,3 +98,45 @@ describe('checkEligibility — NATIONAL scope', () => {
     expect(result.eligible).toBe(true);
   });
 });
+
+describe('checkEligibility — marketScope.target gate (MARKET_SCOPE)', () => {
+  const config = makeConfig();
+  const withTarget = (target: 'NATIONAL' | 'INTERNATIONAL' | 'BOTH') =>
+    makeConfig({ marketScope: { ...config.marketScope, target } });
+
+  // decisão #45: vaga detectada no escopo desligado é recusada antes de tudo
+  it('rejects an international job when target is NATIONAL', () => {
+    const result = checkEligibility(
+      { ...makeJob({ scope: 'INTERNATIONAL' }), descriptionMarkdown: 'Great remote role.' },
+      withTarget('NATIONAL'),
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain('MARKET_SCOPE');
+  });
+
+  it('rejects a national job when target is INTERNATIONAL', () => {
+    const result = checkEligibility(
+      { ...makeJob({ scope: 'NATIONAL' }), descriptionMarkdown: 'Vaga remota, CLT.' },
+      withTarget('INTERNATIONAL'),
+    );
+    expect(result.eligible).toBe(false);
+  });
+
+  it('keeps national jobs eligible when target is NATIONAL', () => {
+    const result = checkEligibility(
+      { ...makeJob({ scope: 'NATIONAL' }), descriptionMarkdown: 'Vaga remota, contratação PJ.' },
+      withTarget('NATIONAL'),
+    );
+    expect(result.eligible).toBe(true);
+  });
+
+  it('an undetermined-scope job does not fall back to international under NATIONAL', () => {
+    // texto sem pistas BR: nacional inelegível → não tenta o caminho internacional
+    const result = checkEligibility(
+      { ...makeJob({ scope: 'BOTH' }), descriptionMarkdown: '100% onsite, contractor only.' },
+      withTarget('NATIONAL'),
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).not.toContain('MARKET_SCOPE'); // recusado pela regra nacional
+  });
+});

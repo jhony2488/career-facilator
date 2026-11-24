@@ -255,6 +255,19 @@ describe('loadCareerOpsConfig — national eligibility via env', () => {
     });
     expect(cfg.marketScope.national.allowedCities).toEqual(['São Paulo', 'Campinas']);
   });
+
+  it('MARKET_SCOPE overrides the application scope target', () => {
+    // decisão #45: sem o env, o target segue BOTH e vagas internacionais passam
+    const national = loadCareerOpsConfig({ env: { MARKET_SCOPE: 'national' }, envFile: '' });
+    expect(national.marketScope.target).toBe('NATIONAL');
+    const intl = loadCareerOpsConfig({ env: { MARKET_SCOPE: 'INTERNATIONAL' }, envFile: '' });
+    expect(intl.marketScope.target).toBe('INTERNATIONAL');
+  });
+
+  it('ignores an invalid MARKET_SCOPE and keeps BOTH', () => {
+    const cfg = loadCareerOpsConfig({ env: { MARKET_SCOPE: 'planet' }, envFile: '' });
+    expect(cfg.marketScope.target).toBe('BOTH');
+  });
 });
 
 describe('parseEnvFile', () => {

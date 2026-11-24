@@ -72,6 +72,16 @@ Funcionalidade: Escopo geográfico e filtro de elegibilidade de mercado
     Então a vaga é considerada elegível
     E é sinalizada para revisão humana, nunca enviada automaticamente
 
+  Esquema do Cenário: Vaga detectada no escopo desligado é recusada
+    Dado que o escopo de mercado está configurado como "<escopo>"
+    Quando uma vaga pertence ao escopo oposto
+    Então a vaga é descartada como inelegível antes da triagem por IA
+
+    Exemplos:
+      | escopo        |
+      | NATIONAL      |
+      | INTERNATIONAL |
+
   Esquema do Cenário: Compatibilidade de fuso das Américas segue faixa fixa
     Dado que o escopo internacional prioriza o fuso das Américas
     Quando a vaga indica o fuso "<fuso>"
@@ -86,3 +96,6 @@ Funcionalidade: Escopo geográfico e filtro de elegibilidade de mercado
 # Decisão: vaga sem região nem modelo declarados é elegível com flag de revisão
 # (nunca envio automático).
 # Decisão: AMERICAS_TIMEZONE corresponde à faixa fixa UTC-8 a UTC-3.
+# Decisão (#45): MARKET_SCOPE=NATIONAL|INTERNATIONAL é o gate de escopo da
+# candidatura — vaga detectada no escopo desligado é recusada mesmo vinda de
+# fonte GLOBAL (DISCOVERY_REGIONS filtra fontes, não a geografia da vaga).
