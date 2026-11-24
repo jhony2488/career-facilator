@@ -59,14 +59,15 @@ No binário standalone e na instalação npm global os mesmos comandos funcionam
 
 | Artefato | Conteúdo |
 | -------- | -------- |
-| `career-<os>-<arch>.zip` | CLI + runtime + skills (inalterado) — `career ui` dentro abre o dashboard no browser |
 | `career-ui-<os>-<arch>.exe` (NSIS) | Windows — app desktop com sidecar+runtime embutidos |
 | `career-ui-<os>-<arch>.dmg` | macOS arm64 e x64 |
 | `career-ui-<os>-<arch>.AppImage` | Linux |
 
 O job `desktop` do `release.yml` instala o toolchain Rust por OS (`dtolnay/rust-toolchain` + `webkit2gtk` no Linux), baixa o zip do job `build`, faz staging via `scripts/build-desktop.mjs --from <pkg>` (renomeia o exe para o target-triple esperado pelo `externalBin`) e roda `tauri build`. Requisitos do host alvo: WebView2 no Windows (o instalador faz bootstrap), WebKit no Linux (AppImage exige `libwebkit2gtk-4.1` instalado no sistema).
 
-**CLI dentro do pacote UI:** o sidecar embutido É o binário `career` completo — quem instala só o pacote desktop pode usá-lo no terminal chamando o executável da pasta de instalação (o dashboard mostra o caminho exato em "Binário do CLI"). Os dois artefatos compartilham `CAREER_HOME`, cofre e `jobs.sqlite` — dados únicos, intercambiáveis.
+O pacote CLI (`career-<os>-<arch>.zip` + `career-runtime-*.tar.gz`) segue gerado no job `build`, mas virou artefato intermediário — não é publicado no release, só alimenta o sidecar do desktop.
+
+**CLI dentro do pacote UI:** o sidecar embutido É o binário `career` completo — e quem instala o pacote desktop ganha o comando `career` pronto no terminal: no 1º launch o app grava um shim no PATH do usuário (`desktop/src-tauri/src/cli_shim.rs` — `career.cmd` em `%LOCALAPPDATA%\Microsoft\WindowsApps` no Windows; `/opt/homebrew/bin` ou `/usr/local/bin` no macOS, com fallback admin; `~/.local/bin/career` no Linux, apontando p/ o AppImage no modo `--career-cli`, que executa o sidecar em passthrough sem janela). O shim injeta `CAREER_RUNTIME` p/ os recursos embutidos e é reescrito a cada launch (auto-corrige se o app mudar de lugar); o caminho exato do executável também aparece no dashboard, em "Binário do CLI". Janela e terminal compartilham `CAREER_HOME`, cofre e `jobs.sqlite` — dados únicos, intercambiáveis.
 
 ## 16.6 Testes
 

@@ -59,14 +59,15 @@ The same commands work in the standalone binary and the global npm install; in p
 
 | Artifact | Contents |
 | -------- | -------- |
-| `career-<os>-<arch>.zip` | CLI + runtime + skills (unchanged) — `career ui` inside opens the dashboard in the browser |
 | `career-ui-<os>-<arch>.exe` (NSIS) | Windows — desktop app with embedded sidecar+runtime |
 | `career-ui-<os>-<arch>.dmg` | macOS arm64 and x64 |
 | `career-ui-<os>-<arch>.AppImage` | Linux |
 
 The `desktop` job in `release.yml` installs the Rust toolchain per OS (`dtolnay/rust-toolchain` + `webkit2gtk` on Linux), downloads the zip from the `build` job, stages via `scripts/build-desktop.mjs --from <pkg>` (renames the exe to the target triple expected by `externalBin`) and runs `tauri build`. Target host requirements: WebView2 on Windows (installer bootstraps it), WebKit on Linux (AppImage needs `libwebkit2gtk-4.1` installed on the system).
 
-**CLI inside the UI package:** the embedded sidecar IS the full `career` binary — whoever installs only the desktop package can use it from a terminal by calling the executable in the install folder (the dashboard shows the exact path under "CLI binary"). Both artifacts share `CAREER_HOME`, vault and `jobs.sqlite` — one set of data, interchangeable.
+The CLI package (`career-<os>-<arch>.zip` + `career-runtime-*.tar.gz`) is still produced by the `build` job but is now an intermediate artifact — no longer published to the release, it only feeds the desktop sidecar.
+
+**CLI inside the UI package:** the embedded sidecar IS the full `career` binary — and installing the desktop package gives you a ready `career` command in the terminal: on first launch the app writes a shim onto the user's PATH (`desktop/src-tauri/src/cli_shim.rs` — `career.cmd` in `%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows; `/opt/homebrew/bin` or `/usr/local/bin` on macOS, with an admin fallback; `~/.local/bin/career` on Linux, pointing at the AppImage in `--career-cli` mode, which runs the sidecar as a passthrough with no window). The shim injects `CAREER_RUNTIME` for the bundled resources and is rewritten on every launch (self-heals if the app moves); the exact binary path also shows on the dashboard under "CLI binary". Window and terminal share `CAREER_HOME`, vault and `jobs.sqlite` — one set of data, interchangeable.
 
 ## 16.6 Tests
 

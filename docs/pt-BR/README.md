@@ -24,4 +24,4 @@ English version available in [`../en/`](../en/README.md).
 | 14 | [Configurar SMTP — Gmail/Outlook](14-configurar-smtp-gmail-outlook.md) | Guia de senha de app, cofre de credenciais e teto de 45 e-mails/dia |
 | 15 | [Candidatura por WhatsApp](15-candidatura-por-whatsapp.md) | Fila manual ou Evolution API com texto em template + PDF do currículo |
 | 16 | [Interface Gráfica](16-interface-grafica.md) | Dashboard web local `career ui` + app desktop Tauri — config, fila, cofre e comandos pela UI |
-| 17 | [Tutoriais](../../tutorials/pt-BR/README.md) | Guias passo a passo de instalação (repositório, npm global, binários de release), configuração de modelos de IA, descoberta de vagas e sequência sugerida de uso |
+| 17 | [Tutoriais](../../tutorials/pt-BR/README.md) | Guias passo a passo de instalação (repositório, npm global, instalador do release), configuração de modelos de IA, descoberta de vagas e sequência sugerida de uso |

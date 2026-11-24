@@ -15,7 +15,7 @@ Escolha um modo (todos usam a mesma CLI `career`):
 
 - Repositório → [tutorial 01](01-instalacao-local-repositorio.md)
 - npm global → [tutorial 02](02-instalacao-npm-global.md)
-- Binário de release → [tutorial 03](03-instalacao-binario-release.md)
+- Instalador do release (app desktop + CLI) → [tutorial 03](03-instalacao-binario-release.md)
 
 Sanidade: `career` abre o shell e `help` lista os comandos por seção.
 

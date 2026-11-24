@@ -26,15 +26,15 @@ The release ships per-OS installers:
 
 The app bundles the `career` binary (the full CLI) and `career-runtime/` as internal resources — an install independent of the CLI package. On open, it starts the local server and connects the window automatically.
 
-### Want the terminal too?
+### The `career` command comes registered
 
-Installing the UI package gives you **both**: the native window and the same `career` binary usable from a terminal. The embedded executable lives in the app's install folder (the exact path shows on the dashboard under "CLI binary"):
+Installing the UI package gives you **both**: the native window and the same `career` binary usable from a terminal. On first launch the app registers the `career` command on your PATH — open a new terminal and use it directly (`career discover`, `career run`, `career ui`…):
 
-- **Windows:** `%LOCALAPPDATA%\CareerFacilator AI\career-x86_64-pc-windows-msvc.exe`
-- **macOS:** `CareerFacilator AI.app/Contents/Resources/career-<arch>-apple-darwin`
-- **Linux (AppImage):** extracted at `squashfs-root/usr/bin/career-x86_64-unknown-linux-gnu` (see `career-ui --appimage-extract`)
+- **Windows:** `career.cmd` in `%LOCALAPPDATA%\Microsoft\WindowsApps` (on the user PATH by default)
+- **macOS:** shim in `/opt/homebrew/bin` or `/usr/local/bin` — if neither is writable, the system asks for your password once (move the app to `/Applications` first)
+- **Linux (AppImage):** `~/.local/bin/career` points at the AppImage — run the app at least once to create the command
 
-You can call it directly (`"path\career-x86_64-pc-windows-msvc.exe" discover`), rename/alias it to `career.exe`, or add the folder to PATH. If you'd rather have a separate short-named binary, also download the `career-<os>-<arch>.zip` — both share the same `CAREER_HOME`, vault and database.
+The shim already injects `CAREER_RUNTIME` pointing at the bundled resources — autofill, OCR and PDF reading work from the terminal just like in the window, and the CLI shares the same `CAREER_HOME`, vault and database as the UI. The shim is rewritten on every app launch (if the app moves, it self-heals); the embedded binary path also shows on the dashboard under "CLI binary".
 
 ## 3. What each tab does
 

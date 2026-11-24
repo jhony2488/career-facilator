@@ -2,12 +2,12 @@
 
 1. [Local install from the repository](01-local-repo-install.md)
 2. [Global npm install](02-npm-global-install.md)
-3. [Install from release binaries](03-release-binary-install.md)
+3. [Install from the release (desktop app + CLI)](03-release-binary-install.md)
 4. [Setting up Ollama (local AI)](04-setting-up-ollama.md)
 5. [Setting up remote LLMs](05-setting-up-remote-llms.md)
 6. [Discovering jobs (discovery)](06-discovering-jobs.md)
 7. [Suggested usage sequence](07-usage-sequence.md)
-8. [Release executable — full execution & configuration](08-release-executable.md)
+8. [Release package (app + CLI) — full execution & configuration](08-release-executable.md)
 
 [Portuguese version](../pt-BR/README.md)
 

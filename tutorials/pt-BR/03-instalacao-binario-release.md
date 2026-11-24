@@ -1,104 +1,96 @@
-# Tutorial 03 — Instalação pelo binário de release
+# Tutorial 03 — Instalação pelo release (app desktop + CLI)
 
-Baixe um pacote com executável único + recursos externos. Não precisa instalar Node.js nem npm.
+Baixe um instalador que entrega **as duas coisas**: o aplicativo com janela nativa e o comando `career` pronto no terminal — os dois usam os mesmos dados e funcionam em conjunto (modelo do Git: `git` + `git-gui`). Não precisa instalar Node.js nem npm.
 
 ## Baixar
 
-Acesse a aba **[Releases](https://github.com/jhony2488/career-facilitator/releases)** do repositório no GitHub e escolha o **ZIP** do seu sistema (recomendado — já vem completo):
+Acesse a aba **[Releases](https://github.com/jhony2488/career-facilitator/releases)** do repositório no GitHub e escolha o instalador do seu sistema:
 
-| Sistema               | Pacote                   |
-| --------------------- | ------------------------ |
-| Windows               | `career-windows-x64.zip` |
-| macOS (Apple Silicon) | `career-macos-arm64.zip` |
-| macOS (Intel)         | `career-macos-x64.zip`   |
-| Linux                 | `career-linux-x64.zip`   |
+| Sistema               | Pacote                        |
+| --------------------- | ----------------------------- |
+| Windows               | `career-ui-windows-x64.exe`   |
+| macOS (Apple Silicon) | `career-ui-macos-arm64.dmg`   |
+| macOS (Intel)         | `career-ui-macos-x64.dmg`     |
+| Linux                 | `career-ui-linux-x64.AppImage`|
 
-Dentro do ZIP:
+Dentro de cada pacote já vem embutido:
 
 ```
-career-<os>-<arch>/
-├── career.exe | career        # executável único (Node SEA)
+CareerFacilator AI
+├── career-ui                  # app desktop (janela nativa)
+├── career-<target-triple>     # o CLI completo (sidecar embutido)
 ├── career-runtime/            # módulos externos + Chromium + tessdata (OCR)
-├── skills/                    # biblioteca de skills dinâmicas
-└── .env.example               # referência de todas as configurações
+└── skills/                    # biblioteca de skills dinâmicas
 ```
-
-> Também existe o binário solto (`career-<os>-<arch>[.exe]`) para quem quiser baixar só o executável — depois `career runtime setup` baixa o `career-runtime-<os>-<arch>.tar.gz` e completa os recursos (ver seção abaixo).
 
 ## Windows
 
-1. Baixe `career-windows-x64.zip` e descompacte, por exemplo em `C:\Tools\CareerFacilator`.
-2. Execute pela primeira vez:
+1. Baixe `career-ui-windows-x64.exe` e execute — o instalador NSIS é por usuário, não pede admin.
+2. O SmartScreen pode avisar que o binário não é assinado: **Mais informações** → **Executar mesmo assim**.
+3. Abra o app pelo menu Iniciar (ou pelo atalho criado).
+
+Na primeira abertura o app grava `career.cmd` em `%LOCALAPPDATA%\Microsoft\WindowsApps` — uma pasta que já está no PATH do usuário. **Abra um terminal novo** e o comando `career` já responde:
 
 ```powershell
-C:\Tools\CareerFacilator\career-windows-x64\career.exe status
+career status
+career discover
+career ui          # mesmo dashboard da janela, no navegador
 ```
-
-O Windows SmartScreen pode avisar que o binário não é assinado. Clique em **Mais informações** → **Executar mesmo assim**. O mesmo pode acontecer com o Chromium do `career-runtime` em antivírus mais agressivos — é o navegador oficial do Playwright, pode liberar.
 
 ## macOS
 
-Apple Silicon (`arm64`) ou Intel (`x64`):
+1. Baixe o `.dmg` do seu chip, abra e arraste **CareerFacilator AI** para `/Applications`.
+2. Abra o app — se o Gatekeeper bloquear: `xattr -dr com.apple.quarantine "/Applications/CareerFacilator AI.app"`.
+
+Na primeira abertura o app grava um shim `career` em `/opt/homebrew/bin` (se houver homebrew) ou `/usr/local/bin`. Se nenhum for gravável, o macOS pede sua senha uma vez para instalar o shim. Depois disso, num terminal novo:
 
 ```bash
-unzip career-macos-arm64.zip
-cd career-macos-arm64
-xattr -dr com.apple.quarantine .        # libera exe + Chromium (Gatekeeper)
-./career status
+career status
+career discover
 ```
 
-O `xattr -dr` remove o bloqueio de quarentena **na pasta inteira** — necessário também para o Chromium dentro de `career-runtime/`.
+> Se você recusou o prompt de senha, o app não pergunta de novo (marker `~/.careerfacilator/cli-shim-declined` — apague-o para tentar outra vez, ou crie o symlink manualmente).
 
 ## Linux
 
+1. Baixe `career-ui-linux-x64.AppImage`, `chmod +x` e execute uma vez.
+
 ```bash
-unzip career-linux-x64.zip
-cd career-linux-x64
-chmod +x career
-./career status
+chmod +x career-ui-linux-x64.AppImage
+./career-ui-linux-x64.AppImage     # abre a janela e registra o CLI
 ```
 
-O Chromium do runtime pode pedir bibliotecas de sistema — na primeira execução de formulário web, instale o equivalente a `npx playwright install-deps chromium` (ex.: `libatk1.0-0`, `libnss3`, `libcups2`, `libxkbcommon0` no Debian/Ubuntu).
+Na primeira execução o app grava `~/.local/bin/career` — um shim que chama o próprio AppImage em modo CLI. Se `~/.local/bin` estiver no seu PATH (padrão nas distros atuais), o comando `career` já funciona num terminal novo.
 
-## Binário solto + `runtime setup`
+O Chromium embutido pode pedir bibliotecas de sistema — na primeira execução de formulário web, instale o equivalente a `npx playwright install-deps chromium` (ex.: `libatk1.0-0`, `libnss3`, `libcups2`, `libxkbcommon0` no Debian/Ubuntu).
 
-Se preferir só o executável (`career-<os>-<arch>[.exe]`):
+## App e CLI em conjunto
 
-```powershell
-career.exe runtime status   # diagnóstico do que falta
-career.exe runtime setup    # baixa career-runtime-<os>-<arch>.tar.gz do release e extrai ao lado
-```
-
-Sem o runtime, o binário ainda roda descoberta por APIs/RSS, triagem, e-mail, WhatsApp e fila de revisão — formulários web, LinkedIn autenticado, PDF com camada de texto e OCR de posts só ativam com o `career-runtime/` presente.
+- O comando `career` é o **mesmo binário embutido** no app — não é uma cópia separada.
+- Janela e terminal compartilham `CAREER_HOME`, cofre e `jobs.sqlite`: o que você faz na UI aparece no `career status` do terminal e vice-versa.
+- O shim já injeta `CAREER_RUNTIME` (e `CAREER_SKILLS`) apontando para os recursos embutidos — autofill web, OCR e leitura de PDF funcionam do terminal igual na janela.
+- O shim é reescrito a cada abertura do app: se você mover o AppImage ou o `.app` de lugar, o comando se auto-corrige na próxima execução.
 
 ## Inicializar configuração
 
 ```powershell
-career.exe config init     # Windows
-./career config init       # macOS / Linux
+career config init     # cria ~/.careerfacilator/ com .env e as pastas de dados
+career config path     # mostra onde está o .env efetivo
 ```
 
-Isso cria `~/.careerfacilator/` com `.env` e as pastas de dados.
+A configuração também pode ser feita pela própria janela do app (aba de configuração — os valores são os mesmos do `config set`).
 
-## Modo portátil (dados ao lado do executável)
+## O que funciona logo de cara
 
-Crie um arquivo `.env` na mesma pasta do executável com:
-
-```dotenv
-CAREER_HOME=.
-```
-
-Assim `jobs.sqlite`, `profile.draft.md`, `storage/` e o próprio `.env` da pasta do exe mantêm tudo no mesmo diretório — **o `.env` da pasta do executável vale acima do `.env` do diretório de trabalho** (abaixo apenas de variáveis de ambiente reais), e o `CAREER_HOME` relativo ancora na pasta do binário mesmo chamando de outro cwd.
-
-## O que funciona com o runtime completo
-
-- Formulários web (autofill Chromium) — mesmos da instalação por código
+- Interface gráfica completa (janela nativa) + todos os comandos do CLI
+- Formulários web (autofill Chromium) — mesmo motor da instalação por código
 - Fontes autenticadas (`render: true`, LinkedIn/Gupy com login) e `career login`
 - Leitura de PDF com camada de texto via `pdf-parse`
 - OCR de imagens em posts (tesseract `por`+`eng`, offline — `career-runtime/tessdata`)
-- Biblioteca de skills em `skills/` ao lado do exe
+- Biblioteca de skills embutida
 
 ## Próximo passo
 
 Configure a IA: [04 — Configurando Ollama](04-configurando-ollama.md) ou [05 — IAs remotas](05-configurando-ias-remotas.md).
-Referência completa de execução e configuração do executável: [08 — Executável de release](08-executavel-release.md).
+Referência completa de execução e configuração: [08 — Executável de release](08-executavel-release.md).
+Interface gráfica em detalhes: [09 — Interface gráfica](09-interface-grafica.md).

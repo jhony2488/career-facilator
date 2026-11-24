@@ -75,5 +75,11 @@ Funcionalidade: Interface gráfica local (dashboard web + app desktop)
     Então ele já inclui o binário do CLI e o runtime como recursos internos
     E a instalação é independente do pacote de linha de comando
 
+  Cenário: Comando do CLI registrado pelo app desktop
+    Dado que o app desktop está instalado
+    Quando abro o app pela primeira vez
+    Então o comando do CLI fica registrado no meu terminal
+    E executá-lo roda o mesmo binário embutido com os mesmos recursos
+
 # Ambiguidade: formulários que exigem prompt em terminal herdam a mesma
 # semântica via stdin da task — UI mostra a pergunta e encaminha a resposta.

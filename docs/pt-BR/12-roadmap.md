@@ -16,7 +16,7 @@
 | **Fase 4 — Inteligência e Escala** | Módulo `src/skills/`, `src/geo/`, `autonomyEngine.ts`, `escalationHandler.ts`, `--dry-run` |
 | **Fase 5 — Fechamento do Ciclo** | `email_application/`, `outcomeMonitor.ts`, métricas de conversão por skill |
 | **Fase 6 — Discovery expandido** | `src/discovery/` com APIs/RSS públicas + fallback genérico HTML+LLM (`genericExtractor.ts`); pendente: adapters ATS por slug, LinkedIn autenticado, dorks orgânicos |
-| **Fase 7 — Distribuição executável** | Binário SEA single-file Win/macOS (arm64+x64)/Linux + runtime sidecar `career-runtime/` (playwright, browsers, pdf-parse, tesseract, skills) — paridade total com a instalação por código (ver `feature/16`); `career runtime setup|status` prepara/diagnostica |
+| **Fase 7 — Distribuição executável** | Binário SEA single-file Win/macOS (arm64+x64)/Linux + runtime sidecar `career-runtime/` (playwright, browsers, pdf-parse, tesseract, skills) — paridade total com a instalação por código (ver `feature/16`). Release publica só o **instalador desktop** `career-ui-*` (app + CLI embutido, modelo git+git-gui — o zip do CLI é insumo intermediário do sidecar); `career runtime status` diagnostica |
 
 ---
 

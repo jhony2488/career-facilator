@@ -105,30 +105,28 @@ career config unset AI_LOCAL_MODEL
 
 Paths individuais sobrescrevem via env: `PROFILE_INBOX_DIR`, `PROFILE_DRAFT_PATH`, `PROFILE_MASTER_PATH`, `PROFILE_COMPILED_PATH`, `PROFILE_HISTORY_DIR`, `JOBS_DB_PATH`.
 
-> **Tutoriais detalhados:** veja instruções passo a passo de instalação pelo repositório, npm global, binários de release e configuração de modelos (incluindo Ollama por capacidade de RAM) em [tutorials/README.md](tutorials/README.md).
+> **Tutoriais detalhados:** veja instruções passo a passo de instalação pelo repositório, npm global, instalador do release (app + CLI) e configuração de modelos (incluindo Ollama por capacidade de RAM) em [tutorials/README.md](tutorials/README.md).
 
 > **Dev no repo:** o `.env` local tem `CAREER_HOME=.`, então os dados continuam em `storage/` e `src/config/` como antes.
 
-### Executável standalone (GitHub Releases)
+### App desktop + CLI (GitHub Releases)
 
-Baixe o pacote da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js**:
+Baixe o instalador da aba [Releases](https://github.com/jhony2488/career-facilitator/releases) — **não precisa de Node.js** e entrega o app com janela nativa **e** o comando `career` pronto no terminal, compartilhando os mesmos dados (modelo `git` + `git-gui`):
 
-| Pacote                   | Primeiro uso                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `career-windows-x64.zip` | SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"      |
-| `career-macos-arm64.zip` | `xattr -dr com.apple.quarantine <pasta>` — libera exe + Chromium (Gatekeeper)                    |
-| `career-macos-x64.zip`   | idem, para Intel                                                                                 |
-| `career-linux-x64.zip`   | `chmod +x`; Chromium pode pedir libs de sistema (`playwright install-deps chromium` equivalente) |
+| Pacote                          | Primeiro uso                                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `career-ui-windows-x64.exe`     | instalador NSIS por usuário; SmartScreen pode avisar (sem assinatura): "Mais informações → Executar mesmo assim" |
+| `career-ui-macos-arm64.dmg`     | arraste p/ `/Applications`; `xattr -dr com.apple.quarantine "<app>"` se o Gatekeeper bloquear           |
+| `career-ui-macos-x64.dmg`       | idem, para Intel                                                                                       |
+| `career-ui-linux-x64.AppImage`  | `chmod +x` e execute; Chromium pode pedir libs de sistema (`playwright install-deps` equivalente)        |
 
-O ZIP traz o executável SEA + `career-runtime/` (Playwright + Chromium, pdf-parse, tesseract + tessdata) + `skills/` + `.env.example` — **todos os recursos funcionam igual à instalação por código** (autofill de formulários, fontes autenticadas, OCR de posts, PDF com camada de texto). Quem baixar só o binário (`career-<os>-<arch>[.exe]`) completa depois com `career runtime setup` (baixa o `career-runtime-<os>-<arch>.tar.gz` do release); `runtime status` diagnostica o que falta. Sem o runtime, formulários web degradam para e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
-
-O executável usa **a mesma configuração** dos outros modos: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita, e um `.env` com `CAREER_HOME=.` na pasta do exe mantém os dados portáteis ao lado dele — o `.env` da pasta do exe sobrepõe o do diretório de trabalho. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide com ela). Referência completa de execução/configuração: [tutorials/pt-BR/08-executavel-release.md](tutorials/pt-BR/08-executavel-release.md).
+Na primeira abertura, o app registra `career` no PATH do usuário (`career.cmd` em `%LOCALAPPDATA%\Microsoft\WindowsApps` no Windows; `/opt/homebrew/bin` ou `/usr/local/bin` no macOS; `~/.local/bin/career` no Linux) — num terminal novo, `career status`, `career discover`, `career ui` já funcionam com o runtime embutido (`CAREER_RUNTIME`/`CAREER_SKILLS` injetados pelo shim). Janela e terminal usam a mesma configuração e os mesmos dados: `career config init` cria `~/.careerfacilator/.env`, `config set|get` edita. `career --version` mostra a versão do `package.json` (o release valida que a tag `v*` coincide). Referência completa: [tutorials/pt-BR/08-executavel-release.md](tutorials/pt-BR/08-executavel-release.md).
 
 ### Interface gráfica
 
 `career ui` abre um **dashboard web local** (bind em `127.0.0.1` + token de sessão) no navegador — configuração completa, vagas/fila, cofre, perfil, runtime e um terminal que roda qualquer comando com saída ao vivo. Para uma janela nativa, o release traz o **app desktop** (`career-ui-<os>-<arch>`: `.exe` NSIS no Windows, `.dmg` no macOS arm64/x64, `.AppImage` no Linux) com o binário e o runtime embutidos. Detalhes: [tutorials/pt-BR/09-interface-grafica.md](tutorials/pt-BR/09-interface-grafica.md) e [docs/pt-BR/16-interface-grafica.md](docs/pt-BR/16-interface-grafica.md).
 
-Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS arm64+x64/Linux (Node SEA single-file + runtime sidecar) → ZIPs e tarballs anexados ao release.
+Os builds rodam no GitHub Actions (`.github/workflows/release.yml`): tag `v*` → matrix Windows/macOS arm64+x64/Linux (Node SEA single-file + runtime sidecar como insumo do Tauri) → instaladores desktop `career-ui-*` anexados ao release.
 
 ### Ingestão do seu perfil (currículo)
 
@@ -193,7 +191,7 @@ CareerFacilator/
 
 ## Documentação
 
-- **[tutorials/README.md](tutorials/README.md)** — guias passo a passo de instalação (repositório, npm global, binários de release) e configuração de modelos de IA (Ollama e provedores remotos)
+- **[tutorials/README.md](tutorials/README.md)** — guias passo a passo de instalação (repositório, npm global, instalador do release — app + CLI) e configuração de modelos de IA (Ollama e provedores remotos)
 - **[docs/README.md](docs/README.md)** — índice geral (PT-BR + EN)
 - **[docs/pt-BR/README.md](docs/pt-BR/README.md)** — arquitetura, otimização de IA, skills, modos, escopo geográfico, confiabilidade, e-mail e ingestão de perfil
 - **[feature/README.md](feature/README.md)** — cenários BDD cobrindo todos os módulos

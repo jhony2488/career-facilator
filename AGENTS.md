@@ -12,7 +12,7 @@
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/pt-BR/`                        | Especificação de arquitetura (fonte da verdade, 16 docs numerados)                                                                                                                                   |
 | `docs/en/`                           | Mesma especificação traduzida para inglês                                                                                                                                                            |
-| `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, binários de release) e configuração de modelos de IA                                                                                          |
+| `tutorials/pt-BR/` e `tutorials/en/` | Guias práticos de instalação (repositório, npm global, instalador do release — app + CLI) e configuração de modelos de IA                                                                                          |
 | `feature/*.feature`                  | Cenários BDD em Gherkin PT (`# language: pt`), um por módulo                                                                                                                                         |
 | `feature/DECISOES.md`                | Ambiguidades de requisito e decisões pendentes — **consultar antes de implementar**                                                                                                                  |
 | `src/`                               | Implementação: `intake/`, `ai/`, `discovery/`, `scraper/`, `geo/`, `skills/`, `autofill/`, `core/`, `email_application/`, `whatsapp_application/`, `utils/`, `db/`, `tracker/`, `generator/`, `cli/` |
@@ -52,12 +52,12 @@
 ### CLI e dados do usuário
 
 - `npm run cli` sem argumentos abre o **shell interativo** (`career>`); `bin/career.cjs` + `npm link` expõe a CLI global `career`/`career-facilitator`
-- `career ui` / `career serve` sobem a **interface gráfica local** (`src/ui/` — node:http em 127.0.0.1 + token de sessão; assets de `src/ui/public/` viram sea assets no exe). Comandos rodam como subprocesso do próprio binário (stdout→SSE, stdin alimentável); env mascarado+fonte, cofre só refs. App desktop Tauri em `desktop/` (externalBin=exe + career-runtime + skills) — build via `npm run build:desktop` (Rust só no CI) — ver `docs/pt-BR/16-interface-grafica.md`
+- `career ui` / `career serve` sobem a **interface gráfica local** (`src/ui/` — node:http em 127.0.0.1 + token de sessão; assets de `src/ui/public/` viram sea assets no exe). Comandos rodam como subprocesso do próprio binário (stdout→SSE, stdin alimentável); env mascarado+fonte, cofre só refs. App desktop Tauri em `desktop/` (externalBin=exe + career-runtime + skills; no launch grava o shim `career` no PATH do usuário — `--career-cli` é o modo passthrough p/ AppImage) — build via `npm run build:desktop` (Rust só no CI) — ver `docs/pt-BR/16-interface-grafica.md`
 - Marcação manual da fila: `mark <url|id> <status>` (applied|email|whatsapp|skipped|failed|rejected|interview|assessment), `remove <url|id>` (tira do histórico → reprocessável), `retry [url|id]` (refaz o estágio web das vagas NEEDS_HUMAN_INPUT — mesma malha login-cofre/OTP do run, sem discovery/triagem) e `review` interativo no shell — ver `feature/12` e `feature/15`
 - `login <url|portal>` abre o browser visível no perfil persistente p/ login manual — a sessão é reaproveitada por fontes render:true e autofill
 - Dados do usuário (jobs.sqlite, profile.*, inbox) resolvem sob `CAREER_HOME` → default `~/.careerfacilator`; o `.env` do repo fixa `CAREER_HOME=.` para manter dev local — ver `docs/pt-BR/09-configuracao.md` §11.1
 - Precedência de env: `<home>/.env` < `./.env` < `<exe>/.env` (só SEA) < `process.env`; `career config set|get|unset|init|path` manipula o `.env` do home via `src/config/envFile.ts`. No binário SEA, `CAREER_HOME` relativo ancora na pasta do executável (modo portátil real)
-- Executável SEA: módulos externos (playwright*/stealth, pdf-parse, tesseract.js) + Chromium + tessdata vivem em `career-runtime/` ao lado do binário — carregados por `src/utils/runtimeModules.ts` via `createRequire` (override: `CAREER_RUNTIME`); `career runtime status|setup` diagnostica/baixa o pacote do release. Sem runtime → degradação p/ mensagens/revisão (`feature/16`)
+- Executável SEA: módulos externos (playwright*/stealth, pdf-parse, tesseract.js) + Chromium + tessdata vivem em `career-runtime/` ao lado do binário — carregados por `src/utils/runtimeModules.ts` via `createRequire` (overrides: `CAREER_RUNTIME`, `CAREER_SKILLS` p/ a library); `career runtime status` diagnostica (`runtime setup` = builds locais `npm run dist`, sem tarball publicado no release). Sem runtime → degradação p/ mensagens/revisão (`feature/16`)
 
 ## Stack planejada (quando implementar)
 
@@ -74,7 +74,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Verificação
 
-Builds: `npm run build:exe` gera o executável SEA completo (`esbuild` → `dist/bundle/` → blob → postject em `dist/career-<os>-<arch>`); `npm run build:runtime` monta `dist/career-runtime/` (node_modules sidecar + browsers + tessdata) e `skills/`; `npm run package:dist`/`dist` empacota `career-<os>.zip` + `career-runtime-*.tar.gz`. Releases: tag `v*` publica ZIPs/tarballs Win/macOS(arm64+x64)/Linux. Para alterações em docs/specs/testes:
+Builds: `npm run build:exe` gera o executável SEA completo (`esbuild` → `dist/bundle/` → blob → postject em `dist/career-<os>-<arch>`); `npm run build:runtime` monta `dist/career-runtime/` (node_modules sidecar + browsers + tessdata) e `skills/`; `npm run package:dist`/`dist` empacota `career-<os>.zip` + `career-runtime-*.tar.gz`. Releases: tag `v*` publica só os instaladores desktop `career-ui-*` (NSIS exe / dmg / AppImage) — o pacote CLI é artefato intermediário que vira sidecar do Tauri, não é mais publicado. Para alterações em docs/specs/testes:
 
 ```powershell
 # Resíduos proibidos (deve retornar 0 fora de identificadores de código)

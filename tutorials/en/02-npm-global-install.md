@@ -17,7 +17,7 @@ npm link
 npm install -g career-facilitator-ts
 ```
 
-> This repository's `package.json` is marked `private`, so `npm install -g` only works after publishing to the npm registry. For development, use `npm link`.
+> This repository's `package.json` is marked `private`, so `npm install -g` only works after publishing to the npm registry. For development, use `npm link`. When published, npm will be the **CLI-only** channel (no desktop app or bundled `career-runtime` — Playwright browsers via `npx playwright install`); to get app + CLI in one package, grab the release installer ([tutorial 03](03-release-binary-install.md)).
 
 ## Check the install
 

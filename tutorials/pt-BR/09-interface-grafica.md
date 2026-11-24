@@ -26,15 +26,15 @@ O release traz instaladores separados por SO:
 
 O app já inclui o binário `career` (o CLI completo) e o `career-runtime/` como recursos internos — instalação independente do pacote CLI. Ao abrir, ele sobe o servidor local e conecta a janela automaticamente.
 
-### Quer o terminal também?
+### O comando `career` já vem registrado
 
-Quem instala o pacote da UI **leva as duas coisas**: a janela nativa e o mesmo binário `career` utilizável no terminal. O executável embutido fica na pasta de instalação do app (o caminho exato aparece no dashboard, em "Binário do CLI"):
+Quem instala o pacote da UI **leva as duas coisas**: a janela nativa e o mesmo binário `career` utilizável no terminal. Na primeira abertura o app registra o comando `career` no seu PATH — abra um terminal novo e use direto (`career discover`, `career run`, `career ui`…):
 
-- **Windows:** `%LOCALAPPDATA%\CareerFacilator AI\career-x86_64-pc-windows-msvc.exe`
-- **macOS:** `CareerFacilator AI.app/Contents/Resources/career-<arch>-apple-darwin`
-- **Linux (AppImage):** extraído em `squashfs-root/usr/bin/career-x86_64-unknown-linux-gnu` (veja `career-ui --appimage-extract`)
+- **Windows:** `career.cmd` em `%LOCALAPPDATA%\Microsoft\WindowsApps` (PATH de usuário por padrão)
+- **macOS:** shim em `/opt/homebrew/bin` ou `/usr/local/bin` — se nenhum for gravável, o sistema pede sua senha uma vez (mova o app para `/Applications` antes de abrir)
+- **Linux (AppImage):** `~/.local/bin/career` aponta para o AppImage — execute o app ao menos uma vez para criar o comando
 
-Dá pra chamar direto (`"caminho\career-x86_64-pc-windows-msvc.exe" discover`), criar alias/renomear pra `career.exe` ou colocar a pasta no PATH. Se preferir o binário separado com nome curto, baixe também o `career-<os>-<arch>.zip` — os dois usam o mesmo `CAREER_HOME`, cofre e banco.
+O shim já injeta `CAREER_RUNTIME` apontando para os recursos embutidos — autofill, OCR e leitura de PDF funcionam do terminal igual na janela, e o CLI usa o mesmo `CAREER_HOME`, cofre e banco da UI. O shim é reescrito a cada abertura do app (se o app mudar de lugar, ele se auto-corrige); o caminho do executável embutido também aparece no dashboard, em "Binário do CLI".
 
 ## 3. O que cada aba faz
 

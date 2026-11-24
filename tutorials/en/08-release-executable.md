@@ -1,53 +1,58 @@
 # Tutorial 08 — Release executable: full execution & configuration guide
 
-Detailed reference for the distributed binary: what ships in the package, how to run on each OS, and how to configure **every** feature without installing Node.js. Basic install is covered in [Tutorial 03](03-release-binary-install.md).
+Detailed reference for the distributed package: what ships in the installer, how to run on each OS, and how to configure **every** feature without installing Node.js. Basic install is covered in [Tutorial 03](03-release-binary-install.md).
 
 ## 1. What's in the package
 
+The release publishes only the **desktop app installer** (`career-ui-<os>-<arch>`), which bundles everything:
+
 ```
-career-<os>-<arch>/
-├── career.exe | career        # single executable (Node SEA — the whole app)
+CareerFacilator AI (installed)
+├── career-ui                  # Tauri desktop app — native window
+├── career-<target-triple>     # the full CLI (Node SEA, embedded sidecar)
 ├── career-runtime/            # resources that don't fit in one file:
 │   ├── node_modules/          #   playwright + stealth, pdf-parse, tesseract.js
 │   ├── browsers/              #   Playwright Chromium (autofill + login + render)
 │   └── tessdata/              #   por.traineddata + eng.traineddata (offline OCR)
-├── skills/                    # dynamic skills library (SKILL.md + keywords)
-└── .env.example               # reference for every variable
+└── skills/                    # dynamic skills library (SKILL.md + keywords)
 ```
 
-Why does `career-runtime/` exist? Modules like Playwright and Tesseract.js load their own files from disk (drivers, worker scripts, WASM, browsers) — they cannot live inside a single-file binary. Instead of losing features, the executable loads them from this sibling folder. With the full runtime, **every command works exactly like the source install**.
+Why does `career-runtime/` exist? Modules like Playwright and Tesseract.js load their own files from disk (drivers, worker scripts, WASM, browsers) — they cannot live inside a single-file binary. Instead of losing features, the executable loads them from this folder. With the full runtime, **every command works exactly like the source install**.
+
+Distribution model: **one installer = app + CLI** (like `git` + `git-gui`). The embedded `career` binary is the same one the window uses — and the app registers it on your PATH on first launch, so `career <cmd>` works in any terminal.
 
 ## 2. Installation per OS
 
 ### Windows
 
 ```powershell
-Expand-Archive career-windows-x64.zip -DestinationPath C:\Tools\CareerFacilator
-C:\Tools\CareerFacilator\career-windows-x64\career.exe --version
+.\career-ui-windows-x64.exe        # per-user NSIS installer (no admin)
+career --version                    # in a NEW terminal, after opening the app once
 ```
 
 - SmartScreen: **More info → Run anyway** (unsigned binary).
 - Antivirus: some may flag the Chromium inside `career-runtime/browsers/` — it is the official Playwright build; allow the folder.
+- On first launch the app writes `career.cmd` into `%LOCALAPPDATA%\Microsoft\WindowsApps` (already on the user PATH) — new terminals see `career` directly.
 
 ### macOS
 
 ```bash
-unzip career-macos-arm64.zip        # or career-macos-x64.zip (Intel)
-cd career-macos-arm64
-xattr -dr com.apple.quarantine .    # removes Gatekeeper quarantine for the whole folder
-./career --version
+# open the .dmg and drag "CareerFacilator AI" to /Applications
+xattr -dr com.apple.quarantine "/Applications/CareerFacilator AI.app"
+career --version                    # in a NEW terminal, after opening the app once
 ```
 
-`xattr -dr` is required on the **entire folder** — the Chromium inside `career-runtime/` is quarantined too.
+`xattr -dr` removes Gatekeeper quarantine for the whole package — the bundled Chromium is freed too. The `career` shim goes to `/opt/homebrew/bin` or `/usr/local/bin` (may ask for your password once).
 
 ### Linux
 
 ```bash
-unzip career-linux-x64.zip
-cd career-linux-x64
-chmod +x career
-./career --version
+chmod +x career-ui-linux-x64.AppImage
+./career-ui-linux-x64.AppImage      # opens the window and registers the CLI
+career --version                    # in a NEW terminal
 ```
+
+The shim goes to `~/.local/bin/career` and points at the AppImage in `--career-cli` mode.
 
 Chromium needs system libraries. On Debian/Ubuntu:
 
@@ -61,28 +66,21 @@ Without those libs only web forms fail — everything else still works.
 
 ## 3. Running commands
 
-Always point at the binary path or cd into its folder. Optionally add the folder to `PATH`:
+After the first app launch, the `career` command is already on PATH — just open a new terminal. Commands below are written as `career <cmd>`; with no arguments, `career` opens the **interactive shell** (`career>`) with the same commands.
 
-```powershell
-# Windows (PowerShell) — current session
-$env:PATH += ";C:\Tools\CareerFacilator\career-windows-x64"
-
-# Linux/macOS (bash)
-export PATH="$PATH:$(pwd)"
-alias career='./career'   # PATH-free alternative
-```
-
-Commands below are written as `career <cmd>` — replace with `career.exe` on Windows if not on PATH. With no arguments, `career` opens the **interactive shell** (`career>`) with the same commands.
+If the shim somehow wasn't created (e.g. an AppImage run from an unusual folder), the embedded binary path shows on the window's dashboard under "CLI binary" — you can call it directly.
 
 ## 4. Executable runtime
 
+The desktop package already bundles `career-runtime/` — the CLI shim injects `CAREER_RUNTIME` pointing at it automatically. Diagnostics are still available:
+
 ```powershell
 career runtime status    # diagnostics: node_modules, browsers, tessdata, skills
-career runtime setup     # downloads career-runtime-<os>-<arch>.tar.gz from the release and extracts beside the exe
 ```
 
-- `runtime setup` picks the right platform by itself (Windows/macOS arm64/macOS x64/Linux) and only needs internet access.
 - `CAREER_RUNTIME=/path/to/career-runtime` points the runtime elsewhere (e.g. one shared runtime for several installs).
+- `CAREER_SKILLS=/path/to/skills` does the same for the skills library — the app shim already points at the bundled one.
+- `career runtime setup` exists for locally-built binaries (`npm run dist`) missing the folder — the release package always includes it.
 - Without the runtime: API/RSS discovery, triage, e-mail, WhatsApp, review queue and vault all work; web forms and login-based sources degrade to `NEEDS_HUMAN_INPUT`/message channels — nothing breaks, it just degrades.
 
 ## 5. Configuration — full precedence chain
@@ -329,9 +327,9 @@ career inspect <url>                 # diagnose a form without filling
 | Ollama "connection refused"                     | service stopped                     | `ollama serve` + `ollama pull <model>`                                           |
 | Remote provider 401                             | API key                             | `config set <P>_API_KEY ...` + `config check`                                    |
 | Moved folder and lost data                      | relative `CAREER_HOME` moved        | in the exe, `CAREER_HOME` anchors on the binary's folder — move the whole folder |
-| `tar` not found in `runtime setup`              | very old Windows                    | download the full `.zip` instead                                                 |
+| `tar` not found in `runtime setup`              | very old Windows                    | use the app installer (runtime is bundled)                                       |
 | Old Node producing the exe                      | `node:sqlite` requires Node ≥ 22.13 | only affects builds from source; prebuilt binaries are fine                      |
 
-## 15. Binary vs. source install differences
+## 15. Package vs. source install differences
 
-With `career-runtime/` present: **no functional difference**. Without it: web forms, authenticated render, `login`/`inspect`/`retry`, text-layer PDF and OCR degrade (message/review). What the binary never brings by itself: Ollama (separate install), the `skills/` library (copy from package/repo) and initial configuration (`config init` or `.env`).
+With the bundled `career-runtime/` (always present in the package): **no functional difference**. What the install doesn't bring by itself: Ollama (separate install) and initial configuration (`config init` or `.env`).
