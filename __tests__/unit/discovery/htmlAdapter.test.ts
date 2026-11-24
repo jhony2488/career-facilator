@@ -168,6 +168,120 @@ describe('htmlAdapter', () => {
     expect(result.jobs).toHaveLength(1);
   });
 
+  it('paginates {page} until the extractor returns an empty page', async () => {
+    // decisão #41: listing pages are walked until they run dry
+    const fetchedUrls: string[] = [];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async (url: string) => {
+        fetchedUrls.push(url);
+        return { url, text: '<html></html>', status: 200 };
+      }),
+      fetchJson: (async <T = unknown>() => ({
+        url: '',
+        data: null as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
+    };
+    const extract: GenericExtractor = async (_html, pageUrl) =>
+      pageUrl.includes('page=3')
+        ? []
+        : [
+            {
+              title: 'Senior Backend Developer',
+              url: `https://x/job/${pageUrl.split('page=')[1]}`,
+            },
+          ];
+
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const result = await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({
+        url: undefined,
+        searchUrlTemplate: 'https://x/jobs?page={page}',
+      }),
+      fetcher,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(fetchedUrls).toEqual([
+      'https://x/jobs?page=1',
+      'https://x/jobs?page=2',
+      'https://x/jobs?page=3',
+    ]);
+    expect(result.jobs).toHaveLength(2);
+  });
+
+  it('stops paginating at listingMaxPages even when results keep coming', async () => {
+    const fetchedUrls: string[] = [];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async (url: string) => {
+        fetchedUrls.push(url);
+        return { url, text: '<html></html>', status: 200 };
+      }),
+      fetchJson: (async <T = unknown>() => ({
+        url: '',
+        data: null as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
+    };
+    let n = 0;
+    const extract: GenericExtractor = async () => [
+      { title: 'Senior Backend Developer', url: `https://x/job/${++n}` },
+    ];
+
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    config.discovery.listingMaxPages = 2;
+    await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({
+        url: undefined,
+        searchUrlTemplate: 'https://x/jobs?page={page}',
+      }),
+      fetcher,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(fetchedUrls).toEqual(['https://x/jobs?page=1', 'https://x/jobs?page=2']);
+  });
+
+  it('stops paginating when a page only repeats already-seen job urls', async () => {
+    const fetchedUrls: string[] = [];
+    const fetcher: Fetcher = {
+      fetchText: jest.fn(async (url: string) => {
+        fetchedUrls.push(url);
+        return { url, text: '<html></html>', status: 200 };
+      }),
+      fetchJson: (async <T = unknown>() => ({
+        url: '',
+        data: null as T,
+        status: 200,
+      })) as Fetcher['fetchJson'],
+    };
+    const extract: GenericExtractor = async () => [
+      { title: 'Senior Backend Developer', url: 'https://x/job/1' },
+    ];
+
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const result = await htmlAdapter.discover({
+      config,
+      source: makeHtmlSource({
+        url: undefined,
+        searchUrlTemplate: 'https://x/jobs?page={page}',
+      }),
+      fetcher,
+      extract,
+      maxJobs: 10,
+    });
+
+    expect(fetchedUrls).toEqual(['https://x/jobs?page=1', 'https://x/jobs?page=2']);
+    expect(result.jobs).toHaveLength(1);
+  });
+
   it('returns a controlled error when the source has no listing URL', async () => {
     const config = makeConfig();
     const result = await htmlAdapter.discover({

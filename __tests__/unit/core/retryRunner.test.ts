@@ -72,13 +72,14 @@ describe('reapplyStoredJob — retry de vagas NEEDS_HUMAN_INPUT', () => {
     expect(statuses).toEqual([['https://gupy.io/job/1', 'APPLIED']]);
   });
 
-  it('returns NEEDS_HUMAN_INPUT without touching status when the page has no web form', async () => {
+  it('keeps NEEDS_HUMAN_INPUT and records the pending context when the page has no web form', async () => {
+    // decisão #42: o retry atualiza o motivo da pendência p/ o review mostrar
     const { deps, statuses } = makeDeps(makePage({ fields: [] }));
 
     const r = await reapplyStoredJob(makeJob(), { profile, deps });
 
     expect(r).toEqual({ status: 'NEEDS_HUMAN_INPUT', reason: 'NO_WEB_FORM' });
-    expect(statuses).toEqual([]);
+    expect(statuses).toEqual([['https://gupy.io/job/1', 'NEEDS_HUMAN_INPUT']]);
   });
 
   // filled form + PAUSE_BEFORE_SUBMIT → pronto p/ revisão humana

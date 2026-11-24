@@ -1,5 +1,9 @@
 import { JobRepository } from '../../src/db/repository';
 import { makeJob } from '../helpers/factories';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 describe('JobRepository — 3-level deduplication (real SQLite)', () => {
   let repo: JobRepository;
@@ -192,5 +196,77 @@ describe('JobRepository — 3-level deduplication (real SQLite)', () => {
     await repo.markChannelSent(job.id, 'EMAIL');
 
     expect(await repo.countEmailsSentToday()).toBe(1);
+  });
+
+  it('persists pending context on NEEDS_HUMAN_INPUT and clears it on the next status', async () => {
+    // decisão #42: reason/final url/detail make the review queue actionable
+    const job = makeJob();
+    await repo.recordJob(job);
+
+    await repo.updateStatus(job.url, 'NEEDS_HUMAN_INPUT', undefined, {
+      reason: 'UNKNOWN_REQUIRED_FIELD',
+      url: 'https://boards.greenhouse.io/techcorp/form',
+      detail: 'Perguntas sem resposta: Visa sponsor?',
+    });
+
+    let stored = await repo.getByUrl(job.url);
+    expect(stored?.status).toBe('NEEDS_HUMAN_INPUT');
+    expect(stored?.pendingReason).toBe('UNKNOWN_REQUIRED_FIELD');
+    expect(stored?.pendingUrl).toContain('/form');
+    expect(stored?.pendingDetail).toContain('Visa sponsor');
+    expect((await repo.listByStatus('NEEDS_HUMAN_INPUT'))[0].pendingReason).toBe(
+      'UNKNOWN_REQUIRED_FIELD',
+    );
+
+    await repo.updateStatus(job.url, 'APPLIED');
+    stored = await repo.getByUrl(job.url);
+    expect(stored?.pendingReason).toBeNull();
+    expect(stored?.pendingUrl).toBeNull();
+    expect(stored?.pendingDetail).toBeNull();
+  });
+
+  it('migrates a pre-pending-columns jobs table in place', async () => {
+    // CREATE IF NOT EXISTS não altera DB antigo — o construtor faz ALTER TABLE
+    const dir = mkdtempSync(join(tmpdir(), 'career-repo-'));
+    const dbPath = join(dir, 'jobs.sqlite');
+    const old = new DatabaseSync(dbPath);
+    old.exec(`CREATE TABLE jobs (
+      id TEXT PRIMARY KEY, url TEXT NOT NULL, canonical_url TEXT NOT NULL UNIQUE,
+      content_hash TEXT NOT NULL, source TEXT NOT NULL, company TEXT NOT NULL,
+      title TEXT NOT NULL, description_markdown TEXT NOT NULL, scope TEXT NOT NULL,
+      status TEXT NOT NULL, discovered_at TEXT NOT NULL, applied_at TEXT,
+      resume_path TEXT, applied_skills TEXT)`);
+    old.prepare(
+      `INSERT INTO jobs (id, url, canonical_url, content_hash, source, company, title,
+        description_markdown, scope, status, discovered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'j1',
+      'https://x/job/1',
+      'https://x/job/1',
+      'hash1',
+      'src',
+      'Acme',
+      'Dev',
+      'desc',
+      'NATIONAL',
+      'DISCOVERED',
+      '2026-11-24T00:00:00.000Z',
+    );
+    old.close();
+
+    const migrated = new JobRepository(dbPath);
+    try {
+      await migrated.updateStatus('https://x/job/1', 'NEEDS_HUMAN_INPUT', undefined, {
+        reason: 'CAPTCHA',
+        url: 'https://x/job/1/captcha',
+      });
+      const stored = await migrated.findJob('https://x/job/1');
+      expect(stored?.pendingReason).toBe('CAPTCHA');
+      expect(stored?.pendingUrl).toContain('captcha');
+    } finally {
+      migrated.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

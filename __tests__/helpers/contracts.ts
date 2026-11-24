@@ -260,6 +260,10 @@ export interface CareerOpsConfig {
     /** OCR das imagens de posts LinkedIn (default true) — env DISCOVERY_POSTS_OCR. */
     postsImageOcr: boolean;
     respectRobotsTxt: boolean;
+    /** Só vagas com Candidatura simplificada (f_AL=true + posts pulados) — env DISCOVERY_LINKEDIN_EASY_APPLY. */
+    linkedinEasyApplyOnly?: boolean;
+    /** Teto de páginas por listagem (default 4) — env DISCOVERY_LISTING_MAX_PAGES. */
+    listingMaxPages?: number;
   };
   ai: {
     local: { provider: string; modelId: string };
@@ -341,7 +345,8 @@ export interface CareerOpsConfig {
 // src/db/repository.ts
 //   class JobRepository { constructor(dbPath|':memory:')
 //     dedupCheck(input: {url, company, title, description}, opts?: {companyCooldownDays}): Promise<DedupVerdict>
-//     recordJob(job), updateStatus(url, status), getByUrl(canonicalUrl), close()
+//     recordJob(job), updateStatus(url, status, resumePath?, pending?), getByUrl(canonicalUrl), close()
+//       pending?: {reason?, url?, detail?} → colunas pending_* (limpas quando ausente)
 //     hasRecentApplication(company, days): Promise<boolean>
 //     findJob(ref: id|url|canonicalUrl): Promise<JobRecord|undefined>
 //     deleteJob(ref): Promise<boolean>  — removes job + applications rows
@@ -436,7 +441,8 @@ export interface CareerOpsConfig {
 //   evaluateStepResult(stepState): 'ADVANCE' | 'ESCALATE' | 'READY'
 //
 // src/db/repository.ts (delta)
-//   updateStatus(url, status, resumePath?): Promise<void> — resume_path preserva via COALESCE
+//   updateStatus(url, status, resumePath?, pending?): Promise<void> — resume_path preserva via COALESCE;
+//     pending?: {reason?, url?, detail?} grava pending_* (ausente = limpa)
 //
 // src/email_application/recipientResolver.ts
 //   resolveRecipient(job, deps: {repo, cooldownDays?}): Promise<{email: string} | null>

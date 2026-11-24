@@ -360,3 +360,99 @@ describe('linkedinAdapter posts pass', () => {
     );
   });
 });
+
+describe('linkedinAdapter — listing pagination & Easy Apply filter', () => {
+  const card = (id: string, title = 'Backend Developer') => `
+    <div class="base-card">
+      <a href="https://www.linkedin.com/jobs/view/x-${id}">
+        <span class="base-search-card__title">${title}</span>
+      </a>
+    </div>`;
+
+  // decisão #41: percorre start=0,25,50… até a página vir sem cards novos
+  it('paginates /jobs/search via start= until a page brings no new cards', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    const rendered: string[] = [];
+    const renderText = async (url: string) => {
+      rendered.push(url);
+      if (url.includes('/jobs/search')) {
+        if (url.includes('start=25'))
+          return { url, text: card('1111111111') + card('2222222222'), status: 200 };
+        if (url.includes('start=50'))
+          return { url, text: card('2222222222'), status: 200 }; // only dupes → stop
+        return { url, text: card('1111111111'), status: 200 };
+      }
+      return { url, text: '<html><body>desc</body></html>', status: 200 };
+    };
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    expect(rendered.some((u) => u.includes('start=25'))).toBe(true);
+    expect(rendered.some((u) => u.includes('start=50'))).toBe(true);
+    expect(rendered.some((u) => u.includes('start=75'))).toBe(false);
+    expect(result.jobs.map((j) => j.raw.url)).toEqual([
+      'https://www.linkedin.com/jobs/view/1111111111',
+      'https://www.linkedin.com/jobs/view/2222222222',
+    ]);
+  });
+
+  it('respects listingMaxPages even when pages keep bringing new cards', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    config.discovery.listingMaxPages = 2;
+    const rendered: string[] = [];
+    let pageIdx = 0;
+    const renderText = async (url: string) => {
+      rendered.push(url);
+      if (url.includes('/jobs/search')) {
+        pageIdx += 1;
+        return { url, text: card(`10000000${pageIdx}`), status: 200 };
+      }
+      return { url, text: '<html><body>desc</body></html>', status: 200 };
+    };
+
+    await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    const searchPages = rendered.filter((u) => u.includes('/jobs/search'));
+    expect(searchPages).toHaveLength(2); // start=0 e start=25 — sem start=50
+  });
+
+  // decisão #41: f_AL=true restringe a busca; posts nunca têm Easy Apply
+  it('applies f_AL=true and skips the posts pass when Easy Apply only', async () => {
+    const config = makeConfig();
+    config.discovery.targetTitles = ['Backend Developer'];
+    config.discovery.linkedinEasyApplyOnly = true;
+    const rendered: string[] = [];
+    const renderText = async (url: string) => {
+      rendered.push(url);
+      if (url.includes('/jobs/search'))
+        return { url, text: card('3333333333'), status: 200 };
+      return { url, text: '<html><body>desc</body></html>', status: 200 };
+    };
+
+    const result = await linkedinAdapter.discover({
+      config,
+      source: sourceById('linkedin')!,
+      fetcher,
+      renderText,
+      maxJobs: 10,
+    });
+
+    expect(rendered.some((u) => u.includes('/jobs/search') && u.includes('f_AL=true'))).toBe(true);
+    expect(rendered.some((u) => u.includes('/search/results/content'))).toBe(false);
+    expect(result.jobs).toHaveLength(1);
+  });
+});

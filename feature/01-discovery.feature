@@ -99,7 +99,29 @@ Funcionalidade: Descoberta de vagas (Discovery Engine)
     Então a página é renderizada em navegador com perfil persistente
     E o login manual do usuário é reaproveitado para descobrir e preencher
 
+  Cenário: Percorrer todas as páginas de uma listagem antes da próxima busca
+    Dado que uma fonte lista vagas em mais de uma página de resultados
+    Quando a execução de descoberta consulta essa fonte
+    Então todas as páginas da listagem são percorridas até não haver vagas novas
+    E somente depois a busca seguinte é executada
+
+  Cenário: Respeitar o limite de páginas por listagem configurado
+    Dado que o limite de páginas por listagem está configurado
+    Quando uma listagem tem mais páginas que o limite
+    Então apenas até o limite de páginas é percorrido
+
+  Cenário: Restringir a busca do agregador a candidaturas simplificadas quando habilitado
+    Dado que o modo "somente candidatura simplificada" está habilitado
+    Quando o sistema varre as vagas do agregador
+    Então apenas vagas com candidatura simplificada são coletadas
+    E divulgações em publicações não são coletadas nesse modo
+
 # Decisão: fontes SPA (render) usam o navegador persistente do usuário — sem API.
+# Decisão: listagens paginadas são percorridas até esgotar ou o teto de páginas
+# (DISCOVERY_LISTING_MAX_PAGES) — só então a próxima busca começa.
+# Decisão: "somente candidatura simplificada" no agregador é opt-in
+# (DISCOVERY_LINKEDIN_EASY_APPLY) — publicações não têm esse tipo de
+# candidatura e são puladas nesse modo.
 # Decisão: falha de todas as fontes aborta o ciclo com alerta, sem consumir IA.
 # Decisão: o volume máximo de vagas coletadas por execução é configurável
 # (maxJobsPerRun, default 100).

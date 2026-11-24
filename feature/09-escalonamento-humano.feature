@@ -83,6 +83,12 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
     Quando o ciclo de execução apresenta o resumo ao usuário
     Então as pendências são listadas com o motivo do escalonamento de cada uma
 
+  Cenário: Registrar o contexto da pendência para revisão posterior
+    Dado que uma candidatura mudou para "NEEDS_HUMAN_INPUT"
+    Quando a pendência é registrada na fila de revisão
+    Então o motivo do bloqueio e a página onde o fluxo parou ficam registrados
+    E canais de contato encontrados na vaga ficam visíveis na revisão
+
   Cenário: Timeout de espera humana serializa o estado para retomada
     Dado que uma candidatura está em "NEEDS_HUMAN_INPUT"
     Quando o tempo máximo de espera configurado é ultrapassado sem resolução
@@ -109,3 +115,6 @@ Funcionalidade: Detecção de bloqueios e escalonamento para intervenção human
 # autentica o muro sozinha; verificação anti-robô que segura o login cai no
 # acesso por e-mail do portal (magic link) lido da caixa do usuário no cofre —
 # mesmo caminho do OTP (imap-main, ou smtp-main c/ host derivável).
+# Decisão: toda pendência grava motivo, página onde o fluxo parou e detalhe
+# (perguntas sem resposta, e-mail de contato) — o review mostra o contexto e
+# os canais de contato extraídos da descrição salva.
