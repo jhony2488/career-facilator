@@ -1,8 +1,7 @@
 // Empacota dist/ em career-<os>-<arch>.zip (exe + career-runtime + skills +
 // .env.example) e career-runtime-<os>-<arch>.tar.gz (só runtime + skills).
-// No CI o zip é artefato intermediário — insumo do sidecar do app desktop
-// (job `desktop` do release.yml), não é publicado; o tarball só serve ao
-// 'career runtime setup' de binários gerados localmente (`npm run dist`).
+// Uso local (`npm run dist`) — o CI do release monta o sidecar do app desktop
+// direto de dist/ (scripts/build-desktop.mjs) e não publica pacotes CLI.
 import { spawnSync } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';

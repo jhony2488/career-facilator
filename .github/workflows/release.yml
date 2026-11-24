@@ -35,6 +35,8 @@ jobs:
           node-version: 22
           cache: npm
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - run: npm ci
 
       - name: Check tag matches package.json version
@@ -44,75 +46,12 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           PKG=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME diverge de package.json version $PKG â€” bump a versÃ£o antes de taggear."
+            echo "::error::Tag $GITHUB_REF_NAME diverge de package.json version $PKG — bump a versão antes de taggear."
             exit 1
           fi
 
       - run: npx tsc --noEmit
       - run: npm run test:unit
-
-      - name: Bundle + SEA blob + inject (dist/career-<os>-<arch>)
-        run: npm run bundle && npm run sea && npm run inject -- --name ${{ matrix.asset }}
-
-      - name: Build runtime sidecar (playwright + browsers + tesseract + skills)
-        run: npm run build:runtime
-
-      - name: Package (zip completo + tarball do runtime)
-        run: node scripts/package-release.mjs --asset ${{ matrix.asset }}
-
-      - name: Smoke test binary
-        shell: bash
-        run: |
-          mkdir -p smoke && cd smoke
-          unzip -q ../dist/*.zip 2>/dev/null || tar -xf ../dist/*.zip 2>/dev/null || true
-          BIN=$(find . -type f -name 'career-*' ! -name '*.zip' ! -name '*.tar.gz' | head -1)
-          if [ -z "$BIN" ]; then BIN="../${{ matrix.asset }}"; fi
-          chmod +x "$BIN" 2>/dev/null || true
-          VERSION=$("$BIN" --version)
-          echo "Binary version: $VERSION"
-          "$BIN" discover --dry-run
-          STATUS=$("$BIN" runtime status)
-          echo "$STATUS"
-          echo "$STATUS" | grep -q 'carrega' || {
-            echo "::error::playwright nÃ£o carregou no binÃ¡rio â€” runtime sidecar nÃ£o estÃ¡ sendo resolvido"
-            exit 1
-          }
-
-      # Artefato intermediário — o job desktop baixa só o zip (sidecar do Tauri);
-      # binários CLI soltos não são mais publicados no release.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: dist/*.zip
-
-  desktop:
-    name: Desktop ${{ matrix.asset }}
-    needs: build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            asset: career-windows-x64.exe
-          - os: macos-latest
-            asset: career-macos-arm64
-          - os: macos-15-intel
-            asset: career-macos-x64
-          - os: ubuntu-latest
-            asset: career-linux-x64
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - run: npm ci
 
       - name: Linux Tauri deps (webkit2gtk etc.)
         if: runner.os == 'Linux'
@@ -120,38 +59,41 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Download CLI package (zip do job build)
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: dl
+      # Um só build: o CLI SEA + runtime sidecar é insumo direto do Tauri —
+      # dist/career-* + dist/career-runtime + dist/skills são staged como
+      # externalBin/resources do app desktop (não existe artefato CLI solto).
+      - name: Bundle + SEA blob + inject (dist/career-<os>-<arch>)
+        run: npm run bundle && npm run sea && npm run inject -- --name ${{ matrix.asset }}
 
-      - name: Stage sidecar + Tauri build + collect installer
+      - name: Build runtime sidecar (playwright + browsers + tesseract + skills)
+        run: npm run build:runtime
+
+      - name: Smoke test binary
         shell: bash
         run: |
-          mkdir staged
-          # bsdtar (Windows) extrai zips com data-descriptors só parcialmente —
-          # Windows vai de Expand-Archive; unix prefere unzip com tar de fallback.
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            powershell -NoProfile -Command 'Get-ChildItem dl/career-*.zip | ForEach-Object { Expand-Archive -LiteralPath $_.FullName -DestinationPath staged -Force }'
-          elif command -v unzip >/dev/null 2>&1; then
-            unzip -q dl/career-*.zip -d staged
-          else
-            tar -xf dl/career-*.zip -C staged
-          fi
-          PKGDIR=$(find staged -mindepth 1 -maxdepth 1 -type d | head -1)
-          echo "PKGDIR=$PKGDIR"
-          find "$PKGDIR" -maxdepth 1
-          node scripts/build-desktop.mjs --from "$PKGDIR"
+          BIN="dist/${{ matrix.asset }}"
+          chmod +x "$BIN" 2>/dev/null || true
+          VERSION=$("$BIN" --version)
+          echo "Binary version: $VERSION"
+          "$BIN" discover --dry-run
+          STATUS=$("$BIN" runtime status)
+          echo "$STATUS"
+          echo "$STATUS" | grep -q 'carrega' || {
+            echo "::error::playwright não carregou no binário — runtime sidecar não está sendo resolvido"
+            exit 1
+          }
+
+      - name: Stage sidecar + Tauri build + collect installer
+        run: node scripts/build-desktop.mjs
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}-desktop
+          name: ${{ matrix.asset }}
           path: dist/career-ui-*
 
   release:
     name: Publish release
-    needs: [build, desktop]
+    needs: build
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag'
     permissions:

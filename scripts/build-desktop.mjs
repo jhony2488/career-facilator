@@ -23,8 +23,8 @@ if (!triple) {
   process.exit(1);
 }
 const ext = process.platform === 'win32' ? '.exe' : '';
-// --from <dir>: pacote CLI já extraído (exe + career-runtime + skills) — usado
-// pelo CI, que baixa o zip do job build em vez de rodar `npm run dist`.
+// --from <dir>: pacote CLI já extraído (exe + career-runtime + skills) —
+// útil p/ empacotar um zip gerado por `npm run dist` noutra máquina.
 const fromIdx = process.argv.indexOf('--from');
 const FROM = fromIdx !== -1 ? process.argv[fromIdx + 1] : null;
 const SRC_EXE = FROM
