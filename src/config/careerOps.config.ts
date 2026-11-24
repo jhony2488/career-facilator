@@ -76,6 +76,13 @@ export interface CareerOpsConfig {
     postsImageOcr: boolean;
     /** Verificar e respeitar robots.txt das fontes. */
     respectRobotsTxt: boolean;
+    /**
+     * Só vagas "Candidatura simplificada" (Easy Apply) na busca LinkedIn
+     * (`f_AL=true`); posts são pulados — nunca têm Easy Apply. Default false.
+     */
+    linkedinEasyApplyOnly?: boolean;
+    /** Teto de páginas por listagem (LinkedIn `start=` e `{page}` HTML). Default 4. */
+    listingMaxPages?: number;
   };
   ai: {
     local: ModelRouting; // Camada 1 — triagem barata (Ollama/ONNX)
@@ -196,6 +203,8 @@ export const defaultCareerOpsConfig: CareerOpsConfig = {
     genericExtractionModel: '',
     postsImageOcr: true,
     respectRobotsTxt: true,
+    linkedinEasyApplyOnly: false,
+    listingMaxPages: 4,
   },
   ai: {
     local: { provider: 'ollama', modelId: 'qwen2.5:7b' },

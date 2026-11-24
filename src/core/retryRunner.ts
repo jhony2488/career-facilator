@@ -66,6 +66,14 @@ export async function reapplyStoredJob(
     // Se a cadena de candidatura revelou um mailto:, reporta-o p/ o humano.
     if (page.fields.length === 0 && !page.dropzones?.length) {
       const contact = page.contactEmail;
+      // Atualiza o contexto da pendência — o review mostra o canal encontrado.
+      await deps.repo
+        .updateStatus(job.url, 'NEEDS_HUMAN_INPUT', undefined, {
+          reason: contact ? 'CONTACT_EMAIL' : 'NO_WEB_FORM',
+          url: page.url !== job.url ? page.url : undefined,
+          detail: contact ? `E-mail de contato: ${contact}` : undefined,
+        })
+        .catch(() => {});
       return {
         status: 'NEEDS_HUMAN_INPUT',
         reason: contact ? `CONTACT_EMAIL:${contact}` : 'NO_WEB_FORM',
@@ -161,7 +169,15 @@ export async function reapplyStoredJob(
           })
           .catch(() => false);
       }
-      await deps.repo.updateStatus(job.url, 'NEEDS_HUMAN_INPUT');
+      await deps.repo
+        .updateStatus(job.url, 'NEEDS_HUMAN_INPUT', undefined, {
+          reason: effSignal.kind,
+          url: page.url !== job.url ? page.url : undefined,
+          detail: fill.unansweredRequired?.length
+            ? `Perguntas sem resposta: ${fill.unansweredRequired.join(' | ')}`
+            : effSignal.detail,
+        })
+        .catch(() => {});
       return { status: 'NEEDS_HUMAN_INPUT', reason: effSignal.kind };
     }
 
@@ -174,7 +190,11 @@ export async function reapplyStoredJob(
   } catch (e) {
     // Ctrl+C propaga como AbortError — cancela o retry, não marca FAILED.
     if (e instanceof Error && e.name === 'AbortError') throw e;
-    await deps.repo.updateStatus(job.url, 'FAILED').catch(() => {});
+    await deps.repo
+      .updateStatus(job.url, 'FAILED', undefined, {
+        reason: e instanceof Error ? e.message.slice(0, 200) : String(e),
+      })
+      .catch(() => {});
     return {
       status: 'FAILED',
       reason: e instanceof Error ? e.message.slice(0, 200) : String(e),

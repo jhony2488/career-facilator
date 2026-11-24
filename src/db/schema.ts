@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   discovered_at TEXT NOT NULL,
   applied_at TEXT,
   resume_path TEXT,
-  applied_skills TEXT
+  applied_skills TEXT,
+  pending_reason TEXT,
+  pending_url TEXT,
+  pending_detail TEXT
 );
 
 CREATE TABLE IF NOT EXISTS applications (

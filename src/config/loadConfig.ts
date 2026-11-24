@@ -265,6 +265,13 @@ export function loadCareerOpsConfig(opts: LoadConfigOptions = {}): CareerOpsConf
         env.DISCOVERY_RESPECT_ROBOTS_TXT !== undefined
           ? env.DISCOVERY_RESPECT_ROBOTS_TXT === 'true' || env.DISCOVERY_RESPECT_ROBOTS_TXT === '1'
           : defaultCareerOpsConfig.discovery.respectRobotsTxt,
+      linkedinEasyApplyOnly:
+        env.DISCOVERY_LINKEDIN_EASY_APPLY !== undefined
+          ? env.DISCOVERY_LINKEDIN_EASY_APPLY === 'true' || env.DISCOVERY_LINKEDIN_EASY_APPLY === '1'
+          : defaultCareerOpsConfig.discovery.linkedinEasyApplyOnly,
+      listingMaxPages: Number.isFinite(numEnv(env.DISCOVERY_LISTING_MAX_PAGES))
+        ? Math.max(1, numEnv(env.DISCOVERY_LISTING_MAX_PAGES))
+        : defaultCareerOpsConfig.discovery.listingMaxPages,
     },
     salary: (() => {
       const d = defaultCareerOpsConfig.salary;

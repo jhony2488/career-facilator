@@ -321,6 +321,9 @@ export async function runApplicationPipeline(
           // Sem arquivo materializado não há anexo possível — escala.
           stages.push('NEEDS_HUMAN_INPUT');
           Object.assign(app, { status: 'NEEDS_HUMAN_INPUT', reason: 'RESUME_PDF_FAILED' });
+          await deps.repo
+            .updateStatus(raw.url, 'NEEDS_HUMAN_INPUT', undefined, { reason: 'RESUME_PDF_FAILED' })
+            .catch(() => {});
           applications.push(app);
           continue;
         }
@@ -370,12 +373,16 @@ export async function runApplicationPipeline(
 
       if (route === 'DEFER') {
         stages.push('DEFERRED');
+        await deps.repo.updateStatus(raw.url, 'DEFERRED');
         Object.assign(app, { status: 'DEFERRED' });
         applications.push(app);
         continue;
       }
       if (route === 'ESCALATE') {
         stages.push('NEEDS_HUMAN_INPUT');
+        await deps.repo
+          .updateStatus(raw.url, 'NEEDS_HUMAN_INPUT', undefined, { reason: 'ROUTE_ESCALATE' })
+          .catch(() => {});
         Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
         applications.push(app);
         continue;
@@ -406,7 +413,14 @@ export async function runApplicationPipeline(
             deps,
             dryRun,
           );
-          await deps.repo.updateStatus(raw.url, app.status);
+          await deps.repo.updateStatus(
+            raw.url,
+            app.status,
+            undefined,
+            app.status === 'NEEDS_HUMAN_INPUT'
+              ? { reason: app.reason ?? 'NO_CHANNEL', url: page.url }
+              : undefined,
+          );
           applications.push(app);
           if (app.status === 'APPLIED_VIA_EMAIL' || app.status === 'APPLIED_VIA_WHATSAPP') {
             dailySent++;
@@ -516,6 +530,17 @@ export async function runApplicationPipeline(
               })
               .catch(() => false);
           }
+          // Persiste status + contexto — antes só o ApplicationResult carregava
+          // o motivo e a vaga ficava DISCOVERED no banco, fora do review/retry.
+          await deps.repo
+            .updateStatus(raw.url, 'NEEDS_HUMAN_INPUT', undefined, {
+              reason: effSignal.kind,
+              url: page.url,
+              detail: fill.unansweredRequired?.length
+                ? `Perguntas sem resposta: ${fill.unansweredRequired.join(' | ')}`
+                : effSignal.detail,
+            })
+            .catch(() => {});
           stages.push('NEEDS_HUMAN_INPUT');
           Object.assign(app, { status: 'NEEDS_HUMAN_INPUT' });
           applications.push(app);
@@ -524,6 +549,7 @@ export async function runApplicationPipeline(
 
         if (fill.status === 'READY_TO_REVIEW') {
           stages.push('READY_TO_REVIEW');
+          await deps.repo.updateStatus(raw.url, 'READY_TO_REVIEW');
           const approved = deps.humanApproval?.({ job: raw, fitScore: triage.fitScore }) ?? false;
           if (!approved) {
             Object.assign(app, { status: 'READY_TO_REVIEW' });
@@ -551,7 +577,11 @@ export async function runApplicationPipeline(
     } catch (e) {
       // Ctrl+C propaga como AbortError — cancela o run, não marca FAILED.
       if (e instanceof Error && e.name === 'AbortError') throw e;
-      await deps.repo.updateStatus(raw.url, 'FAILED').catch(() => {});
+      await deps.repo
+        .updateStatus(raw.url, 'FAILED', undefined, {
+          reason: e instanceof Error ? e.message.slice(0, 200) : String(e),
+        })
+        .catch(() => {});
       stages.push('FAILED');
       Object.assign(app, {
         status: 'FAILED',

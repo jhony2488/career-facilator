@@ -41,6 +41,19 @@ export interface JobRecord {
   appliedAt?: string | null;
   resumePath?: string | null;
   appliedSkills?: string | null;
+  /** Por que a vaga está pendente (NO_CHANNEL, CAPTCHA, UNKNOWN_REQUIRED_FIELD…). */
+  pendingReason?: string | null;
+  /** URL final onde o fluxo parou — form do ATS, muro de login, post etc. */
+  pendingUrl?: string | null;
+  /** Detalhe acionável: perguntas sem resposta, e-mail de contato etc. */
+  pendingDetail?: string | null;
+}
+
+/** Contexto de pendência gravado junto ao status — limpo quando ausente. */
+export interface PendingInfo {
+  reason?: string;
+  url?: string;
+  detail?: string;
 }
 
 export interface DedupInput {
@@ -86,6 +99,13 @@ export class JobRepository {
   constructor(dbPath: string = ':memory:') {
     this.db = new DatabaseSync(dbPath);
     this.db.exec(SCHEMA_SQL);
+    // Migração aditiva: CREATE IF NOT EXISTS não altera DBs existentes —
+    // acrescenta as colunas de contexto de pendência quando ausentes.
+    const cols = this.db.prepare('PRAGMA table_info(jobs)').all() as { name: string }[];
+    const have = new Set(cols.map((c) => c.name));
+    for (const col of ['pending_reason', 'pending_url', 'pending_detail']) {
+      if (!have.has(col)) this.db.exec(`ALTER TABLE jobs ADD COLUMN ${col} TEXT`);
+    }
   }
 
   close(): void {
@@ -162,13 +182,35 @@ export class JobRepository {
       );
   }
 
-  async updateStatus(url: string, status: JobStatus, resumePath?: string | null): Promise<void> {
+  /**
+   * Atualiza o status. `pending` grava o contexto da pendência (motivo, URL
+   * final, detalhe) — ausente, os campos são limpos (status novo = contexto
+   * novo; o review não mostra resíduo de pendência anterior).
+   */
+  async updateStatus(
+    url: string,
+    status: JobStatus,
+    resumePath?: string | null,
+    pending?: PendingInfo | null,
+  ): Promise<void> {
     const appliedAt = APPLIED_STATUSES.includes(status) ? new Date().toISOString() : null;
     this.db
       .prepare(
-        'UPDATE jobs SET status = ?, applied_at = COALESCE(?, applied_at), resume_path = COALESCE(?, resume_path) WHERE url = ? OR canonical_url = ?',
+        `UPDATE jobs SET status = ?, applied_at = COALESCE(?, applied_at),
+         resume_path = COALESCE(?, resume_path),
+         pending_reason = ?, pending_url = ?, pending_detail = ?
+         WHERE url = ? OR canonical_url = ?`,
       )
-      .run(status, appliedAt, resumePath ?? null, url, canonicalizeUrl(url));
+      .run(
+        status,
+        appliedAt,
+        resumePath ?? null,
+        pending?.reason ?? null,
+        pending?.url ?? null,
+        pending?.detail ?? null,
+        url,
+        canonicalizeUrl(url),
+      );
   }
 
   async getByUrl(canonicalUrl: string): Promise<JobRecord | undefined> {
@@ -377,6 +419,9 @@ export class JobRepository {
       appliedAt: (row.applied_at as string | null) ?? null,
       resumePath: (row.resume_path as string | null) ?? null,
       appliedSkills: (row.applied_skills as string | null) ?? null,
+      pendingReason: (row.pending_reason as string | null) ?? null,
+      pendingUrl: (row.pending_url as string | null) ?? null,
+      pendingDetail: (row.pending_detail as string | null) ?? null,
     };
   }
 }

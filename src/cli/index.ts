@@ -91,6 +91,7 @@ import type { MasterProfileLike } from '../core/types';
 import type { PageStateLike } from '../autofill/formExecutor';
 import type { PipelineDeps } from '../core/pipeline';
 import { reapplyStoredJob } from '../core/retryRunner';
+import { extractContacts } from '../discovery/postContacts';
 
 // No exe (SEA) suprime warnings experimentais do Node (ex: node:sqlite) —
 // stderr limpo p/ usuário do binário. Em dev (tsx) os warnings continuam.
@@ -1898,6 +1899,24 @@ async function cmdInspect(args: string[], _ctx: CmdCtx = {}): Promise<void> {
 }
 
 /**
+ * Contexto persistido da pendência (decisão #42): motivo + detalhe + URL
+ * final onde o fluxo parou — e, em posts/listagens, os contatos extraídos da
+ * descrição salva para o usuário se candidatar na mão direto do review.
+ */
+function printPendingContext(j: JobRecord): void {
+  const bits = [j.pendingReason, j.pendingDetail].filter(Boolean).join(' — ');
+  if (bits) console.log(`    ↳ ${bits}`);
+  if (j.pendingUrl && j.pendingUrl !== j.url) console.log(`    ↳ em: ${j.pendingUrl}`);
+  const contacts = extractContacts(j.descriptionMarkdown ?? '');
+  const lines = [
+    ...contacts.emails.map((e) => `e-mail: ${e}`),
+    ...contacts.phones.slice(0, 2).map((p) => `tel: ${p}`),
+    ...contacts.links.filter((l) => l !== j.url && l !== j.pendingUrl).slice(0, 3),
+  ];
+  for (const l of lines) console.log(`    contato: ${l}`);
+}
+
+/**
  * Fila de ação humana. No shell interativo pergunta o desfecho de cada item —
  * fora dele (comando direto) só lista e aponta mark/remove.
  */
@@ -1922,6 +1941,7 @@ async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
       console.log(`${pending.length} candidatura(s) aguardando você:`);
       for (const j of pending) {
         console.log(`  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+        printPendingContext(j);
       }
     }
     if (whatsappQueue.length) {
@@ -1944,6 +1964,7 @@ async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
     for (const j of pending) {
       if (ctx.signal?.aborted) break;
       console.log(`\n  [${j.status}] ${j.title} — ${j.company}\n    ${j.url}`);
+      printPendingContext(j);
       const q = queueByJob.get(j.id);
       if (q) {
         console.log(`    WhatsApp: wa.me/${q.recipient}`);

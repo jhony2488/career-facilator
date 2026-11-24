@@ -17,6 +17,10 @@ import { ocrImageUrl, disposeOcrWorker } from '../imageOcr';
  * título-alvo via `renderText` no browser persistente — a sessão do
  * `career login linkedin` é reaproveitada.
  *
+ * A busca pagina via `start=` (25/página, teto `listingMaxPages`) e
+ * `linkedinEasyApplyOnly` restringe a Candidatura simplificada (`f_AL=true`,
+ * passada de posts pulada — posts nunca têm Easy Apply).
+ *
  * Posts: e-mail/link/WhatsApp saem do texto; sem contato no texto, OCR
  * (tesseract.js) lê as imagens do post. Post sem canal nenhum ainda vira
  * DiscoveryJob → cai `NEEDS_HUMAN_INPUT` na fila de revisão.
@@ -265,51 +269,67 @@ export const linkedinAdapter: SourceAdapter = {
       .map((w) => WORK_TYPE_IDS[w])
       .filter(Boolean) as string[];
     if (workTypes.length) params.set('f_WT', [...new Set(workTypes)].join(','));
+    // f_AL=true → filtro "Candidatura simplificada" (Easy Apply) server-side.
+    if (config.discovery.linkedinEasyApplyOnly) params.set('f_AL', 'true');
 
-    // Passada 1 — busca de jobs /jobs/search por título-alvo.
+    // Passada 1 — busca de jobs /jobs/search por título-alvo. Paginação real:
+    // `start=` (25 cards/página) até a página vir sem cards novos, o teto de
+    // páginas ou maxJobs — só então passa ao próximo título.
+    const maxPages = Math.max(1, config.discovery.listingMaxPages ?? 4);
     for (const title of titles) {
       if (jobs.length >= maxJobs || ctx.signal?.aborted) break;
-      const searchUrl =
+      const baseUrl =
         `https://www.linkedin.com/jobs/search?${params.toString()}` +
         (title ? `&keywords=${encodeURIComponent(title)}` : '');
-      let page: Awaited<ReturnType<RenderFn>>;
-      try {
-        page = await render(searchUrl);
-      } catch (e) {
-        errors.push(buildError(source.id, `busca "${title}": ${String(e).slice(0, 120)}`));
-        continue;
-      }
-      if (isAuthwall(page.url, page.text)) return authwallResult();
-      searchesOk++;
-      for (const card of parseLinkedInSearchHtml(page.text)) {
+      for (let pageIdx = 0; pageIdx < maxPages; pageIdx++) {
         if (jobs.length >= maxJobs || ctx.signal?.aborted) break;
-        if (seen.has(card.id)) continue;
-        seen.add(card.id);
-        if (title && !matchesTargetTitles(card.title, config.discovery.targetTitles)) continue;
+        const searchUrl = pageIdx === 0 ? baseUrl : `${baseUrl}&start=${pageIdx * 25}`;
+        let page: Awaited<ReturnType<RenderFn>>;
         try {
-          // "ver mais" na descrição truncada — expande antes de capturar.
-          const detail = await render(card.url, { interact: expandSeeMore });
-          jobs.push(
-            rawJobFromNormalized(
-              {
-                url: card.url,
-                title: card.title,
-                company: card.company,
-                location: card.location,
-                descriptionHtml: detail.text.slice(0, 80_000),
-              },
-              source.name,
-              source.id,
-            ),
+          page = await render(searchUrl);
+        } catch (e) {
+          errors.push(
+            buildError(source.id, `busca "${title}" p${pageIdx + 1}: ${String(e).slice(0, 120)}`),
           );
-        } catch {
-          // sem a página de detalhe a vaga não alimenta a triagem — descarta
+          break;
+        }
+        if (isAuthwall(page.url, page.text)) return authwallResult();
+        searchesOk++;
+        const cards = parseLinkedInSearchHtml(page.text);
+        const hasNew = cards.some((c) => !seen.has(c.id));
+        if (!hasNew) break; // página sem cards novos — fim da listagem
+        for (const card of cards) {
+          if (jobs.length >= maxJobs || ctx.signal?.aborted) break;
+          if (seen.has(card.id)) continue;
+          seen.add(card.id);
+          if (title && !matchesTargetTitles(card.title, config.discovery.targetTitles)) continue;
+          try {
+            // "ver mais" na descrição truncada — expande antes de capturar.
+            const detail = await render(card.url, { interact: expandSeeMore });
+            jobs.push(
+              rawJobFromNormalized(
+                {
+                  url: card.url,
+                  title: card.title,
+                  company: card.company,
+                  location: card.location,
+                  descriptionHtml: detail.text.slice(0, 80_000),
+                },
+                source.name,
+                source.id,
+              ),
+            );
+          } catch {
+            // sem a página de detalhe a vaga não alimenta a triagem — descarta
+          }
         }
       }
     }
 
-    // Passada 2 — busca de posts que divulgam vagas por título-alvo.
+    // Passada 2 — busca de posts que divulgam vagas por título-alvo. Pulada no
+    // modo só-Easy Apply: posts nunca têm candidatura simplificada.
     for (const title of titles) {
+      if (config.discovery.linkedinEasyApplyOnly) break;
       if (jobs.length >= maxJobs || ctx.signal?.aborted) break;
       const query = title
         ? `${title} (vaga OR vagas OR contratando OR hiring)`
