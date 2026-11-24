@@ -130,8 +130,18 @@ jobs:
         shell: bash
         run: |
           mkdir staged
-          tar -xf dl/career-*.zip -C staged 2>/dev/null || unzip -q dl/career-*.zip -d staged
+          # bsdtar (Windows) extrai zips com data-descriptors só parcialmente —
+          # Windows vai de Expand-Archive; unix prefere unzip com tar de fallback.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command 'Get-ChildItem dl/career-*.zip | ForEach-Object { Expand-Archive -LiteralPath $_.FullName -DestinationPath staged -Force }'
+          elif command -v unzip >/dev/null 2>&1; then
+            unzip -q dl/career-*.zip -d staged
+          else
+            tar -xf dl/career-*.zip -C staged
+          fi
           PKGDIR=$(find staged -mindepth 1 -maxdepth 1 -type d | head -1)
+          echo "PKGDIR=$PKGDIR"
+          find "$PKGDIR" -maxdepth 1
           node scripts/build-desktop.mjs --from "$PKGDIR"
 
       - uses: actions/upload-artifact@v4

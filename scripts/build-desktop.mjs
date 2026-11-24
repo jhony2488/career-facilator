@@ -50,6 +50,17 @@ for (const [src, dest] of [
 }
 console.log(`binaries staged: career-${triple}${ext} + career-runtime/ + skills/`);
 
+// career-runtime é obrigatório e pesado — pasta vazia/ausente aqui significa
+// extração falha do pacote (ex.: extrator que pula entradas do zip). Falhar
+// cedo e claro em vez do erro obscuro de glob do bundler.
+if (!existsSync(join(BIN, 'career-runtime')) || walkAll(join(BIN, 'career-runtime')).length === 0) {
+  console.error(`career-runtime vazio/ausente em ${SRC_RT} — extração do pacote falhou.`);
+  try {
+    for (const e of readdirSync(FROM ?? 'dist')) console.error(`  pacote: ${e}`);
+  } catch {}
+  process.exit(1);
+}
+
 // O resource glob `binaries/skills/**` do bundler falha duro quando a pasta sobe
 // vazia/ausente (ex.: zip do CI sem skills). Garante ≥1 arquivo e avisa —
 // o app empacota sem skills (degrada p/ nenhuma skill ativa) em vez de quebrar.
