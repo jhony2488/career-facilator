@@ -138,6 +138,9 @@ const HELP = [
   '    mark <url|id> <status>                  applied|email|whatsapp|skipped|failed|',
   '                                            rejected|interview|assessment',
   '    remove <url|id>                         Remove a vaga do histórico (reprocessável no run)',
+  '    remove --status <S[,S]>                 Idem em lote por status (ex: FAILED,DISCOVERED)',
+  '    jobs [STATUS[,STATUS]] [--limit N] [--export <json>]',
+  '                                            Lista vagas do banco por status; --export gera jobs-file',
   '    status                                  Contagens por status no jobs.sqlite',
   '    applied [--limit N]                     Candidaturas enviadas (total por canal, hoje, recentes)',
   '',
@@ -1677,11 +1680,29 @@ async function cmdMark(args: string[]): Promise<void> {
 
 /** Remove a vaga do histórico — a URL volta a ser elegível no próximo run. */
 async function cmdRemove(args: string[]): Promise<void> {
-  const [ref] = args;
-  if (!ref) throw new CliError('Uso: remove <url|id>');
-
+  const statusIdx = args.indexOf('--status');
   const repo = openRepo();
   try {
+    if (statusIdx !== -1) {
+      // remove --status FAILED,DISCOVERED — lote p/ reprocessar run abortado.
+      const statuses = parseStatusList(args[statusIdx + 1]);
+      if (!statuses.length) throw new CliError(REMOVE_USAGE);
+      let removed = 0;
+      for (const status of statuses) {
+        for (const j of await repo.listByStatus(status)) {
+          removeAnswers(j.resumePath);
+          await repo.deleteJob(j.id);
+          removed += 1;
+        }
+      }
+      console.log(
+        `${removed} vaga(s) removida(s) (${statuses.join(', ')}) — reprocessáveis no próximo run`,
+      );
+      return;
+    }
+
+    const [ref] = args;
+    if (!ref) throw new CliError(REMOVE_USAGE);
     const job = await repo.findJob(ref);
     if (!job) throw new CliError(`Vaga não encontrada: ${ref}`);
     removeAnswers(job.resumePath); // sidecar do tailor — some junto
@@ -1691,6 +1712,8 @@ async function cmdRemove(args: string[]): Promise<void> {
     repo.close();
   }
 }
+
+const REMOVE_USAGE = 'Uso: remove <url|id> ou remove --status <STATUS[,STATUS]>';
 
 /** Ações de uma tecla no review interativo — desfechos ficam no `mark` p/ manter o prompt curto. */
 const REVIEW_ACTIONS: Record<string, JobStatus | 'DELETE'> = {
@@ -2010,6 +2033,74 @@ async function cmdReview(ctx: CmdCtx = {}): Promise<void> {
     }
   } finally {
     repo.close();
+  }
+}
+
+const ALL_JOB_STATUSES: JobStatus[] = [
+  'DISCOVERED', 'TRIAGED', 'SKIPPED', 'TAILORED', 'READY_TO_REVIEW', 'APPLIED',
+  'APPLIED_VIA_EMAIL', 'APPLIED_VIA_WHATSAPP', 'NEEDS_HUMAN_INPUT', 'REJECTED',
+  'ASSESSMENT_INVITED', 'INTERVIEW', 'DEFERRED', 'DRY_RUN', 'FAILED',
+];
+
+/** "failed,discovered" → ['FAILED','DISCOVERED'] — desconhecido é ignorado. */
+function parseStatusList(raw: string | undefined): JobStatus[] {
+  return (raw ?? '')
+    .split(/[,;]/)
+    .map((s) => s.trim().toUpperCase())
+    .filter((s): s is JobStatus => (ALL_JOB_STATUSES as string[]).includes(s));
+}
+
+/**
+ * `jobs [STATUS[,STATUS]] [--limit N] [--export <json>]` — vagas gravadas no
+ * banco filtradas por status; --export gera o formato do `run --jobs-file`.
+ */
+async function cmdJobs(args: string[]): Promise<void> {
+  const exportIdx = args.indexOf('--export');
+  const limitIdx = args.indexOf('--limit');
+  const limit = limitIdx === -1 ? 30 : Number(args[limitIdx + 1]) || 30;
+  const statusArg = args.find(
+    (a, i) =>
+      !a.startsWith('--') && args[i - 1] !== '--export' && args[i - 1] !== '--limit',
+  );
+  const statuses = parseStatusList(statusArg);
+  if (statusArg && !statuses.length) {
+    throw new CliError(`Status desconhecido: ${statusArg} — válidos: ${ALL_JOB_STATUSES.join(', ')}`);
+  }
+
+  const repo = openRepo();
+  let list: JobRecord[];
+  try {
+    list = statuses.length
+      ? (await Promise.all(statuses.map((s) => repo.listByStatus(s)))).flat()
+      : await repo.listAll(limit);
+  } finally {
+    repo.close();
+  }
+  list.sort((a, b) => (b.discoveredAt ?? '').localeCompare(a.discoveredAt ?? ''));
+
+  if (!list.length) {
+    console.log(`Nenhuma vaga${statuses.length ? ` em ${statuses.join(', ')}` : ' no banco'}.`);
+    return;
+  }
+  for (const j of list.slice(0, limit)) {
+    console.log(`  [${j.status.padEnd(19)}] ${j.title} — ${j.company}`);
+    console.log(`      ${j.url}`);
+    printPendingContext(j);
+  }
+  if (list.length > limit) console.log(`  …+${list.length - limit} (--limit ${list.length} para ver)`);
+
+  if (exportIdx !== -1 && args[exportIdx + 1]) {
+    const out = resolve(args[exportIdx + 1]);
+    writeFileSync(
+      out,
+      JSON.stringify(
+        list.map((j) => ({ url: j.url, html: j.descriptionMarkdown })),
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    console.log(`${list.length} vaga(s) exportada(s) p/ ${out} — 'run ${out}' reprocessa.`);
   }
 }
 
@@ -2450,6 +2541,9 @@ async function dispatch(command: string, args: string[], ctx: CmdCtx = {}): Prom
       return true;
     case 'approve':
       await cmdApprove();
+      return true;
+    case 'jobs':
+      await cmdJobs(args);
       return true;
     case 'status':
       await cmdStatus();

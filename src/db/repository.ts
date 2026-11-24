@@ -273,6 +273,14 @@ export class JobRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
+  /** Todas as vagas gravadas, mais recentes primeiro — `jobs` sem filtro. */
+  async listAll(limit = 50): Promise<JobRecord[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM jobs ORDER BY discovered_at DESC LIMIT ?')
+      .all(limit) as Record<string, unknown>[];
+    return rows.map((r) => this.mapRow(r));
+  }
+
   /** Candidaturas efetivamente enviadas (APPLIED*), mais recentes primeiro. */
   async listApplied(limit = 50): Promise<JobRecord[]> {
     const rows = this.db
