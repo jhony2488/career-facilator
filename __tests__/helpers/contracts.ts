@@ -415,8 +415,11 @@ export interface CareerOpsConfig {
 //
 // src/autofill/deterministicMatcher.ts
 //   InspectedField.kind: 'input'|'select'|'textarea'|'file'|'choice' (+ options?)
-//   matchFields(fields: InspectedField[], profile): {matched: FieldMatch[]; unmatched: InspectedField[]}
+//   matchFields(fields: InspectedField[], profile, fieldDefaults?): {matched: FieldMatch[]; unmatched: InspectedField[]}
 //   — 'choice' casa pela label da PERGUNTA; value retornado = resposta pretendida em texto
+//   — city/state/country/location derivam de profile.location ("Cidade, UF[, País]");
+//     address/postalCode/addressLine2 respondem via chaves de standardAnswers;
+//     "Address Line 2"/complemento nunca herda a rua por substring
 // src/autofill/questionAnswerer.ts
 //   UnresolvedQuestion {label; kind; options?; required}
 //   buildAnswersPrompt({jobTitle, company, jobExcerpt, profileContext, questions}): string

@@ -70,6 +70,13 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
     Então a resposta em cache é utilizada
     E nenhuma nova geração é acionada para aquela pergunta
 
+  Cenário: Campos de endereço usam o que existe no perfil e escalam o restante
+    Dado que o formulário contém campos de endereço do candidato
+    Quando o preenchimento é executado
+    Então cidade, estado e país são derivados da localização do perfil
+    E rua e código postal usam resposta padrão registrada pelo usuário
+    E campos sem dado em nenhuma fonte seguem para o usuário preencher com aviso
+
   Cenário: Seguir o link de candidatura quando a página da vaga não expõe formulário
     Dado que a página da vaga não contém campos de formulário
     E que existe um link ou botão de candidatura apontando para o formulário real
@@ -125,3 +132,7 @@ Funcionalidade: Preenchimento automático de formulários de candidatura
 # Decisão (#39): perguntas sem resposta por nenhuma fonte vão à IA uma vez por
 # etapa — só o que o perfil sustenta é respondido; pergunta obrigatória
 # respondida só por ela pausa antes do envio; sem resposta, escala.
+# Decisão (#44): campos de endereço — cidade/estado/país derivam de `location`
+# ("Cidade, UF[, País]"); rua/CEP/complemento vêm das chaves
+# address/postalCode/addressLine2 das Respostas Padrão (ou AUTOFILL_DEFAULTS);
+# "Address Line 2"/complemento nunca herda o logradouro; sem dado, escala.

@@ -108,4 +108,56 @@ describe('matchFields — deterministic filling', () => {
     expect(unmatched).toEqual([]);
     expect(matched[0]?.source).toBe('STANDARD_ANSWER');
   });
+
+  it('derives city/state/country from profile.location ("Recife, PE")', () => {
+    // address fields answer from profile data when present
+    const fields = [makeField({ label: 'City' }), makeField({ label: 'State' })];
+
+    const { matched, unmatched } = matchFields(fields, profile);
+
+    const byLabel = new Map(matched.map((m) => [m.field.label, m.value]));
+    expect(byLabel.get('City')).toBe('Recife');
+    expect(byLabel.get('State')).toBe('PE');
+    expect(matched.every((m) => m.source === 'PROFILE')).toBe(true);
+    // country — location has no third part → stays for the human
+    const { unmatched: rest } = matchFields([makeField({ label: 'Country' })], profile);
+    expect(rest).toHaveLength(1);
+    expect(unmatched).toEqual([]);
+  });
+
+  it('answers street/postal code only from user-provided answers — never invented', () => {
+    // sem a info no perfil → campo segue p/ o usuário (escalonamento avisa)
+    const withAddress = makeMasterProfile({
+      standardAnswers: {
+        address: 'Rua das Flores, 123',
+        postalCode: '50000-000',
+      },
+    });
+    const fields = [
+      makeField({ label: 'Address Line 1' }),
+      makeField({ label: 'Postal Code' }),
+      makeField({ label: 'Address Line 2' }),
+    ];
+
+    const { matched, unmatched } = matchFields(fields, withAddress);
+
+    const byLabel = new Map(matched.map((m) => [m.field.label, m.value]));
+    expect(byLabel.get('Address Line 1')).toBe('Rua das Flores, 123');
+    expect(byLabel.get('Postal Code')).toBe('50000-000');
+    expect(matched.every((m) => m.source === 'STANDARD_ANSWER')).toBe(true);
+    // line 2 nunca herda a rua por substring de "address"
+    expect(unmatched.map((f) => f.label)).toEqual(['Address Line 2']);
+  });
+
+  it('leaves address fields unmatched when the profile has no such info', () => {
+    const fields = [
+      makeField({ label: 'Address Line 1' }),
+      makeField({ label: 'Postal Code' }),
+    ];
+
+    const { matched, unmatched } = matchFields(fields, profile);
+
+    expect(matched).toEqual([]);
+    expect(unmatched).toHaveLength(2);
+  });
 });
