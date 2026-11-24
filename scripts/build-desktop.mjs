@@ -62,7 +62,7 @@ if (!existsSync(join(BIN, 'career-runtime')) || walkAll(join(BIN, 'career-runtim
 }
 
 // O resource glob `binaries/skills/**` do bundler falha duro quando a pasta sobe
-// vazia/ausente (ex.: zip do CI sem skills). Garante ≥1 arquivo e avisa —
+// vazia/ausente (ex.: pacote sem skills). Garante ≥1 arquivo e avisa —
 // o app empacota sem skills (degrada p/ nenhuma skill ativa) em vez de quebrar.
 let skillsHasFiles = false;
 try {
@@ -79,6 +79,19 @@ if (!skillsHasFiles) {
 for (const name of ['career-runtime', 'skills']) {
   const files = walkAll(join(BIN, name)).length;
   console.log(`binaries/${name}: ${files} arquivo(s)`);
+}
+
+// Garantia final contra o erro obscuro de glob do bundler: os dois dirs de
+// resource precisam ter ≥1 arquivo, senão despeja o estado de binaries/ e morre.
+for (const name of ['career-runtime', 'skills']) {
+  const dir = join(BIN, name);
+  if (!existsSync(dir) || walkAll(dir).length === 0) {
+    console.error(`staging incompleto: binaries/${name} vazio ou ausente. Conteúdo de ${BIN}:`);
+    try {
+      for (const e of readdirSync(BIN)) console.error(`  ${e}`);
+    } catch {}
+    process.exit(1);
+  }
 }
 
 // ── Ícone placeholder (PNG 512px flat #3ea6ff + "C") — troque por arte real. ──
