@@ -74,7 +74,7 @@ Node.js v22+ / TypeScript strict · Playwright + stealth · Vercel AI SDK + Zod 
 
 ## Verificação
 
-Builds: `npm run build:exe` gera o executável SEA completo (`esbuild` → `dist/bundle/` → blob → postject em `dist/career-<os>-<arch>`); `npm run build:runtime` monta `dist/career-runtime/` (node_modules sidecar + browsers + tessdata) e `skills/`; `npm run package:dist`/`dist` empacota `career-<os>.zip` + `career-runtime-*.tar.gz`. Releases: tag `v*` publica só os instaladores desktop `career-ui-*` (NSIS exe / dmg / AppImage) — o pacote CLI é artefato intermediário que vira sidecar do Tauri, não é mais publicado. Para alterações em docs/specs/testes:
+Builds: `npm run build:exe` gera o executável SEA completo (`esbuild` → `dist/bundle/` → blob → postject em `dist/career-<os>-<arch>`); `npm run build:runtime` monta `dist/career-runtime/` (node_modules sidecar + browsers + tessdata) e `skills/`; `npm run package:dist`/`dist` empacota `career-<os>.zip` + `career-runtime-*.tar.gz`. Releases: tag `v*` publica só os instaladores desktop `career-ui-*` (NSIS exe / dmg / AppImage) — um único job `build` por OS gera o CLI SEA + runtime e já faz stage como sidecar do Tauri (sem artefato CLI intermediário). Para alterações em docs/specs/testes:
 
 ```powershell
 # Resíduos proibidos (deve retornar 0 fora de identificadores de código)

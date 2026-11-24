@@ -63,7 +63,7 @@ npm run build:desktop        # stage + tauri build (exige Rust toolchain)
 npm run build:desktop:prep   # só staging dos binaries — sem cargo
 ```
 
-Requisitos locais: Rust (`rustup`), WebView2 (Windows), `libwebkit2gtk-4.1-dev` (Linux), Xcode CLT (macOS). Sem Rust local, o build roda no CI (`release.yml`, job `desktop`).
+Requisitos locais: Rust (`rustup`), WebView2 (Windows), `libwebkit2gtk-4.1-dev` (Linux), Xcode CLT (macOS). Sem Rust local, o build roda no CI (`release.yml`, job `build`).
 
 ---
 
