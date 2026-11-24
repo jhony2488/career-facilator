@@ -78,13 +78,12 @@ jobs:
             exit 1
           }
 
+      # Artefato intermediário — o job desktop baixa só o zip (sidecar do Tauri);
+      # binários CLI soltos não são mais publicados no release.
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: |
-            dist/*.zip
-            dist/*.tar.gz
-            dist/${{ matrix.asset }}
+          path: dist/*.zip
 
   desktop:
     name: Desktop ${{ matrix.asset }}
@@ -156,26 +155,23 @@ jobs:
       - name: Checksums
         run: |
           cd dist-release
-          sha256sum career-* career-ui-* > checksums.txt
+          sha256sum career-ui-* > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist-release/*
+          files: |
+            dist-release/career-ui-*
+            dist-release/checksums.txt
           generate_release_notes: true
           body: |
-            ExecutÃ¡veis single-file do CareerFacilator AI â€” sem Node.js necessÃ¡rio.
+            App desktop do CareerFacilator AI — instalador nativo que já traz a CLI embutida + `career-runtime/` (Playwright + Chromium + pdf-parse + tesseract) + `skills/`. Nenhum pré-requisito externo.
 
-            **InstalaÃ§Ã£o (recomendado â€” pacote completo)**
-            Baixe o `career-<os>-<arch>.zip` do seu sistema e descompacte: ele traz o executÃ¡vel + `career-runtime/` (Playwright + Chromium + pdf-parse + tesseract) + `skills/` + `.env.example`. Todos os recursos funcionam igual Ã  instalaÃ§Ã£o por cÃ³digo â€” autofill de formulÃ¡rios, fontes autenticadas (LinkedIn/Gupy), OCR de posts, leitura de PDF com camada de texto.
+            **Instalação** — baixe o instalador do seu sistema:
 
-            - Windows: `career-windows-x64.zip` â€” o SmartScreen pode avisar (binÃ¡rio sem assinatura): "Mais informaÃ§Ãµes â†’ Executar mesmo assim"
-            - macOS: `career-macos-arm64.zip` (Apple Silicon) ou `career-macos-x64.zip` (Intel) â€” `xattr -dr com.apple.quarantine <pasta>` p/ liberar exe + Chromium (Gatekeeper)
-            - Linux: `career-linux-x64.zip` â€” `chmod +x`; o Chromium pode pedir libs de sistema (`npx playwright install-deps chromium` ou equivalente)
+            - Windows: `career-ui-windows-x64.exe` (NSIS per-user) — o SmartScreen pode avisar (binário sem assinatura): "Mais informações → Executar mesmo assim"
+            - macOS: `career-ui-macos-arm64.dmg` (Apple Silicon) ou `career-ui-macos-x64.dmg` (Intel) — `xattr -dr com.apple.quarantine <app>` p/ liberar (Gatekeeper)
+            - Linux: `career-ui-linux-x64.AppImage` — `chmod +x`; o Chromium embutido pode pedir libs de sistema (`npx playwright install-deps chromium` ou equivalente)
 
-            **SÃ³ o binÃ¡rio** (`career-<os>-<arch>[.exe]` sozinho): roda discovery por APIs/RSS, triagem, e-mail, WhatsApp e fila de revisÃ£o; depois `career runtime setup` baixa `career-runtime-<os>-<arch>.tar.gz` e completa os recursos de browser/PDF/OCR ao lado do exe. Sem o runtime, formulÃ¡rios web degradam p/ e-mail, WhatsApp ou `NEEDS_HUMAN_INPUT`.
-
-            **Interface grÃ¡fica** (`career-ui-<os>-<arch>.<ext>`): app desktop nativo (Tauri) com o mesmo dashboard local â€” `career ui` no binÃ¡rio CLI abre a mesma interface no navegador.
-
-            **ConfiguraÃ§Ã£o:** `career config init` cria `~/.careerfacilator/.env`; um `.env` com `CAREER_HOME=.` na pasta do exe mantÃ©m os dados portÃ¡teis ao lado dele (o `.env` da pasta do exe sobrepÃµe o do diretÃ³rio de trabalho). Biblioteca de skills: pasta `skills/` jÃ¡ inclusa no zip. Detalhes completos: `tutorials/pt-BR/08-executavel-release.md` / `tutorials/en/08-release-executable.md`.
+            O app sobe o mesmo dashboard local do `career ui` numa janela nativa — e na primeira abertura registra o comando `career` no PATH do seu usuário para uso direto no terminal. Detalhes: `tutorials/pt-BR/09-interface-grafica.md` / `tutorials/en/09-graphical-interface.md`.

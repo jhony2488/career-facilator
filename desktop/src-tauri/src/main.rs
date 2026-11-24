@@ -3,6 +3,12 @@
 // captura a URL+token do stdout e aponta a webview para o dashboard local.
 // O sidecar carrega `career-runtime/` (CAREER_RUNTIME aponta p/ o recurso
 // empacotado) e morre junto com a janela/app.
+//
+// O mesmo sidecar atende o terminal: no 1º launch o app grava o comando
+// `career` no PATH do usuário (cli_shim) e `--career-cli` executa o binário
+// em modo passthrough (usado pelo shim de Linux/AppImage).
+mod cli_shim;
+
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -11,6 +17,11 @@ use tauri_plugin_shell::ShellExt;
 struct Sidecar(Mutex<Option<CommandChild>>);
 
 fn main() {
+    let argv: Vec<String> = std::env::args().collect();
+    if let Some(pos) = argv.iter().position(|a| a == "--career-cli") {
+        std::process::exit(cli_shim::passthrough(&argv[pos + 1..]));
+    }
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
@@ -34,6 +45,9 @@ fn main() {
                 .spawn()
                 .map_err(|e| format!("falha ao iniciar sidecar 'career': {e}"))?;
             app.manage(Sidecar(Mutex::new(Some(child))));
+
+            // `career` no terminal do usuário — idempotente, em background.
+            cli_shim::install();
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
